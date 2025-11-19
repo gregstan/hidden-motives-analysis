@@ -1,0 +1,2886 @@
+[
+    {
+        "idnum": 0,
+        "parent": -1,
+        "label": "",
+        "payoffs": [
+            0
+        ],
+        "chooser": [
+            true
+        ],
+        "choice": [
+            {
+                "option": "B",
+                "keypress": "a",
+                "rtimedn": 7.097,
+                "rtimeup": 7.532,
+                "timestamp": 1712857351.3231492
+            }
+        ],
+        "predictor": [
+            false
+        ],
+        "prediction": [
+            null
+        ],
+        "probability": [
+            1,
+            0
+        ],
+        "positionxy": [
+            0.5,
+            1.0
+        ],
+        "time": [
+            0,
+            806
+        ],
+        "info_set": [
+            [
+                0
+            ]
+        ],
+        "beliefs": {},
+        "options": [
+            {
+                "idnum": 1,
+                "parent": 0,
+                "label": "A",
+                "payoffs": [
+                    2
+                ],
+                "chooser": [
+                    false
+                ],
+                "choice": [
+                    null
+                ],
+                "predictor": [
+                    false
+                ],
+                "prediction": [
+                    null
+                ],
+                "probability": [
+                    0.5,
+                    1.0
+                ],
+                "positionxy": [
+                    0.375,
+                    0.5
+                ],
+                "time": [
+                    8,
+                    808
+                ],
+                "info_set": [
+                    [
+                        1
+                    ]
+                ],
+                "beliefs": {},
+                "options": []
+            },
+            {
+                "idnum": 2,
+                "parent": 0,
+                "label": "B",
+                "payoffs": [
+                    0
+                ],
+                "chooser": [
+                    false
+                ],
+                "choice": [
+                    {
+                        "option": "BB",
+                        "keypress": null,
+                        "rtimedn": 2.0,
+                        "rtimeup": 2.1,
+                        "timestamp": 1712857351.3261719
+                    }
+                ],
+                "predictor": [
+                    false
+                ],
+                "prediction": [
+                    null
+                ],
+                "probability": [
+                    0.5,
+                    1.0
+                ],
+                "positionxy": [
+                    0.625,
+                    0.5
+                ],
+                "time": [
+                    8,
+                    810
+                ],
+                "info_set": [
+                    [
+                        2
+                    ]
+                ],
+                "beliefs": {},
+                "options": [
+                    {
+                        "idnum": 3,
+                        "parent": 2,
+                        "label": "BA",
+                        "payoffs": [
+                            7
+                        ],
+                        "chooser": [
+                            false
+                        ],
+                        "choice": [
+                            null
+                        ],
+                        "predictor": [
+                            false
+                        ],
+                        "prediction": [
+                            null
+                        ],
+                        "probability": [
+                            0.5,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.5625,
+                            0.0
+                        ],
+                        "time": [
+                            810,
+                            1610
+                        ],
+                        "info_set": [
+                            [
+                                3
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    },
+                    {
+                        "idnum": 4,
+                        "parent": 2,
+                        "label": "BB",
+                        "payoffs": [
+                            1
+                        ],
+                        "chooser": [
+                            false
+                        ],
+                        "choice": [
+                            null
+                        ],
+                        "predictor": [
+                            false
+                        ],
+                        "prediction": [
+                            null
+                        ],
+                        "probability": [
+                            0.5,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.6875,
+                            0.0
+                        ],
+                        "time": [
+                            810,
+                            1610
+                        ],
+                        "info_set": [
+                            [
+                                4
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    }
+                ]
+            }
+        ],
+        "adjacency_matrix": [
+            [
+                1.0
+            ]
+        ],
+        "timestamps": {
+            "emit_tree_time": 1712857351.328199,
+            "update_node_time": 1712857353.4261718,
+            "abdicate_node_time": 1712858157.328199,
+            "round_deadline_time": 1712859762.31517,
+            "round_started_time": 1712857351.31517,
+            "round_ended_time": null
+        },
+        "players": [
+            {
+                "user_number": 3,
+                "uuid": "cb94fda8-5c91-4a4c-8bcf-10e22e8bd902",
+                "sid": "d70a855d-fceb-4d2b-aced-551344fa97d5",
+                "avatar": {
+                    "shape": "jagged-sun",
+                    "color": "hsla(109, 84%, 63%, 1.0)",
+                    "texture": "ink_bubbles.png"
+                },
+                "cumulative_payoffs": 231.4,
+                "player_type": "robot"
+            }
+        ],
+        "avatar_colors": [
+            [
+                109,
+                84,
+                63,
+                1.0
+            ],
+            [
+                289,
+                50,
+                50,
+                1.0
+            ]
+        ],
+        "round_room_batch": [
+            14,
+            0,
+            1712858151
+        ],
+        "title": "Gambling_Task_payoffs_win=7_lose=1_safe=2_p(win)=0.50",
+        "current_nodeid": 4,
+        "nplayers": 1
+    },
+    {
+        "idnum": 0,
+        "parent": -1,
+        "label": "",
+        "payoffs": [
+            0
+        ],
+        "chooser": [
+            true
+        ],
+        "choice": [
+            {
+                "option": "A",
+                "keypress": "d",
+                "rtimedn": 2.907,
+                "rtimeup": 4.842,
+                "timestamp": 1712857351.3311887
+            }
+        ],
+        "predictor": [
+            false
+        ],
+        "prediction": [
+            null
+        ],
+        "probability": [
+            1,
+            0
+        ],
+        "positionxy": [
+            0.5,
+            1.0
+        ],
+        "time": [
+            0,
+            806
+        ],
+        "info_set": [
+            [
+                0
+            ]
+        ],
+        "beliefs": {},
+        "options": [
+            {
+                "idnum": 1,
+                "parent": 0,
+                "label": "A",
+                "payoffs": [
+                    6
+                ],
+                "chooser": [
+                    false
+                ],
+                "choice": [
+                    null
+                ],
+                "predictor": [
+                    false
+                ],
+                "prediction": [
+                    null
+                ],
+                "probability": [
+                    0.5,
+                    1.0
+                ],
+                "positionxy": [
+                    0.375,
+                    0.5
+                ],
+                "time": [
+                    806,
+                    1606
+                ],
+                "info_set": [
+                    [
+                        1
+                    ]
+                ],
+                "beliefs": {},
+                "options": []
+            },
+            {
+                "idnum": 2,
+                "parent": 0,
+                "label": "B",
+                "payoffs": [
+                    0
+                ],
+                "chooser": [
+                    false
+                ],
+                "choice": [
+                    null
+                ],
+                "predictor": [
+                    false
+                ],
+                "prediction": [
+                    null
+                ],
+                "probability": [
+                    0.5,
+                    1.0
+                ],
+                "positionxy": [
+                    0.625,
+                    0.5
+                ],
+                "time": [
+                    806,
+                    1608
+                ],
+                "info_set": [
+                    [
+                        2
+                    ]
+                ],
+                "beliefs": {},
+                "options": [
+                    {
+                        "idnum": 3,
+                        "parent": 2,
+                        "label": "BA",
+                        "payoffs": [
+                            7
+                        ],
+                        "chooser": [
+                            false
+                        ],
+                        "choice": [
+                            null
+                        ],
+                        "predictor": [
+                            false
+                        ],
+                        "prediction": [
+                            null
+                        ],
+                        "probability": [
+                            0.167,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.5625,
+                            0.0
+                        ],
+                        "time": [
+                            1608,
+                            2408
+                        ],
+                        "info_set": [
+                            [
+                                3
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    },
+                    {
+                        "idnum": 4,
+                        "parent": 2,
+                        "label": "BB",
+                        "payoffs": [
+                            1
+                        ],
+                        "chooser": [
+                            false
+                        ],
+                        "choice": [
+                            null
+                        ],
+                        "predictor": [
+                            false
+                        ],
+                        "prediction": [
+                            null
+                        ],
+                        "probability": [
+                            0.833,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.6875,
+                            0.0
+                        ],
+                        "time": [
+                            1608,
+                            2408
+                        ],
+                        "info_set": [
+                            [
+                                4
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    }
+                ]
+            }
+        ],
+        "adjacency_matrix": [
+            [
+                1.0
+            ]
+        ],
+        "timestamps": {
+            "emit_tree_time": 1712857351.334151,
+            "update_node_time": 1712857356.1731887,
+            "abdicate_node_time": 1712858157.334151,
+            "round_deadline_time": 1712859762.31517,
+            "round_started_time": 1712857351.31517,
+            "round_ended_time": null
+        },
+        "players": [
+            {
+                "user_number": 2,
+                "uuid": "734a701e-c1dd-4e9b-aa43-b90564bda919",
+                "sid": "0b70ec5c-1d9d-4089-a3e4-7b78ef5587fb",
+                "avatar": {
+                    "shape": "flower",
+                    "color": "hsla(163, 97%, 64%, 1.0)",
+                    "texture": "dancing_nebula.png"
+                },
+                "cumulative_payoffs": 331.09999999999997,
+                "player_type": "robot"
+            }
+        ],
+        "avatar_colors": [
+            [
+                163,
+                97,
+                64,
+                1.0
+            ],
+            [
+                343,
+                50,
+                50,
+                1.0
+            ]
+        ],
+        "round_room_batch": [
+            14,
+            1,
+            1712858151
+        ],
+        "title": "Gambling_Task_payoffs_win=7_lose=1_safe=6_p(win)=0.17",
+        "current_nodeid": 1,
+        "nplayers": 1
+    },
+    {
+        "idnum": 0,
+        "parent": -1,
+        "label": "",
+        "payoffs": [
+            0
+        ],
+        "chooser": [
+            true
+        ],
+        "choice": [
+            {
+                "option": "B",
+                "keypress": "a",
+                "rtimedn": 6.165,
+                "rtimeup": 6.72,
+                "timestamp": 1712857351.337175
+            }
+        ],
+        "predictor": [
+            false
+        ],
+        "prediction": [
+            null
+        ],
+        "probability": [
+            1,
+            0
+        ],
+        "positionxy": [
+            0.5,
+            1.0
+        ],
+        "time": [
+            0,
+            806
+        ],
+        "info_set": [
+            [
+                0
+            ]
+        ],
+        "beliefs": {},
+        "options": [
+            {
+                "idnum": 1,
+                "parent": 0,
+                "label": "A",
+                "payoffs": [
+                    3
+                ],
+                "chooser": [
+                    false
+                ],
+                "choice": [
+                    null
+                ],
+                "predictor": [
+                    false
+                ],
+                "prediction": [
+                    null
+                ],
+                "probability": [
+                    0.5,
+                    1.0
+                ],
+                "positionxy": [
+                    0.375,
+                    0.5
+                ],
+                "time": [
+                    7,
+                    807
+                ],
+                "info_set": [
+                    [
+                        1
+                    ]
+                ],
+                "beliefs": {},
+                "options": []
+            },
+            {
+                "idnum": 2,
+                "parent": 0,
+                "label": "B",
+                "payoffs": [
+                    0
+                ],
+                "chooser": [
+                    false
+                ],
+                "choice": [
+                    {
+                        "option": "BA",
+                        "keypress": null,
+                        "rtimedn": 2.0,
+                        "rtimeup": 2.1,
+                        "timestamp": 1712857351.3411334
+                    }
+                ],
+                "predictor": [
+                    false
+                ],
+                "prediction": [
+                    null
+                ],
+                "probability": [
+                    0.5,
+                    1.0
+                ],
+                "positionxy": [
+                    0.625,
+                    0.5
+                ],
+                "time": [
+                    7,
+                    809
+                ],
+                "info_set": [
+                    [
+                        2
+                    ]
+                ],
+                "beliefs": {},
+                "options": [
+                    {
+                        "idnum": 3,
+                        "parent": 2,
+                        "label": "BA",
+                        "payoffs": [
+                            7
+                        ],
+                        "chooser": [
+                            false
+                        ],
+                        "choice": [
+                            null
+                        ],
+                        "predictor": [
+                            false
+                        ],
+                        "prediction": [
+                            null
+                        ],
+                        "probability": [
+                            0.333,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.5625,
+                            0.0
+                        ],
+                        "time": [
+                            809,
+                            1609
+                        ],
+                        "info_set": [
+                            [
+                                3
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    },
+                    {
+                        "idnum": 4,
+                        "parent": 2,
+                        "label": "BB",
+                        "payoffs": [
+                            1
+                        ],
+                        "chooser": [
+                            false
+                        ],
+                        "choice": [
+                            null
+                        ],
+                        "predictor": [
+                            false
+                        ],
+                        "prediction": [
+                            null
+                        ],
+                        "probability": [
+                            0.667,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.6875,
+                            0.0
+                        ],
+                        "time": [
+                            809,
+                            1609
+                        ],
+                        "info_set": [
+                            [
+                                4
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    }
+                ]
+            }
+        ],
+        "adjacency_matrix": [
+            [
+                1.0
+            ]
+        ],
+        "timestamps": {
+            "emit_tree_time": 1712857351.3421302,
+            "update_node_time": 1712857353.4411333,
+            "abdicate_node_time": 1712858157.3421302,
+            "round_deadline_time": 1712859762.31517,
+            "round_started_time": 1712857351.31517,
+            "round_ended_time": null
+        },
+        "players": [
+            {
+                "user_number": 5,
+                "uuid": "f2dc8786-7623-4942-a2b9-aaf9391f2214",
+                "sid": "5c829171-6e36-4e60-858b-241bcfc26b20",
+                "avatar": {
+                    "shape": "star-six",
+                    "color": "hsla(177, 53%, 39%, 1.0)",
+                    "texture": "bacterial_infection.png"
+                },
+                "cumulative_payoffs": 331.5,
+                "player_type": "robot"
+            }
+        ],
+        "avatar_colors": [
+            [
+                177,
+                53,
+                39,
+                1.0
+            ],
+            [
+                357,
+                50,
+                50,
+                1.0
+            ]
+        ],
+        "round_room_batch": [
+            14,
+            2,
+            1712858151
+        ],
+        "title": "Gambling_Task_payoffs_win=7_lose=1_safe=3_p(win)=0.33",
+        "current_nodeid": 3,
+        "nplayers": 1
+    },
+    {
+        "idnum": 0,
+        "parent": -1,
+        "label": "",
+        "payoffs": [
+            0
+        ],
+        "chooser": [
+            true
+        ],
+        "choice": [
+            {
+                "option": "A",
+                "keypress": "a",
+                "rtimedn": 6.339,
+                "rtimeup": 7.404,
+                "timestamp": 1712857351.346119
+            }
+        ],
+        "predictor": [
+            false
+        ],
+        "prediction": [
+            null
+        ],
+        "probability": [
+            1,
+            0
+        ],
+        "positionxy": [
+            0.5,
+            1.0
+        ],
+        "time": [
+            0,
+            806
+        ],
+        "info_set": [
+            [
+                0
+            ]
+        ],
+        "beliefs": {},
+        "options": [
+            {
+                "idnum": 1,
+                "parent": 0,
+                "label": "A",
+                "payoffs": [
+                    4
+                ],
+                "chooser": [
+                    false
+                ],
+                "choice": [
+                    null
+                ],
+                "predictor": [
+                    false
+                ],
+                "prediction": [
+                    null
+                ],
+                "probability": [
+                    0.5,
+                    1.0
+                ],
+                "positionxy": [
+                    0.375,
+                    0.5
+                ],
+                "time": [
+                    806,
+                    1606
+                ],
+                "info_set": [
+                    [
+                        1
+                    ]
+                ],
+                "beliefs": {},
+                "options": []
+            },
+            {
+                "idnum": 2,
+                "parent": 0,
+                "label": "B",
+                "payoffs": [
+                    0
+                ],
+                "chooser": [
+                    false
+                ],
+                "choice": [
+                    null
+                ],
+                "predictor": [
+                    false
+                ],
+                "prediction": [
+                    null
+                ],
+                "probability": [
+                    0.5,
+                    1.0
+                ],
+                "positionxy": [
+                    0.625,
+                    0.5
+                ],
+                "time": [
+                    806,
+                    1608
+                ],
+                "info_set": [
+                    [
+                        2
+                    ]
+                ],
+                "beliefs": {},
+                "options": [
+                    {
+                        "idnum": 3,
+                        "parent": 2,
+                        "label": "BA",
+                        "payoffs": [
+                            7
+                        ],
+                        "chooser": [
+                            false
+                        ],
+                        "choice": [
+                            null
+                        ],
+                        "predictor": [
+                            false
+                        ],
+                        "prediction": [
+                            null
+                        ],
+                        "probability": [
+                            0.167,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.5625,
+                            0.0
+                        ],
+                        "time": [
+                            1608,
+                            2408
+                        ],
+                        "info_set": [
+                            [
+                                3
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    },
+                    {
+                        "idnum": 4,
+                        "parent": 2,
+                        "label": "BB",
+                        "payoffs": [
+                            1
+                        ],
+                        "chooser": [
+                            false
+                        ],
+                        "choice": [
+                            null
+                        ],
+                        "predictor": [
+                            false
+                        ],
+                        "prediction": [
+                            null
+                        ],
+                        "probability": [
+                            0.833,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.6875,
+                            0.0
+                        ],
+                        "time": [
+                            1608,
+                            2408
+                        ],
+                        "info_set": [
+                            [
+                                4
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    }
+                ]
+            }
+        ],
+        "adjacency_matrix": [
+            [
+                1.0
+            ]
+        ],
+        "timestamps": {
+            "emit_tree_time": 1712857351.3481417,
+            "update_node_time": 1712857358.750119,
+            "abdicate_node_time": 1712858157.3481417,
+            "round_deadline_time": 1712859762.31517,
+            "round_started_time": 1712857351.31517,
+            "round_ended_time": null
+        },
+        "players": [
+            {
+                "user_number": 4,
+                "uuid": "684f57f8-99ff-4a70-9d07-4aa2c14adbac",
+                "sid": "94039d2a-4241-4a5c-968e-c4464117985b",
+                "avatar": {
+                    "shape": "dodecagon",
+                    "color": "hsla(35, 89%, 51%, 1.0)",
+                    "texture": "fireworks.png"
+                },
+                "cumulative_payoffs": 245.2,
+                "player_type": "robot"
+            }
+        ],
+        "avatar_colors": [
+            [
+                35,
+                89,
+                51,
+                1.0
+            ],
+            [
+                215,
+                50,
+                50,
+                1.0
+            ]
+        ],
+        "round_room_batch": [
+            14,
+            3,
+            1712858151
+        ],
+        "title": "Gambling_Task_payoffs_win=7_lose=1_safe=4_p(win)=0.17",
+        "current_nodeid": 1,
+        "nplayers": 1
+    },
+    {
+        "idnum": 0,
+        "parent": -1,
+        "label": "",
+        "payoffs": [
+            0,
+            0
+        ],
+        "chooser": [
+            false,
+            false
+        ],
+        "choice": [
+            {
+                "option": "B",
+                "keypress": null,
+                "rtimedn": 2.0,
+                "rtimeup": 2.1,
+                "timestamp": 1712857351.3481417
+            },
+            {
+                "option": "B",
+                "keypress": null,
+                "rtimedn": 2.0,
+                "rtimeup": 2.1,
+                "timestamp": 1712857351.3481417
+            }
+        ],
+        "predictor": [
+            false,
+            false
+        ],
+        "prediction": [
+            null,
+            null
+        ],
+        "probability": [
+            1,
+            0
+        ],
+        "positionxy": [
+            0.5,
+            1.0
+        ],
+        "time": [
+            0,
+            809
+        ],
+        "info_set": [
+            [
+                0
+            ],
+            [
+                1,
+                2
+            ]
+        ],
+        "beliefs": {},
+        "options": [
+            {
+                "idnum": 1,
+                "parent": 0,
+                "label": "A",
+                "payoffs": [
+                    0,
+                    0
+                ],
+                "chooser": [
+                    true,
+                    false
+                ],
+                "choice": [
+                    null,
+                    null
+                ],
+                "predictor": [
+                    false,
+                    true
+                ],
+                "prediction": [
+                    null,
+                    null
+                ],
+                "probability": [
+                    0.333,
+                    1.0
+                ],
+                "positionxy": [
+                    0.375,
+                    0.5
+                ],
+                "time": [
+                    0,
+                    802
+                ],
+                "info_set": [
+                    [
+                        0
+                    ],
+                    [
+                        1,
+                        2
+                    ]
+                ],
+                "beliefs": {},
+                "options": [
+                    {
+                        "idnum": 3,
+                        "parent": 1,
+                        "label": "AA",
+                        "payoffs": [
+                            38.5,
+                            38.5
+                        ],
+                        "chooser": [
+                            false,
+                            false
+                        ],
+                        "choice": [
+                            null,
+                            null
+                        ],
+                        "predictor": [
+                            false,
+                            false
+                        ],
+                        "prediction": [
+                            null,
+                            null
+                        ],
+                        "probability": [
+                            0.5,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.3125,
+                            0.0
+                        ],
+                        "time": [
+                            802,
+                            1602
+                        ],
+                        "info_set": [
+                            [
+                                3
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    },
+                    {
+                        "idnum": 4,
+                        "parent": 1,
+                        "label": "AB",
+                        "payoffs": [
+                            37.5,
+                            37.5
+                        ],
+                        "chooser": [
+                            false,
+                            false
+                        ],
+                        "choice": [
+                            null,
+                            null
+                        ],
+                        "predictor": [
+                            false,
+                            false
+                        ],
+                        "prediction": [
+                            null,
+                            null
+                        ],
+                        "probability": [
+                            0.5,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.4375,
+                            0.0
+                        ],
+                        "time": [
+                            802,
+                            1602
+                        ],
+                        "info_set": [
+                            [
+                                4
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    }
+                ]
+            },
+            {
+                "idnum": 2,
+                "parent": 0,
+                "label": "B",
+                "payoffs": [
+                    0,
+                    0
+                ],
+                "chooser": [
+                    true,
+                    false
+                ],
+                "choice": [
+                    {
+                        "option": "BA",
+                        "keypress": "d",
+                        "rtimedn": 0.176,
+                        "rtimeup": 0.333,
+                        "timestamp": 1712857351.3670626
+                    },
+                    null
+                ],
+                "predictor": [
+                    false,
+                    true
+                ],
+                "prediction": [
+                    null,
+                    {
+                        "option": "BB",
+                        "keypress": "a",
+                        "rtimedn": 3.681,
+                        "rtimeup": 4.407,
+                        "timestamp": 1712857351.3700554
+                    }
+                ],
+                "probability": [
+                    0.667,
+                    1.0
+                ],
+                "positionxy": [
+                    0.625,
+                    0.5
+                ],
+                "time": [
+                    0,
+                    802
+                ],
+                "info_set": [
+                    [
+                        0
+                    ],
+                    [
+                        1,
+                        2
+                    ]
+                ],
+                "beliefs": {},
+                "options": [
+                    {
+                        "idnum": 5,
+                        "parent": 2,
+                        "label": "BA",
+                        "payoffs": [
+                            38.5,
+                            0
+                        ],
+                        "chooser": [
+                            false,
+                            false
+                        ],
+                        "choice": [
+                            null,
+                            null
+                        ],
+                        "predictor": [
+                            false,
+                            false
+                        ],
+                        "prediction": [
+                            null,
+                            null
+                        ],
+                        "probability": [
+                            0.5,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.5625,
+                            0.0
+                        ],
+                        "time": [
+                            802,
+                            1602
+                        ],
+                        "info_set": [
+                            [
+                                5
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    },
+                    {
+                        "idnum": 6,
+                        "parent": 2,
+                        "label": "BB",
+                        "payoffs": [
+                            37.5,
+                            37.5
+                        ],
+                        "chooser": [
+                            false,
+                            false
+                        ],
+                        "choice": [
+                            null,
+                            null
+                        ],
+                        "predictor": [
+                            false,
+                            false
+                        ],
+                        "prediction": [
+                            null,
+                            null
+                        ],
+                        "probability": [
+                            0.5,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.6875,
+                            0.0
+                        ],
+                        "time": [
+                            802,
+                            1602
+                        ],
+                        "info_set": [
+                            [
+                                6
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    }
+                ]
+            }
+        ],
+        "adjacency_matrix": [
+            [
+                1.0,
+                0.4394394394394394
+            ],
+            [
+                0.4394394394394394,
+                1.0
+            ]
+        ],
+        "timestamps": {
+            "emit_tree_time": 1712857351.3730757,
+            "update_node_time": 1712857351.7000625,
+            "abdicate_node_time": 1712858160.3730757,
+            "round_deadline_time": 1712859762.31517,
+            "round_started_time": 1712857351.31517,
+            "round_ended_time": null
+        },
+        "players": [
+            {
+                "user_number": 1,
+                "uuid": "9c5e9098-6784-4c7d-b0fb-4140cc20e717",
+                "sid": "ce5c8e81-f6c6-494d-b967-abd0e134abb4",
+                "avatar": {
+                    "shape": "pentagon",
+                    "color": "hsla(13, 95%, 39%, 1.0)",
+                    "texture": "space_rift.png"
+                },
+                "cumulative_payoffs": 372.7,
+                "player_type": "robot"
+            },
+            {
+                "user_number": 0,
+                "uuid": "90427df1-2b1e-4653-9e04-f86c9e4bfa2c",
+                "sid": "SzeODpR_o-Zv1YXNAAAH",
+                "avatar": {
+                    "shape": "jagged-sun",
+                    "color": "hsla(0, 98%, 35%, 1.0)",
+                    "texture": "scaly_robot.png"
+                },
+                "cumulative_payoffs": 233.2,
+                "player_type": "robot"
+            }
+        ],
+        "avatar_colors": [
+            [
+                13,
+                95,
+                39,
+                1.0
+            ],
+            [
+                0,
+                98,
+                35,
+                1.0
+            ],
+            [
+                186,
+                50,
+                50,
+                1.0
+            ]
+        ],
+        "round_room_batch": [
+            14,
+            4,
+            1712858151
+        ],
+        "title": "Concealed~p(align)=0.33_pdo=-3.5",
+        "current_nodeid": 5,
+        "nplayers": 2
+    },
+    {
+        "idnum": 0,
+        "parent": -1,
+        "label": "",
+        "payoffs": [
+            0
+        ],
+        "chooser": [
+            true
+        ],
+        "choice": [
+            {
+                "option": "A",
+                "keypress": "d",
+                "rtimedn": 4.037,
+                "rtimeup": 4.279,
+                "timestamp": 1712857351.6542265
+            }
+        ],
+        "predictor": [
+            false
+        ],
+        "prediction": [
+            null
+        ],
+        "probability": [
+            1,
+            0
+        ],
+        "positionxy": [
+            0.5,
+            1.0
+        ],
+        "time": [
+            0,
+            806
+        ],
+        "info_set": [
+            [
+                0
+            ]
+        ],
+        "beliefs": {},
+        "options": [
+            {
+                "idnum": 1,
+                "parent": 0,
+                "label": "A",
+                "payoffs": [
+                    4
+                ],
+                "chooser": [
+                    false
+                ],
+                "choice": [
+                    null
+                ],
+                "predictor": [
+                    false
+                ],
+                "prediction": [
+                    null
+                ],
+                "probability": [
+                    0.5,
+                    1.0
+                ],
+                "positionxy": [
+                    0.375,
+                    0.5
+                ],
+                "time": [
+                    806,
+                    1606
+                ],
+                "info_set": [
+                    [
+                        1
+                    ]
+                ],
+                "beliefs": {},
+                "options": []
+            },
+            {
+                "idnum": 2,
+                "parent": 0,
+                "label": "B",
+                "payoffs": [
+                    0
+                ],
+                "chooser": [
+                    false
+                ],
+                "choice": [
+                    null
+                ],
+                "predictor": [
+                    false
+                ],
+                "prediction": [
+                    null
+                ],
+                "probability": [
+                    0.5,
+                    1.0
+                ],
+                "positionxy": [
+                    0.625,
+                    0.5
+                ],
+                "time": [
+                    806,
+                    1608
+                ],
+                "info_set": [
+                    [
+                        2
+                    ]
+                ],
+                "beliefs": {},
+                "options": [
+                    {
+                        "idnum": 3,
+                        "parent": 2,
+                        "label": "BA",
+                        "payoffs": [
+                            7
+                        ],
+                        "chooser": [
+                            false
+                        ],
+                        "choice": [
+                            null
+                        ],
+                        "predictor": [
+                            false
+                        ],
+                        "prediction": [
+                            null
+                        ],
+                        "probability": [
+                            0.833,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.5625,
+                            0.0
+                        ],
+                        "time": [
+                            1608,
+                            2408
+                        ],
+                        "info_set": [
+                            [
+                                3
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    },
+                    {
+                        "idnum": 4,
+                        "parent": 2,
+                        "label": "BB",
+                        "payoffs": [
+                            1
+                        ],
+                        "chooser": [
+                            false
+                        ],
+                        "choice": [
+                            null
+                        ],
+                        "predictor": [
+                            false
+                        ],
+                        "prediction": [
+                            null
+                        ],
+                        "probability": [
+                            0.167,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.6875,
+                            0.0
+                        ],
+                        "time": [
+                            1608,
+                            2408
+                        ],
+                        "info_set": [
+                            [
+                                4
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    }
+                ]
+            }
+        ],
+        "adjacency_matrix": [
+            [
+                1.0
+            ]
+        ],
+        "timestamps": {
+            "emit_tree_time": 1712857351.657197,
+            "update_node_time": 1712857355.9332266,
+            "abdicate_node_time": 1712858157.657197,
+            "round_deadline_time": 1712859762.6472204,
+            "round_started_time": 1712857351.6472204,
+            "round_ended_time": null
+        },
+        "players": [
+            {
+                "user_number": 2,
+                "uuid": "734a701e-c1dd-4e9b-aa43-b90564bda919",
+                "sid": "0b70ec5c-1d9d-4089-a3e4-7b78ef5587fb",
+                "avatar": {
+                    "shape": "flower",
+                    "color": "hsla(163, 97%, 64%, 1.0)",
+                    "texture": "dancing_nebula.png"
+                },
+                "cumulative_payoffs": 331.09999999999997,
+                "player_type": "robot"
+            }
+        ],
+        "avatar_colors": [
+            [
+                163,
+                97,
+                64,
+                1.0
+            ],
+            [
+                343,
+                50,
+                50,
+                1.0
+            ]
+        ],
+        "round_room_batch": [
+            15,
+            0,
+            1712858151
+        ],
+        "title": "Gambling_Task_payoffs_win=7_lose=1_safe=4_p(win)=0.83",
+        "current_nodeid": 1,
+        "nplayers": 1
+    },
+    {
+        "idnum": 0,
+        "parent": -1,
+        "label": "",
+        "payoffs": [
+            0
+        ],
+        "chooser": [
+            true
+        ],
+        "choice": [
+            {
+                "option": "B",
+                "keypress": "a",
+                "rtimedn": 4.039,
+                "rtimeup": 5.559,
+                "timestamp": 1712857351.6612108
+            }
+        ],
+        "predictor": [
+            false
+        ],
+        "prediction": [
+            null
+        ],
+        "probability": [
+            1,
+            0
+        ],
+        "positionxy": [
+            0.5,
+            1.0
+        ],
+        "time": [
+            0,
+            806
+        ],
+        "info_set": [
+            [
+                0
+            ]
+        ],
+        "beliefs": {},
+        "options": [
+            {
+                "idnum": 1,
+                "parent": 0,
+                "label": "A",
+                "payoffs": [
+                    5
+                ],
+                "chooser": [
+                    false
+                ],
+                "choice": [
+                    null
+                ],
+                "predictor": [
+                    false
+                ],
+                "prediction": [
+                    null
+                ],
+                "probability": [
+                    0.5,
+                    1.0
+                ],
+                "positionxy": [
+                    0.375,
+                    0.5
+                ],
+                "time": [
+                    5,
+                    805
+                ],
+                "info_set": [
+                    [
+                        1
+                    ]
+                ],
+                "beliefs": {},
+                "options": []
+            },
+            {
+                "idnum": 2,
+                "parent": 0,
+                "label": "B",
+                "payoffs": [
+                    0
+                ],
+                "chooser": [
+                    false
+                ],
+                "choice": [
+                    {
+                        "option": "BB",
+                        "keypress": null,
+                        "rtimedn": 2.0,
+                        "rtimeup": 2.1,
+                        "timestamp": 1712857351.6642048
+                    }
+                ],
+                "predictor": [
+                    false
+                ],
+                "prediction": [
+                    null
+                ],
+                "probability": [
+                    0.5,
+                    1.0
+                ],
+                "positionxy": [
+                    0.625,
+                    0.5
+                ],
+                "time": [
+                    5,
+                    807
+                ],
+                "info_set": [
+                    [
+                        2
+                    ]
+                ],
+                "beliefs": {},
+                "options": [
+                    {
+                        "idnum": 3,
+                        "parent": 2,
+                        "label": "BA",
+                        "payoffs": [
+                            7
+                        ],
+                        "chooser": [
+                            false
+                        ],
+                        "choice": [
+                            null
+                        ],
+                        "predictor": [
+                            false
+                        ],
+                        "prediction": [
+                            null
+                        ],
+                        "probability": [
+                            0.667,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.5625,
+                            0.0
+                        ],
+                        "time": [
+                            807,
+                            1607
+                        ],
+                        "info_set": [
+                            [
+                                3
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    },
+                    {
+                        "idnum": 4,
+                        "parent": 2,
+                        "label": "BB",
+                        "payoffs": [
+                            1
+                        ],
+                        "chooser": [
+                            false
+                        ],
+                        "choice": [
+                            null
+                        ],
+                        "predictor": [
+                            false
+                        ],
+                        "prediction": [
+                            null
+                        ],
+                        "probability": [
+                            0.333,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.6875,
+                            0.0
+                        ],
+                        "time": [
+                            807,
+                            1607
+                        ],
+                        "info_set": [
+                            [
+                                4
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    }
+                ]
+            }
+        ],
+        "adjacency_matrix": [
+            [
+                1.0
+            ]
+        ],
+        "timestamps": {
+            "emit_tree_time": 1712857351.6661701,
+            "update_node_time": 1712857353.7642047,
+            "abdicate_node_time": 1712858157.6661701,
+            "round_deadline_time": 1712859762.6472204,
+            "round_started_time": 1712857351.6472204,
+            "round_ended_time": null
+        },
+        "players": [
+            {
+                "user_number": 5,
+                "uuid": "f2dc8786-7623-4942-a2b9-aaf9391f2214",
+                "sid": "5c829171-6e36-4e60-858b-241bcfc26b20",
+                "avatar": {
+                    "shape": "star-six",
+                    "color": "hsla(177, 53%, 39%, 1.0)",
+                    "texture": "bacterial_infection.png"
+                },
+                "cumulative_payoffs": 331.5,
+                "player_type": "robot"
+            }
+        ],
+        "avatar_colors": [
+            [
+                177,
+                53,
+                39,
+                1.0
+            ],
+            [
+                357,
+                50,
+                50,
+                1.0
+            ]
+        ],
+        "round_room_batch": [
+            15,
+            1,
+            1712858151
+        ],
+        "title": "Gambling_Task_payoffs_win=7_lose=1_safe=5_p(win)=0.67",
+        "current_nodeid": 4,
+        "nplayers": 1
+    },
+    {
+        "idnum": 0,
+        "parent": -1,
+        "label": "",
+        "payoffs": [
+            0
+        ],
+        "chooser": [
+            true
+        ],
+        "choice": [
+            {
+                "option": "B",
+                "keypress": "d",
+                "rtimedn": 0.941,
+                "rtimeup": 1.195,
+                "timestamp": 1712857351.6701586
+            }
+        ],
+        "predictor": [
+            false
+        ],
+        "prediction": [
+            null
+        ],
+        "probability": [
+            1,
+            0
+        ],
+        "positionxy": [
+            0.5,
+            1.0
+        ],
+        "time": [
+            0,
+            806
+        ],
+        "info_set": [
+            [
+                0
+            ]
+        ],
+        "beliefs": {},
+        "options": [
+            {
+                "idnum": 1,
+                "parent": 0,
+                "label": "A",
+                "payoffs": [
+                    6
+                ],
+                "chooser": [
+                    false
+                ],
+                "choice": [
+                    null
+                ],
+                "predictor": [
+                    false
+                ],
+                "prediction": [
+                    null
+                ],
+                "probability": [
+                    0.5,
+                    1.0
+                ],
+                "positionxy": [
+                    0.375,
+                    0.5
+                ],
+                "time": [
+                    1,
+                    801
+                ],
+                "info_set": [
+                    [
+                        1
+                    ]
+                ],
+                "beliefs": {},
+                "options": []
+            },
+            {
+                "idnum": 2,
+                "parent": 0,
+                "label": "B",
+                "payoffs": [
+                    0
+                ],
+                "chooser": [
+                    false
+                ],
+                "choice": [
+                    {
+                        "option": "BA",
+                        "keypress": null,
+                        "rtimedn": 2.0,
+                        "rtimeup": 2.1,
+                        "timestamp": 1712857351.6731508
+                    }
+                ],
+                "predictor": [
+                    false
+                ],
+                "prediction": [
+                    null
+                ],
+                "probability": [
+                    0.5,
+                    1.0
+                ],
+                "positionxy": [
+                    0.625,
+                    0.5
+                ],
+                "time": [
+                    1,
+                    803
+                ],
+                "info_set": [
+                    [
+                        2
+                    ]
+                ],
+                "beliefs": {},
+                "options": [
+                    {
+                        "idnum": 3,
+                        "parent": 2,
+                        "label": "BA",
+                        "payoffs": [
+                            7
+                        ],
+                        "chooser": [
+                            false
+                        ],
+                        "choice": [
+                            null
+                        ],
+                        "predictor": [
+                            false
+                        ],
+                        "prediction": [
+                            null
+                        ],
+                        "probability": [
+                            0.667,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.5625,
+                            0.0
+                        ],
+                        "time": [
+                            803,
+                            1603
+                        ],
+                        "info_set": [
+                            [
+                                3
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    },
+                    {
+                        "idnum": 4,
+                        "parent": 2,
+                        "label": "BB",
+                        "payoffs": [
+                            1
+                        ],
+                        "chooser": [
+                            false
+                        ],
+                        "choice": [
+                            null
+                        ],
+                        "predictor": [
+                            false
+                        ],
+                        "prediction": [
+                            null
+                        ],
+                        "probability": [
+                            0.333,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.6875,
+                            0.0
+                        ],
+                        "time": [
+                            803,
+                            1603
+                        ],
+                        "info_set": [
+                            [
+                                4
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    }
+                ]
+            }
+        ],
+        "adjacency_matrix": [
+            [
+                1.0
+            ]
+        ],
+        "timestamps": {
+            "emit_tree_time": 1712857351.6741486,
+            "update_node_time": 1712857353.7731507,
+            "abdicate_node_time": 1712858157.6741486,
+            "round_deadline_time": 1712859762.6472204,
+            "round_started_time": 1712857351.6472204,
+            "round_ended_time": null
+        },
+        "players": [
+            {
+                "user_number": 1,
+                "uuid": "9c5e9098-6784-4c7d-b0fb-4140cc20e717",
+                "sid": "ce5c8e81-f6c6-494d-b967-abd0e134abb4",
+                "avatar": {
+                    "shape": "pentagon",
+                    "color": "hsla(13, 95%, 39%, 1.0)",
+                    "texture": "space_rift.png"
+                },
+                "cumulative_payoffs": 372.7,
+                "player_type": "robot"
+            }
+        ],
+        "avatar_colors": [
+            [
+                13,
+                95,
+                39,
+                1.0
+            ],
+            [
+                193,
+                50,
+                50,
+                1.0
+            ]
+        ],
+        "round_room_batch": [
+            15,
+            2,
+            1712858151
+        ],
+        "title": "Gambling_Task_payoffs_win=7_lose=1_safe=6_p(win)=0.67",
+        "current_nodeid": 3,
+        "nplayers": 1
+    },
+    {
+        "idnum": 0,
+        "parent": -1,
+        "label": "",
+        "payoffs": [
+            0
+        ],
+        "chooser": [
+            true
+        ],
+        "choice": [
+            {
+                "option": "B",
+                "keypress": "a",
+                "rtimedn": 0.099,
+                "rtimeup": 0.29,
+                "timestamp": 1712857351.678137
+            }
+        ],
+        "predictor": [
+            false
+        ],
+        "prediction": [
+            null
+        ],
+        "probability": [
+            1,
+            0
+        ],
+        "positionxy": [
+            0.5,
+            1.0
+        ],
+        "time": [
+            0,
+            806
+        ],
+        "info_set": [
+            [
+                0
+            ]
+        ],
+        "beliefs": {},
+        "options": [
+            {
+                "idnum": 1,
+                "parent": 0,
+                "label": "A",
+                "payoffs": [
+                    2
+                ],
+                "chooser": [
+                    false
+                ],
+                "choice": [
+                    null
+                ],
+                "predictor": [
+                    false
+                ],
+                "prediction": [
+                    null
+                ],
+                "probability": [
+                    0.5,
+                    1.0
+                ],
+                "positionxy": [
+                    0.375,
+                    0.5
+                ],
+                "time": [
+                    1,
+                    801
+                ],
+                "info_set": [
+                    [
+                        1
+                    ]
+                ],
+                "beliefs": {},
+                "options": []
+            },
+            {
+                "idnum": 2,
+                "parent": 0,
+                "label": "B",
+                "payoffs": [
+                    0
+                ],
+                "chooser": [
+                    false
+                ],
+                "choice": [
+                    {
+                        "option": "BA",
+                        "keypress": null,
+                        "rtimedn": 2.0,
+                        "rtimeup": 2.1,
+                        "timestamp": 1712857351.6821544
+                    }
+                ],
+                "predictor": [
+                    false
+                ],
+                "prediction": [
+                    null
+                ],
+                "probability": [
+                    0.5,
+                    1.0
+                ],
+                "positionxy": [
+                    0.625,
+                    0.5
+                ],
+                "time": [
+                    1,
+                    803
+                ],
+                "info_set": [
+                    [
+                        2
+                    ]
+                ],
+                "beliefs": {},
+                "options": [
+                    {
+                        "idnum": 3,
+                        "parent": 2,
+                        "label": "BA",
+                        "payoffs": [
+                            7
+                        ],
+                        "chooser": [
+                            false
+                        ],
+                        "choice": [
+                            null
+                        ],
+                        "predictor": [
+                            false
+                        ],
+                        "prediction": [
+                            null
+                        ],
+                        "probability": [
+                            0.833,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.5625,
+                            0.0
+                        ],
+                        "time": [
+                            803,
+                            1603
+                        ],
+                        "info_set": [
+                            [
+                                3
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    },
+                    {
+                        "idnum": 4,
+                        "parent": 2,
+                        "label": "BB",
+                        "payoffs": [
+                            1
+                        ],
+                        "chooser": [
+                            false
+                        ],
+                        "choice": [
+                            null
+                        ],
+                        "predictor": [
+                            false
+                        ],
+                        "prediction": [
+                            null
+                        ],
+                        "probability": [
+                            0.167,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.6875,
+                            0.0
+                        ],
+                        "time": [
+                            803,
+                            1603
+                        ],
+                        "info_set": [
+                            [
+                                4
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    }
+                ]
+            }
+        ],
+        "adjacency_matrix": [
+            [
+                1.0
+            ]
+        ],
+        "timestamps": {
+            "emit_tree_time": 1712857351.6831245,
+            "update_node_time": 1712857353.7821543,
+            "abdicate_node_time": 1712858157.6831245,
+            "round_deadline_time": 1712859762.6472204,
+            "round_started_time": 1712857351.6472204,
+            "round_ended_time": null
+        },
+        "players": [
+            {
+                "user_number": 3,
+                "uuid": "cb94fda8-5c91-4a4c-8bcf-10e22e8bd902",
+                "sid": "d70a855d-fceb-4d2b-aced-551344fa97d5",
+                "avatar": {
+                    "shape": "jagged-sun",
+                    "color": "hsla(109, 84%, 63%, 1.0)",
+                    "texture": "ink_bubbles.png"
+                },
+                "cumulative_payoffs": 231.4,
+                "player_type": "robot"
+            }
+        ],
+        "avatar_colors": [
+            [
+                109,
+                84,
+                63,
+                1.0
+            ],
+            [
+                289,
+                50,
+                50,
+                1.0
+            ]
+        ],
+        "round_room_batch": [
+            15,
+            3,
+            1712858151
+        ],
+        "title": "Gambling_Task_payoffs_win=7_lose=1_safe=2_p(win)=0.83",
+        "current_nodeid": 3,
+        "nplayers": 1
+    },
+    {
+        "idnum": 0,
+        "parent": -1,
+        "label": "",
+        "payoffs": [
+            0,
+            0
+        ],
+        "chooser": [
+            false,
+            false
+        ],
+        "choice": [
+            {
+                "option": "B",
+                "keypress": null,
+                "rtimedn": 2.0,
+                "rtimeup": 2.1,
+                "timestamp": 1712857351.6841218
+            },
+            {
+                "option": "B",
+                "keypress": null,
+                "rtimedn": 2.0,
+                "rtimeup": 2.1,
+                "timestamp": 1712857351.6841218
+            }
+        ],
+        "predictor": [
+            false,
+            false
+        ],
+        "prediction": [
+            null,
+            null
+        ],
+        "probability": [
+            1,
+            0
+        ],
+        "positionxy": [
+            0.5,
+            1.0
+        ],
+        "time": [
+            0,
+            809
+        ],
+        "info_set": [
+            [
+                0
+            ],
+            [
+                1,
+                2
+            ]
+        ],
+        "beliefs": {},
+        "options": [
+            {
+                "idnum": 1,
+                "parent": 0,
+                "label": "A",
+                "payoffs": [
+                    0,
+                    0
+                ],
+                "chooser": [
+                    true,
+                    false
+                ],
+                "choice": [
+                    null,
+                    null
+                ],
+                "predictor": [
+                    false,
+                    true
+                ],
+                "prediction": [
+                    null,
+                    null
+                ],
+                "probability": [
+                    0.333,
+                    1.0
+                ],
+                "positionxy": [
+                    0.375,
+                    0.5
+                ],
+                "time": [
+                    0,
+                    802
+                ],
+                "info_set": [
+                    [
+                        0
+                    ],
+                    [
+                        1,
+                        2
+                    ]
+                ],
+                "beliefs": {},
+                "options": [
+                    {
+                        "idnum": 3,
+                        "parent": 1,
+                        "label": "AA",
+                        "payoffs": [
+                            37,
+                            37
+                        ],
+                        "chooser": [
+                            false,
+                            false
+                        ],
+                        "choice": [
+                            null,
+                            null
+                        ],
+                        "predictor": [
+                            false,
+                            false
+                        ],
+                        "prediction": [
+                            null,
+                            null
+                        ],
+                        "probability": [
+                            0.5,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.3125,
+                            0.0
+                        ],
+                        "time": [
+                            802,
+                            1602
+                        ],
+                        "info_set": [
+                            [
+                                3
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    },
+                    {
+                        "idnum": 4,
+                        "parent": 1,
+                        "label": "AB",
+                        "payoffs": [
+                            36,
+                            36
+                        ],
+                        "chooser": [
+                            false,
+                            false
+                        ],
+                        "choice": [
+                            null,
+                            null
+                        ],
+                        "predictor": [
+                            false,
+                            false
+                        ],
+                        "prediction": [
+                            null,
+                            null
+                        ],
+                        "probability": [
+                            0.5,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.4375,
+                            0.0
+                        ],
+                        "time": [
+                            802,
+                            1602
+                        ],
+                        "info_set": [
+                            [
+                                4
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    }
+                ]
+            },
+            {
+                "idnum": 2,
+                "parent": 0,
+                "label": "B",
+                "payoffs": [
+                    0,
+                    0
+                ],
+                "chooser": [
+                    true,
+                    false
+                ],
+                "choice": [
+                    {
+                        "option": "BA",
+                        "keypress": "a",
+                        "rtimedn": 0.119,
+                        "rtimeup": 0.543,
+                        "timestamp": 1712857351.702073
+                    },
+                    null
+                ],
+                "predictor": [
+                    false,
+                    true
+                ],
+                "prediction": [
+                    null,
+                    {
+                        "option": "BB",
+                        "keypress": "a",
+                        "rtimedn": 6.606,
+                        "rtimeup": 7.85,
+                        "timestamp": 1712857351.7040951
+                    }
+                ],
+                "probability": [
+                    0.667,
+                    1.0
+                ],
+                "positionxy": [
+                    0.625,
+                    0.5
+                ],
+                "time": [
+                    0,
+                    802
+                ],
+                "info_set": [
+                    [
+                        0
+                    ],
+                    [
+                        1,
+                        2
+                    ]
+                ],
+                "beliefs": {},
+                "options": [
+                    {
+                        "idnum": 5,
+                        "parent": 2,
+                        "label": "BA",
+                        "payoffs": [
+                            37,
+                            0
+                        ],
+                        "chooser": [
+                            false,
+                            false
+                        ],
+                        "choice": [
+                            null,
+                            null
+                        ],
+                        "predictor": [
+                            false,
+                            false
+                        ],
+                        "prediction": [
+                            null,
+                            null
+                        ],
+                        "probability": [
+                            0.5,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.5625,
+                            0.0
+                        ],
+                        "time": [
+                            802,
+                            1602
+                        ],
+                        "info_set": [
+                            [
+                                5
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    },
+                    {
+                        "idnum": 6,
+                        "parent": 2,
+                        "label": "BB",
+                        "payoffs": [
+                            36,
+                            36
+                        ],
+                        "chooser": [
+                            false,
+                            false
+                        ],
+                        "choice": [
+                            null,
+                            null
+                        ],
+                        "predictor": [
+                            false,
+                            false
+                        ],
+                        "prediction": [
+                            null,
+                            null
+                        ],
+                        "probability": [
+                            0.5,
+                            1.0
+                        ],
+                        "positionxy": [
+                            0.6875,
+                            0.0
+                        ],
+                        "time": [
+                            802,
+                            1602
+                        ],
+                        "info_set": [
+                            [
+                                6
+                            ]
+                        ],
+                        "beliefs": {},
+                        "options": []
+                    }
+                ]
+            }
+        ],
+        "adjacency_matrix": [
+            [
+                1.0,
+                0.4024024024024024
+            ],
+            [
+                0.4024024024024024,
+                1.0
+            ]
+        ],
+        "timestamps": {
+            "emit_tree_time": 1712857351.7080827,
+            "update_node_time": 1712857352.245073,
+            "abdicate_node_time": 1712858160.7080827,
+            "round_deadline_time": 1712859762.6472204,
+            "round_started_time": 1712857351.6472204,
+            "round_ended_time": null
+        },
+        "players": [
+            {
+                "user_number": 4,
+                "uuid": "684f57f8-99ff-4a70-9d07-4aa2c14adbac",
+                "sid": "94039d2a-4241-4a5c-968e-c4464117985b",
+                "avatar": {
+                    "shape": "dodecagon",
+                    "color": "hsla(35, 89%, 51%, 1.0)",
+                    "texture": "fireworks.png"
+                },
+                "cumulative_payoffs": 245.2,
+                "player_type": "robot"
+            },
+            {
+                "user_number": 0,
+                "uuid": "90427df1-2b1e-4653-9e04-f86c9e4bfa2c",
+                "sid": "SzeODpR_o-Zv1YXNAAAH",
+                "avatar": {
+                    "shape": "jagged-sun",
+                    "color": "hsla(0, 98%, 35%, 1.0)",
+                    "texture": "scaly_robot.png"
+                },
+                "cumulative_payoffs": 233.2,
+                "player_type": "robot"
+            }
+        ],
+        "avatar_colors": [
+            [
+                35,
+                89,
+                51,
+                1.0
+            ],
+            [
+                0,
+                98,
+                35,
+                1.0
+            ],
+            [
+                197,
+                50,
+                50,
+                1.0
+            ]
+        ],
+        "round_room_batch": [
+            15,
+            4,
+            1712858151
+        ],
+        "title": "Concealed~p(align)=0.33_pdo=-5.0",
+        "current_nodeid": 5,
+        "nplayers": 2
+    }
+]
