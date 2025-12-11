@@ -5663,7 +5663,7 @@ def compute_param_recovery_correlations(df: pd.DataFrame, dir_path: str, out_csv
                 lo = hi = np.nan
             else:
                 r = s2[[tcol, fcol]].corr().iloc[0, 1]
-                lo, hi = gnrl.fisher_z_confidence_interval(r, n)
+                lo, hi = fisher_z_confidence_interval(r, n)
             recs.append({
                 "round": label,
                 "n_data": n,
@@ -5814,7 +5814,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                     xcol = f"{param}_true_predictor"
                     ycol = f"{param}_fitted_predictor"
                     subp = df_sub.dropna(subset=[xcol, ycol])
-
+                # print(subp), exit()
                 # correlation
                 corr = np.nan
                 r2 = np.nan
@@ -5846,6 +5846,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                     xvals = subp[xcol].values
                     yvals = subp[ycol].values
                     slope, intercept = np.polyfit(xvals, yvals, 1)
+
                     # for plotting, we want to cover the range of xvals
                     x_min, x_max = xvals.min(), xvals.max()
                     x_line = np.linspace(x_min, x_max, 50)
@@ -5936,7 +5937,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                 )
 
             fig.update_layout(
-                template=fig_lay.get("template","plotly_dark"),
+                template=fig_lay.get("template", "plotly_dark"),
                 title=f"Scatter: round={round_selection}, param={params[0]}",
                 xaxis=dict(title="Chooser True Param", **fig_lay.get("xaxis", {}), scaleanchor="y", scaleratio=1),
                 yaxis=dict(title="Predictor Fitted Param", **fig_lay.get("yaxis", {})),
@@ -5998,7 +5999,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
             title_text += f"{round_selection.capitalize()} Round Parameter for {param_title}"
             cor_text = f"Correlation = {corr:.3f}, n = {n_data}" if not math.isnan(corr) else ""
             cor_text += " (Simulated Data)" 
-            fig.update_yaxes(range=[-1.05, 1.05])
+            fig.update_yaxes(range=[-1.2, 1.2])
             fig.update_layout(
                 title=title_text, 
                 titlefont_size=fig_lay['titlefont_size']-2,
@@ -6011,7 +6012,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                 font=fig_lay.get("font", {}),
                 annotations=[dict(
                     text=cor_text,
-                    x=0.02, y=0.99, xref='paper', yref='paper',
+                    x=0.02, y=0.85, xref='paper', yref='paper',
                     showarrow=False, align="left",
                     font=dict(size=30)
                 )]
@@ -6040,7 +6041,6 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
             return fig
 
     dir_path = ensure_directory_and_join(file_paths['player_fits'], 'experiment_0')
-    # sim_dir = "./Judgment_Game/Inputs/Iter_Binary_Dictator/player_fits/simulation_results"
     sim_dir = ensure_directory_and_join(file_paths['player_fits'], "simulation_results")
     os.makedirs(sim_dir, exist_ok=True)
 
@@ -6085,7 +6085,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                 # BOX/VIOLIN example
                 plot_correlation(
                     df=df_combined, round_selection=round_selection,
-                    as_scatterplot=False, boxplot_param=param,   # only one param
+                    as_scatterplot=False, boxplot_param=param, file_paths=file_paths,
                     fig_lay=fig_lay, export_fig=export_fig, include_dropdown=include_dropdown,
                     out_path=os.path.join(sim_dir, f"corr_violin_{param}_{round_selection}.html")
                 )
@@ -6095,7 +6095,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                 df=df_combined,
                 fig_lay=fig_lay, export_fig=export_fig,
                 round_selection=round_selection, as_scatterplot=True,
-                params=["Vii", "Vij", "Vii_std", "Vij_std", "temp"],
+                params=["Vii", "Vij", "Vii_std", "Vij_std", "temp"], file_paths=file_paths,
                 out_path=os.path.join(sim_dir, f"corr_scatter_{round_selection}.html")
             )
 
@@ -6109,8 +6109,8 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
     return df_combined
 
 
-def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vij_std_fitted_predictor", temp_col="temp_fitted_predictor", param_true_chooser="Vij_true_chooser", 
-                                      param_fitted_predictor="Vij_fitted_predictor", player_id_col="player_uuid_predictor", var_edges: list[float] = None, 
+def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted_predictor", temp_col="temp_fitted_predictor", param_true_chooser="Vᵢⱼ_true_chooser", 
+                                      param_fitted_predictor="Vᵢⱼ_fitted_predictor", player_id_col="player_uuid_predictor", var_edges: list[float] = None, 
                                       temp_edges: list[float] = None, last_rounds: list[int] = [18,19,20], print_: bool = True) -> dict:
     """
     Quantify parameter recovery as a function of prior variance and temperature.
@@ -6187,6 +6187,14 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vij_std_fitted_pre
     df_ = df.copy()
 
     df0 = df_[df_["round"]==0].copy()
+    if var_col not in df0.columns:
+        var_col = (var_col
+                .replace("Vii", "Vᵢᵢ")
+                .replace("Vij", "Vᵢⱼ"))
+
+    if temp_col not in df0.columns:
+        temp_col = temp_col.replace("temp", "τ")
+
     if print_:
         print("Unique participants with round=0:", df0[player_id_col].nunique())
         print("Total rows with round=0:", len(df0))
@@ -6776,19 +6784,29 @@ def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_s
     print_every = max(1, n_predictors // 10)  # print every ~10% of predictors
 
     "Generate prior parameters for choosers and predictors."
-    # params_choosers = [{param_key: param_val for param_key, param_val 
-    #                     in zip(param_info['keys'], param_guesses())} 
-    #                    for chooser in range(n_predictors)]
-    # params_predictors = [{param_key: param_val for param_key, param_val 
-    #                       in zip(param_info['keys'], param_guesses())} 
-    #                      for predictor in range(n_predictors)]
+    params_choosers = [
+        {
+            param_key: param_val
+            for param_key, param_val
+            in zip(
+                param_info['keys'],
+                UniformGuesser(bounds=param_info['bounds'], seed=random_seed)()  
+            )
+        }
+        for chooser in range(n_predictors)
+    ]
 
-    params_choosers = [{param_key: param_val for param_key, param_val 
-                        in zip(param_info['keys'], UniformGuesser(bounds=param_info['bounds'], seed=random_seed))} 
-                       for chooser in range(n_predictors)]
-    params_predictors = [{param_key: param_val for param_key, param_val 
-                          in zip(param_info['keys'], UniformGuesser(bounds=param_info['bounds'], seed=random_seed))} 
-                         for predictor in range(n_predictors)]
+    params_predictors = [
+        {
+            param_key: param_val
+            for param_key, param_val
+            in zip(
+                param_info['keys'],
+                UniformGuesser(bounds=param_info['bounds'], seed=random_seed)()
+            )
+        }
+        for predictor in range(n_predictors)
+    ]
 
     "Generate dyads"
     dyads = {}
@@ -7063,8 +7081,16 @@ def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_s
 "======= Simulation 2) Predictor Estimates Converge to the Chooser’s True Altruism ========"
 "=========================================================================================="
 
-def plot_param_recovery_by_round(df_merged: pd.DataFrame, general_settings: GeneralSettings, file_paths: FilePaths, params=None, 
-                                 fig_lay: dict = None, export_fig: bool = True, create_new_file: bool = False, file_name: str = "corr_by_round.html") -> None:
+def plot_param_recovery_by_round(
+        df_merged: pd.DataFrame,
+        general_settings: GeneralSettings,
+        file_paths: FilePaths,
+        params=None,
+        fig_lay: dict = None,
+        export_fig: bool = True,
+        create_new_file: bool = False,
+        file_name: str = "corr_by_round.html"
+    ) -> None:
     """
     Plot how parameter-recovery correlations evolve across rounds.
 
@@ -7078,7 +7104,7 @@ def plot_param_recovery_by_round(df_merged: pd.DataFrame, general_settings: Gene
         3. Uses a dropdown to toggle which parameter’s traces are visible.
 
     Arguments:
-        • df_with_fits: pd.DataFrame;
+        • df_merged: pd.DataFrame;
             Long-format DataFrame with true_* and fitted_predictor columns.
         • general_settings: GeneralSettings;
             Used mainly for display options (e.g., dark_mode).
@@ -7092,7 +7118,7 @@ def plot_param_recovery_by_round(df_merged: pd.DataFrame, general_settings: Gene
         • export_fig: bool;
             If True, write the Plotly HTML to `dir_path/file_name`. If False, show it.
         • create_new_file: bool;
-            Passed to `compute_param_recovery_correlations` to force recomputation.
+            If True, force recomputation of the correlation CSV.
         • file_name: str;
             Name of the .html file (".html" added if missing).
 
@@ -7100,6 +7126,23 @@ def plot_param_recovery_by_round(df_merged: pd.DataFrame, general_settings: Gene
         • None;
             Writes or shows an interactive Plotly figure with correlation trajectories.
     """
+    def canonicalize_param_name(param: str, available: list[str]) -> str:
+        """
+        Map ASCII parameter name variants to the one that actually appears
+        in correlation_results.csv, handling Vii/Vᵢᵢ and Vij/Vᵢⱼ, etc.
+        """
+        if param in available:
+            return param
+
+        candidates = [
+            param.replace("Vii", "Vᵢᵢ").replace("Vij", "Vᵢⱼ"),
+            param.replace("Vᵢᵢ", "Vii").replace("Vᵢⱼ", "Vij"),
+        ]
+        for cand in candidates:
+            if cand in available:
+                return cand
+        return param
+
     if params is None:
         params = ["Vij", "Vii", "Vij_std", "Vii_std", "temp"]
     if fig_lay is None:
@@ -7123,31 +7166,33 @@ def plot_param_recovery_by_round(df_merged: pd.DataFrame, general_settings: Gene
         "temp":    "(τ)"
     }
 
-    # 1) Get correlation results => 'corr_df' with columns [round, n_data, param, corr, ci_lower, ci_upper].
-    #    This CSV is typically something like "correlation_results.csv", which we read or create.
+    # 1) Get per-round correlations into a *separate* CSV so we don't clash
+    #    with the "first/final" summary file.
     corr_df = compute_param_recovery_correlations(
-        df=df_merged, dir_path=dir_path,
-        out_csv_name="correlation_results.csv",
-        create_new_file=create_new_file
+        df=df_merged,
+        dir_path=dir_path,
+        out_csv_name="correlation_results_by_round.csv",
+        true_role="chooser",
+        round_mode="all",
+        create_new_file=True  # always recompute "all" so we know it's numeric rounds
     )
 
-    # 2) Filter out "first" / "final" so we only have numeric rounds to plot lines.
-    #    You can remove these lines if you want them in the chart.
-    #    We'll keep them so it matches your prior approach.
-    corr_df = corr_df[~corr_df["round"].isin(["first","final"])]
-
-    # 3) Keep only the desired params:
-    corr_df = corr_df[corr_df["param"].isin(params)]
-
-    # Convert "round" to numeric if it's not already:
+    # 2) Make sure "round" is numeric and drop any junk rows.
+    corr_df = corr_df.copy()
     corr_df["round"] = pd.to_numeric(corr_df["round"], errors="coerce")
+    corr_df = corr_df.dropna(subset=["round", "corr"])
 
-    # drop rows where round is NaN after conversion
-    corr_df = corr_df.dropna(subset=["round"])
+    available_params = corr_df["param"].unique().tolist()
+    # Map ASCII param names -> actual names in corr_df
+    param_mapping = {
+        p: canonicalize_param_name(p, available_params)
+        for p in params
+    }
 
-    # 4) Build figure with 2 traces per param:
-    #     (a) The line of correlation data
-    #     (b) The best-fit line
+    # Optional: filter corr_df down to just the params we care about.
+    corr_df = corr_df[corr_df["param"].isin(param_mapping.values())]
+
+    # 3) Build figure with 2 traces per param: data line + best-fit line.
     fig = go.Figure()
     annotation_base = dict(
         x=0.05, y=0.95, xref='paper', yref='paper',
@@ -7155,12 +7200,8 @@ def plot_param_recovery_by_round(df_merged: pd.DataFrame, general_settings: Gene
         font=dict(size=28)
     )
     param_buttons = []
-
-    # We'll store how many total traces => 2 per param
     n_params = len(params)
-    trace_count = 0
 
-    # function to do R^2
     def compute_r2(x_array, y_array, slope, intercept):
         if len(x_array) < 2:
             return math.nan
@@ -7168,17 +7209,17 @@ def plot_param_recovery_by_round(df_merged: pd.DataFrame, general_settings: Gene
         ss_tot = np.sum((y_array - y_mean)**2)
         ss_res = np.sum((y_array - (slope*x_array + intercept))**2)
         if abs(ss_tot) > 1e-12:
-            r2_ = 1 - (ss_res/ss_tot)
-        else:
-            r2_ = math.nan
-        return r2_
+            return 1 - (ss_res/ss_tot)
+        return math.nan
 
     for idx, param_name in enumerate(params):
-        df_sub = corr_df[corr_df["param"] == param_name].copy()
+        param_use = param_mapping[param_name]
+        df_sub = corr_df[corr_df["param"] == param_use].copy()
         df_sub = df_sub.sort_values("round")
+
         xvals = df_sub["round"].values
         yvals = df_sub["corr"].values
-        n_data_vals = df_sub["n_data"].astype(str).values  # for the hover
+        n_data_vals = df_sub.get("n_data", pd.Series(index=df_sub.index, dtype=str)).fillna("").astype(str).values
 
         # data trace => correlation points
         data_trace = go.Scatter(
@@ -7195,19 +7236,19 @@ def plot_param_recovery_by_round(df_merged: pd.DataFrame, general_settings: Gene
             text=n_data_vals
         )
         fig.add_trace(data_trace)
-        trace_count += 1
 
-        # best-fit line
+        # best-fit line over (round, corr)
         slope_line = math.nan
         intercept_line = math.nan
         r2_line = math.nan
         bestfit_x = []
         bestfit_y = []
+
         if len(xvals) >= 2:
             slope_line, intercept_line = np.polyfit(xvals, yvals, 1)
             x_min, x_max = xvals.min(), xvals.max()
             x_line = np.linspace(x_min, x_max, 50)
-            y_line = slope_line*x_line + intercept_line
+            y_line = slope_line * x_line + intercept_line
             r2_line = compute_r2(xvals, yvals, slope_line, intercept_line)
             bestfit_x, bestfit_y = x_line, y_line
 
@@ -7218,7 +7259,6 @@ def plot_param_recovery_by_round(df_merged: pd.DataFrame, general_settings: Gene
             visible=True if idx == 0 else False,
         )
         fig.add_trace(fit_trace)
-        trace_count += 1
 
         # annotation text => slope + R²
         if len(xvals) >= 2:
@@ -7239,15 +7279,20 @@ def plot_param_recovery_by_round(df_merged: pd.DataFrame, general_settings: Gene
             args=[
                 {"visible": visible_list},
                 {
-                    "title": f"Correlation Between Fitted Predictor Parameters and True Chooser Parameters by Round for {param_titles[param_name]}", 
+                    "title": (
+                        "Correlation Between Fitted Predictor Parameters and "
+                        f"True Chooser Parameters by Round for {param_titles[param_name]}"
+                    ),
                     "annotations": [dict(text=annotation_text, **annotation_base)]
                 }
             ]
         ))
 
-    # default annotation for the first param
+    # default annotation for the first non-empty param
     first_param = params[0]
-    df_first_param = corr_df[corr_df["param"]==first_param].sort_values("round")
+    first_use = param_mapping[first_param]
+    df_first_param = corr_df[corr_df["param"] == first_use].sort_values("round")
+
     if len(df_first_param) >= 2:
         xvals_ = df_first_param["round"].values
         yvals_ = df_first_param["corr"].values
@@ -7258,27 +7303,39 @@ def plot_param_recovery_by_round(df_merged: pd.DataFrame, general_settings: Gene
         ann_text = "Insufficient data"
 
     dark_mode = general_settings.get("dark_mode", True)
+    max_round = corr_df["round"].max() if not corr_df.empty else 0
+
     fig.update_layout(
         title="Correlation Between Fitted Predictor Parameters And True Chooser Parameters by Round",
-        title_x=fig_lay['title_x'], title_y=fig_lay['title_y'], titlefont_size=fig_lay['titlefont_size']-15,
-        xaxis=dict(title="Round", range=[-0.5, corr_df["round"].max()+0.5], 
-                   **fig_lay.get("xaxis", {})),
-        yaxis=dict(title="Correlation", range=[-1, 1], 
-                   **fig_lay.get("yaxis", {})),
+        title_x=fig_lay['title_x'], title_y=fig_lay['title_y'],
+        titlefont_size=fig_lay['titlefont_size'] - 15,
+        xaxis=dict(
+            title="Round",
+            range=[-0.5, max_round + 0.5],
+            **fig_lay.get("xaxis", {})
+        ),
+        yaxis=dict(
+            title="Correlation",
+            range=[-1, 1],
+            **fig_lay.get("yaxis", {})
+        ),
         template=fig_lay.get("template", "plotly_dark"),
-        hoverlabel=fig_lay.get("hoverlabel",{}),
+        hoverlabel=fig_lay.get("hoverlabel", {}),
         margin=dict(l=150, r=120, t=120, b=120),
-        font=dict(family="Calibri", color="white" if dark_mode else "black", size=32),
-        # font=fig_lay.get("font",{}),
+        font=dict(
+            family="Calibri",
+            color="white" if dark_mode else "black",
+            size=32
+        ),
         updatemenus=[dict(
-            type="dropdown", showactive=True, 
+            type="dropdown", showactive=True,
             buttons=param_buttons, x=0.88, y=0.2
         )],
         annotations=[dict(
             text=ann_text,
             **annotation_base
         )],
-        legend={"x": 0.81, "y": 0.35}, 
+        legend={"x": 0.81, "y": 0.35},
     )
 
     if not file_name.endswith(".html"):
@@ -7287,11 +7344,13 @@ def plot_param_recovery_by_round(df_merged: pd.DataFrame, general_settings: Gene
 
     if export_fig:
         fig.write_html(out_path)
-        print("Correlation-by-round figure saved to", out_path)
+        print(f"Correlation-by-round figure saved to {out_path}")
     else:
         fig.show()
 
     return fig
+
+
 
 
 def compute_prediction_accuracy_by_segment(file_paths: Dict[str, Dict[str, str] | str], general_settings: Dict[str, Any], utility_settings: Dict[str, bool], n_segments: int = 2) -> Dict[str, Any]:
@@ -16048,7 +16107,7 @@ def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: F
 "=========================================================================================="
 
 run_code_settings = {
-    'run_simulation_analyses': True, 
+    'run_simulation_analyses': False, 
     'run_illustrate_belief_updates': False, 
     'run_alternative_model_constest': False, 
     'run_typological_bayesian_models': False, 
@@ -16063,7 +16122,8 @@ def main():
 
     if run_code_settings['run_simulation_analyses']:
 
-        sample_ratios = list(np.round(np.linspace(start=0.05, stop=0.95, num=19), decimals=3))
+        # sample_ratios = list(np.round(np.linspace(start=0.05, stop=0.95, num=19), decimals=3))
+        sample_ratios = list(np.round(np.linspace(start=0.05, stop=0.10, num=2 ), decimals=3))
         verify_particle_filter_fidelity(general_settings=general_settings, utility_settings=utility_settings, 
                                         param_info=param_info, file_paths=file_paths, fig_lay=fig_lay, 
                                         sample_ratios=sample_ratios, n_predictors=8, n_games_per_dyad=8)
@@ -16081,10 +16141,10 @@ def main():
 
         compute_recovery_by_prior_bins(
             df=df_merged,
-            var_col="Vij_std_fitted_predictor",
+            var_col="Vᵢⱼ_std_fitted_predictor",
             temp_col="temp_fitted_predictor",
-            param_true_chooser="Vij_true_chooser",
-            param_fitted_predictor="Vij_fitted_predictor",
+            param_true_chooser="Vᵢⱼ_true_chooser",
+            param_fitted_predictor="Vᵢⱼ_fitted_predictor",
             player_id_col="player_uuid_predictor",
             last_rounds=[18, 19, 20],    
             var_edges=None,       
@@ -16092,31 +16152,47 @@ def main():
             print_=True
         )
 
-        # run_param_recovery_by_k(
-        #     n_games=28,
-        #     n_predictors=70,
-        #     n_choosers_per_predictor=3,
-        #     k_params_range=(1, 9),
-        #     n_altruism_steps=7,
-        #     evenly_space_altruism=True,
-        #     utility_settings_by_k=None,
-        #     general_settings=general_settings,
-        #     file_paths=file_paths,
-        #     fig_lay=fig_lay,
-        #     param_bds=param_bds,
-        #     analysis_experiment_num=0,
-        #     random_seed=2025
-        # )
+        run_param_recovery_by_k(
+            n_games=28,
+            n_predictors=70,
+            n_choosers_per_predictor=3,
+            k_params_range=(1, 9),
+            n_altruism_steps=7,
+            evenly_space_altruism=True,
+            utility_settings_by_k=None,
+            general_settings=general_settings,
+            file_paths=file_paths,
+            fig_lay=fig_lay,
+            param_bds=param_bds,
+            analysis_experiment_num=0,
+            random_seed=2025
+        )
 
-        # plot_param_recovery_by_round(df_merged=df_merged, fig_lay=fig_lay)
+        plot_param_recovery_by_round(df_merged=df_merged, fig_lay=fig_lay)
 
-        # run_update_speed_simulation_regression(general_settings=general_settings)
+        run_update_speed_simulation_regression(general_settings=general_settings)
 
-        # update_speeds = analyze_update_speed_in_human_bot(file_paths=file_paths, general_settings=general_settings, utility_settings=utility_settings)
-        # plot_update_speed_by_counterpart(update_speeds_per_counterpart=update_speeds['update_speeds_per_counterpart'], fig_lay=fig_lay, 
-        #                                  export_fig=export_fig, file_name="visuals/update_speeds_per_avatar.html")
+        update_speeds = analyze_update_speed_in_human_bot(file_paths=file_paths, general_settings=general_settings, utility_settings=utility_settings)
+        plot_update_speed_by_counterpart(update_speeds_per_counterpart=update_speeds['update_speeds_per_counterpart'], fig_lay=fig_lay, 
+                                         export_fig=export_fig, file_name="visuals/update_speeds_per_avatar.html")
 
     if run_code_settings['run_illustrate_belief_updates']:
+
+        experiment_num = general_settings.get('experiment_num')
+        if experiment_num not in (0, 1, 2, 3):
+            general_settings['experiment_num'] = 2
+        elif experiment_num != 2:
+            print(f"Much of the visualization code is intended to be run on experiment 2 data. Not "
+                  f"experiment {experiment_num}. Change experiment_num in config.py > general_settings.")
+            
+        n_players_experiment_2 = 84
+        player_fits_file_names = []
+        for file_name in os.listdir(os.path.join(file_paths['player_fits'], 'experiment_2')):
+            if file_name.endswith('.json'):
+                player_fits_file_names.append(file_name)
+        if len(player_fits_file_names) < n_players_experiment_2:
+            raise Exception("No data from which to visualize! You must run the code within "
+                            "'run_parameter_distribution_results' before you can visualize Bayesian updates.")
 
         visualize_bayesian_updates_2d(
             player_uuid=0, 
@@ -16138,9 +16214,9 @@ def main():
             fix_z_axis=True
         )
 
-    for participant_number in range(84):
-        belief_accuracy_analysis(file_paths=file_paths, participant_num=participant_number, general_settings=general_settings, 
-                                 fig_lay=fig_lay, fitted_by_player=True, compute_optimum_updates=True, animate_figure=False)
+        for participant_number in range(n_players_experiment_2):
+            belief_accuracy_analysis(file_paths=file_paths, participant_num=participant_number, general_settings=general_settings, 
+                                    fig_lay=fig_lay, fitted_by_player=True, compute_optimum_updates=True, animate_figure=False)
 
     if run_code_settings['run_alternative_model_constest']:
 
