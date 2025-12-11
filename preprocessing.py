@@ -223,7 +223,7 @@ def all_player_uuids(file_paths: FilePaths, experiment_num: int | None, only_hum
 
     player_uuids = []
     for exper_num in experiment_numbers:
-        with open(os.path.join(file_paths['inputs'], 'Iter_Binary_Dictator/processed', file_paths['file_names'][
+        with open(os.path.join(ROOT, 'processed', file_paths['file_names'][
             f'player_pairs_exper{exper_num}']), "r", encoding='utf-8') as file:
             raw_data: dict = json.load(file)     
             player_info: dict = raw_data.get('player_info', {})
@@ -258,7 +258,7 @@ def dyads_for_a_player(player_uuid: str | int, experiment_num: int, file_paths: 
         raise ValueError(f"experiment_num({experiment_num}) must be 1, 2, or 3.")
 
     if experiment_num == 0:
-        histories_file_path = os.path.join(file_paths['inputs'], 'Iter_Binary_Dictator', 'processed', 
+        histories_file_path = os.path.join(ROOT, 'processed', 
                                            file_paths['file_names'][f'player_pairs_exper0'])
 
         with open(histories_file_path, "r", encoding='utf-8') as file:
@@ -337,7 +337,7 @@ def players_to_dyads(experiment_num: int, file_paths: FilePaths, create_new_file
             result = json.load(file)
         return result
 
-    with open(os.path.join(file_paths['inputs'], 'Iter_Binary_Dictator/processed', file_paths['file_names'][
+    with open(os.path.join(ROOT, 'processed', file_paths['file_names'][
         f'player_pairs_exper{experiment_num}']), "r", encoding='utf-8') as file:
         raw_data = json.load(file)   
 
@@ -459,7 +459,7 @@ def create_unified_dataframe(general_settings: GeneralSettings, file_paths: File
         if dyads_for_this_player is None:
             raise Exception(f"Failed to extract data for player {player_uuid}")
 
-        with open(os.path.join(file_paths['inputs'], file_paths['file_names'][
+        with open(os.path.join(ROOT, file_paths['file_names'][
             f'player_pairs_exper{exper_num}']), "r", encoding='utf-8') as file:
             raw_data: dict[str, dict[str, str]] = json.load(file)
 
@@ -716,6 +716,7 @@ def preprocessing2(df: pd.DataFrame, column_names: ColumnNames, file_paths: File
         • df: pandas.DataFrame; The preprocessed data.         
     """
     if not create_new_file:
+        print('cat'), exit()
         df_new = dataframe(file_paths["processed"], file_paths["file_names"]['processed_data_exper2'])
         if df_new is not None:
             return df_new
@@ -832,6 +833,7 @@ def preprocessing3(df: pd.DataFrame, column_names: ColumnNames, file_paths: File
         return batch_groups
 
     if not create_new_file:
+        print('dog')
         df_new = dataframe(file_paths["processed"], file_paths["file_names"]['processed_data_exper3'])
         if df_new is not None:
             return df_new
@@ -1100,12 +1102,12 @@ def player_histories(df: pd.DataFrame, experiment_num: int, file_paths: FilePath
     return result
 
 
-def all_histories(column_names: ColumnNames, file_paths: FilePaths) -> List[pd.DataFrame]:
+def all_histories_raw(column_names: ColumnNames, file_paths: FilePaths) -> List[pd.DataFrame]:
     """
-    Load all data from all experiments.
+    Load all data from all experiments. DEPRICATED Used to load raw data, which is no longer on this repo.
     """
     experiments = [1, 2, 3]
-    pre_dfs = [dataframe(file_paths["inputs"], file_paths[
+    pre_dfs = [dataframe(ROOT, file_paths[
         "file_names"][f"raw_data_exper{exper}"]) for exper in experiments]
     df1 = preprocessing1(df = pre_dfs[0], column_names = column_names, file_paths = file_paths, create_new_file = False)
     df2 = preprocessing2(df = pre_dfs[1], column_names = column_names, file_paths = file_paths, create_new_file = False)
@@ -1113,3 +1115,10 @@ def all_histories(column_names: ColumnNames, file_paths: FilePaths) -> List[pd.D
     return [player_histories(df=[df1, df2, df3][exper - 1], experiment_num=exper, file_paths=file_paths,
                                   create_new_file = False) for exper in experiments]  
 
+
+def all_histories(file_paths: FilePaths, experiment_numbers=[1, 2, 3]) -> List[pd.DataFrame]:
+    """
+    Load all data from all experiments.
+    """
+    return [dataframe(file_paths["processed"], file_paths[
+        "file_names"][f"processed_data_exper{exper}"]) for exper in experiment_numbers]

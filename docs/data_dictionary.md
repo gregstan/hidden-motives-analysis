@@ -92,9 +92,9 @@ Data Dictionary & Core Data Structures
 
 This document explains the main data formats and core runtime objects used in the Inferring Hidden Motives analysis code.
 
-Morality Game raw trees (older schema)
+Morality Game raw trees 
 
-Raw JSON files contain lists of game trees. Each tree is a nested object (root + recursive options) capturing the full strategic state and all responses recorded at that node.
+Raw JSON files contain lists of game trees. Each tree is a nested object (root + recursive options) capturing the full strategic state and all responses recorded at that node. 
 
 Tree schema (example, abridged)
 {
@@ -149,7 +149,7 @@ Tree schema (example, abridged)
       "sid": "s8JrYx5I8rsNR6AqAAIz",
       "avatar": {
         "shape": "round-square",
-        "color": "hsla(196, 92%, 41%, 1.0)",
+        "color": "hsla(196, 100%, 50%, 1.00)",
         "texture": "oil_bubbles.png"
       },
       "cumulative_payoffs": 135,

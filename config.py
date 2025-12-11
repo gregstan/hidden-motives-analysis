@@ -128,10 +128,7 @@ class UniformGuesser:
         return [rng.uniform(lo, hi) for (lo,hi) in self.bounds]
 
 
-def parameter_keys_for_utility_settings(
-    utility_settings: UtilitySettings,
-    general_settings: Optional[Dict[str, Any]] = None
-) -> List[str]:
+def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, general_settings: Optional[Dict[str, Any]] = None) -> List[str]:
     """
     Returns the ordered list of parameter keys for a given set of utility options.
 
@@ -384,10 +381,7 @@ def add_remove_file_name_suffix(file_paths: FileNames, file_name_suffix: str | N
     return file_paths
 
 
-def ensure_directory_and_join(base_dir: str,
-                              file_name: str,
-                              max_total_path_len: int = 245,
-                              max_file_name_len: int = 79) -> str:
+def ensure_directory_and_join(base_dir: str, file_name: str, max_total_path_len: int = 245, max_file_name_len: int = 79) -> str:
     """
     Create (if needed) and return a safe file path under 'base_dir' for 'file_name'.
 
@@ -452,7 +446,7 @@ def ensure_directory_and_join(base_dir: str,
 experiment_num = 3
 run_in_parallel = True
 track_evolution = False
-create_new_file = False
+create_new_file = True
 update_method = 'grid'
 analysis_mode = 'bayesian'
 analysis_unit = 'player'

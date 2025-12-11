@@ -24,24 +24,23 @@ README.md
 LICENSE
 .gitignore
 config.py # settings, types, library imports, and path map
-
 main.py # orchestrates analyses in the order used in the paper
-preprocessing.py # data cleaning / merges (Iter_Binary_Dictator_Preprocessing)
-utilities.py # general helpers (Iter_Binary_Dictator_Generalist)
+preprocessing.py # data cleaning / merges
+utilities.py # general helpers 
 typological.py # typological Bayesian (discrete) models
 
 docs/
 data_dictionary.md # coding sheet (file→column→meaning)
 architecture.md # how modules/settings/pipeline fit together
 
-raw_data/ # raw inputs (CSV/JSON)
-processed/ # cleaned/merged data products
-param_data/ # (ignored) fitted parameter JSON/CSV
+raw_data/    # raw inputs (CSV/JSON)
+processed/   # (ignored) cleaned/merged data products
+param_data/  # (ignored) fitted parameter JSON/CSV
 player_fits/ # (ignored) per-player fit artifacts
-dyad_data/ # (ignored) dyad-level caches
-discrete/ # (ignored) typological model outputs
-bic_aic/ # (ignored) IC outputs / tables
-visuals/ # Plotly HTML / PNG figures
+dyad_data/   # (ignored) dyad-level caches
+discrete/    # (ignored) typological model outputs
+bic_aic/     # (ignored) IC outputs / tables
+visuals/     # (ignored) Plotly HTML / PNG figures
 
 ## Quick start
 

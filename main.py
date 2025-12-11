@@ -9733,7 +9733,7 @@ def compute_loss_for_typological_model_across_all_data(hypothesis_space: Dict[Tu
     return total_nll, total_data_points
 
 
-def _worker_discrete_subset(args: Tuple[Any, ...]) -> Dict[str, Any]:
+def _parallel_process_worker_typological_model_comparison_population_fit(args: Tuple[Any, ...]) -> Dict[str, Any]:
     """
     Worker function for parallelizing a single hypothesis-space fit. 
     This obtains the best-fitting priors for that subset, 
@@ -9950,7 +9950,7 @@ def typological_model_comparison_fit_population(file_paths: Dict[str, str], gene
         # Now run them in parallel or serial
         if general_settings.get('run_in_parallel'):
             with mp.Pool(processes=max(mp.cpu_count()-1, 1)) as pool:
-                for idx, result_dict in enumerate(pool.imap_unordered(_worker_discrete_subset, args_list), 1):
+                for idx, result_dict in enumerate(pool.imap_unordered(_parallel_process_worker_typological_model_comparison_population_fit, args_list), 1):
                     # Append to df_results
                     df_results.loc[len(df_results)] = [
                         result_dict["n_data"],
@@ -9995,7 +9995,7 @@ def typological_model_comparison_fit_population(file_paths: Dict[str, str], gene
         else:
             # Serial
             for idx, single_args in enumerate(args_list, 1):
-                result_dict = _worker_discrete_subset(single_args)
+                result_dict = _parallel_process_worker_typological_model_comparison_population_fit(single_args)
                 df_results.loc[len(df_results)] = [
                     result_dict["n_data"],
                     result_dict["duration"],
@@ -10044,7 +10044,7 @@ def typological_model_comparison_fit_population(file_paths: Dict[str, str], gene
         print(df_results)
 
 
-def discrete_model_nll_for_player(hypothesis_space: Dict[tuple[float, float], float], general_settings: Dict[str, Any], file_paths: Dict[str, str], player_uuid: str) -> Tuple[float, int]:
+def typological_model_nll_for_player(hypothesis_space: Dict[tuple[float, float], float], general_settings: Dict[str, Any], file_paths: Dict[str, str], player_uuid: str) -> Tuple[float, int]:
     """
     Replays data from a single player's dyads using discrete_bayesian_model
     with the given prior distribution, returns (NLL, number_of_data_points).
@@ -10104,7 +10104,7 @@ def discrete_model_nll_for_player(hypothesis_space: Dict[tuple[float, float], fl
     return total_nll, total_data
 
 
-def _worker_discrete_individual(args: Tuple[Any, ...]) -> Dict[str, Any]:
+def _parallel_process_worker_typological_model_comparison_individual_fit(args: Tuple[Any, ...]) -> Dict[str, Any]:
     """
     Parallel worker: given one player's UUID and a single, fixed set of profiles,
     find the best alpha => best prior => minimal NLL.
@@ -10124,7 +10124,7 @@ def _worker_discrete_individual(args: Tuple[Any, ...]) -> Dict[str, Any]:
         priors = gnrl.transform_to_simplex(alpha)  # e.g. exp / sum(exp)
         hypothesis_space = {prof: float(pr) for prof, pr in zip(best_profiles, priors)}
 
-        nll, _ = discrete_model_nll_for_player(
+        nll, _ = typological_model_nll_for_player(
             hypothesis_space=hypothesis_space,
             general_settings=general_settings,
             file_paths=file_paths,
@@ -10153,7 +10153,7 @@ def _worker_discrete_individual(args: Tuple[Any, ...]) -> Dict[str, Any]:
     best_priors = gnrl.transform_to_simplex(best_alpha)
     hypothesis_space_final = {prof: float(pr) for prof, pr in zip(best_profiles, best_priors)}
 
-    nll_no_penalty, n_data = discrete_model_nll_for_player(
+    nll_no_penalty, n_data = typological_model_nll_for_player(
         hypothesis_space=hypothesis_space_final,
         general_settings=general_settings,
         file_paths=file_paths,
@@ -10273,7 +10273,7 @@ def typological_model_comparison_fit_individually(best_profiles: list[tuple[floa
     run_in_parallel = general_settings.get("run_in_parallel", True)
     if run_in_parallel:
         with mp.Pool(processes=max(mp.cpu_count()-1, 1)) as pool:
-            for idx, result in enumerate(pool.imap_unordered(_worker_discrete_individual, args_list), 1):
+            for idx, result in enumerate(pool.imap_unordered(_parallel_process_worker_typological_model_comparison_individual_fit, args_list), 1):
                 df_results.loc[len(df_results)] = [
                     result["n_data"],
                     result["player_uuid"],
@@ -10311,7 +10311,7 @@ def typological_model_comparison_fit_individually(best_profiles: list[tuple[floa
 
     else:
         for idx, single_args in enumerate(args_list, 1):
-            result = _worker_discrete_individual(single_args)
+            result = _parallel_process_worker_typological_model_comparison_individual_fit(single_args)
             df_results.loc[len(df_results)] = [
                 result["n_data"],
                 result["player_uuid"],
@@ -16049,13 +16049,13 @@ def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: F
 
 run_code_settings = {
     'run_simulation_analyses': True, 
-    'run_illustrate_belief_updates': True, 
-    'run_alternative_model_constest': True, 
-    'run_typological_bayesian_models': True, 
-    'run_information_criterion_analysis': True, 
-    'run_model_nesting_violation_analysis': True, 
-    'run_parameter_distribution_results': True, 
-    'run_inequality_aversion_analysis': True
+    'run_illustrate_belief_updates': False, 
+    'run_alternative_model_constest': False, 
+    'run_typological_bayesian_models': False, 
+    'run_information_criterion_analysis': False, 
+    'run_model_nesting_violation_analysis': False, 
+    'run_parameter_distribution_results': False, 
+    'run_inequality_aversion_analysis': False
 }
 
 def main():
@@ -16092,29 +16092,29 @@ def main():
             print_=True
         )
 
-        run_param_recovery_by_k(
-            n_games=28,
-            n_predictors=70,
-            n_choosers_per_predictor=3,
-            k_params_range=(1, 9),
-            n_altruism_steps=7,
-            evenly_space_altruism=True,
-            utility_settings_by_k=None,
-            general_settings=general_settings,
-            file_paths=file_paths,
-            fig_lay=fig_lay,
-            param_bds=param_bds,
-            analysis_experiment_num=0,
-            random_seed=2025
-        )
+        # run_param_recovery_by_k(
+        #     n_games=28,
+        #     n_predictors=70,
+        #     n_choosers_per_predictor=3,
+        #     k_params_range=(1, 9),
+        #     n_altruism_steps=7,
+        #     evenly_space_altruism=True,
+        #     utility_settings_by_k=None,
+        #     general_settings=general_settings,
+        #     file_paths=file_paths,
+        #     fig_lay=fig_lay,
+        #     param_bds=param_bds,
+        #     analysis_experiment_num=0,
+        #     random_seed=2025
+        # )
 
-        plot_param_recovery_by_round(df_merged=df_merged, fig_lay=fig_lay)
+        # plot_param_recovery_by_round(df_merged=df_merged, fig_lay=fig_lay)
 
-        run_update_speed_simulation_regression(general_settings=general_settings)
+        # run_update_speed_simulation_regression(general_settings=general_settings)
 
-        update_speeds = analyze_update_speed_in_human_bot(file_paths=file_paths, general_settings=general_settings, utility_settings=utility_settings)
-        plot_update_speed_by_counterpart(update_speeds_per_counterpart=update_speeds['update_speeds_per_counterpart'], fig_lay=fig_lay, 
-                                         export_fig=export_fig, file_name="visuals/update_speeds_per_avatar.html")
+        # update_speeds = analyze_update_speed_in_human_bot(file_paths=file_paths, general_settings=general_settings, utility_settings=utility_settings)
+        # plot_update_speed_by_counterpart(update_speeds_per_counterpart=update_speeds['update_speeds_per_counterpart'], fig_lay=fig_lay, 
+        #                                  export_fig=export_fig, file_name="visuals/update_speeds_per_avatar.html")
 
     if run_code_settings['run_illustrate_belief_updates']:
 
@@ -16238,7 +16238,7 @@ def main():
             run_analysis = run_analysis_mle
 
         print(f"Using Equation:\n{build_utility_equation(utility_settings=utility_settings)}")
-        histories = prep.all_histories(column_names=column_names, file_paths=file_paths)
+        histories = prep.all_histories(file_paths=file_paths, experiment_numbers=[1, 2, 3])
         histories_fitted = [(exper, run_analysis(histories_data=histories[exper - 1], file_paths=file_paths, param_info=param_info, 
                             utility_settings=utility_settings, general_settings=general_settings)) for exper in [general_settings.get('experiment_num')]]  
 
