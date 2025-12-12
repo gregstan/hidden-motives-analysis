@@ -987,10 +987,7 @@ def equation_to_settings(equation_function: Callable, utility_settings: UtilityS
     return equ_to_settings
 
 
-def convert_utility_settings(
-    utility_settings: Union[Dict[str, bool], Tuple[bool, ...]],
-    into: type = tuple,
-) -> Union[Dict[str, bool], Tuple[bool, ...]]:
+def convert_utility_settings(utility_settings: Union[Dict[str, bool], Tuple[bool, ...]], into: type = tuple) -> Union[Dict[str, bool], Tuple[bool, ...]]:
     """
     Converts between a dict[str, bool] of utility options and a tuple[bool].
     By design, tuple ordering follows the *insertion order* of keys in the reference.
