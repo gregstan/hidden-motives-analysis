@@ -4931,7 +4931,7 @@ def simulated_bot_uuids(n_games: int, params_predictor: dict[str, float], params
     return (predictor_uuid, chooser_uuid)
 
 
-def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params_predictor: dict[str, float], 
+def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params_predictor: dict[str, float], general_settings: GeneralSettings,
                           utility_settings: UtilitySettings, param_bds: ParamBounds, payoff_structures: list[dict[str, int]] | None = None, 
                           default_utility_settings: bool = True, embed_true_params: bool = False, dynamic_predictor: bool = True) -> dict[DyadKey, DyadGames]:
     """
@@ -4970,7 +4970,7 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
             If True, saves the true params in the dyads so that they are easier to find later.
         • dynamic_predictor: bool;
             If True, runs the full UBM via agent() for predictors, meaning belief updating.
-            If False, runs choice() fro predictors, meaning no belief updating.
+            If False, runs choice() for predictors, meaning no belief updating.
 
     Returns:
         • dict[DyadKey, DyadGames]
@@ -4982,8 +4982,6 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
     Notes:
         • The chooser’s and predictor’s responses are generated with `choice(..., select=True)`.
             If your `choice` implementation samples stochastically, fix RNG seeds upstream for reproducibility.
-        • This function *does not* perform any learning; use `agent(...)` to update beliefs/posteriors
-            from the returned `dyad_games`.
     """
     if not isinstance(n_games, int):
         raise TypeError(f"n_games must be an integer not {type(n_games)} - {n_games}.")
@@ -5078,7 +5076,8 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
         "Use UBM with belief updating for predictors, overwriting previous choices"
         param_info_ = make_param_info(param_bds=param_bds, utility_settings=utility_settings_, 
                                       general_settings=general_settings, guess_seed=None, random_guesses_are_unique=True)
-        dyad_games = agent(dyad_games=dyad_games, game_idx_start=0, game_idx_stop=n_games, general_settings=general_settings, 
+        params_predictor = {param_key: param_val for param_key, param_val in params_predictor.items() if param_key not in ('τ', 'temp')}
+        dyad_games = agent(dyad_games=dyad_games, game_idx_start=0, game_idx_stop=n_games - 1, general_settings=general_settings, 
                            utility_settings=utility_settings_, param_info=param_info_, initial_params={'predictor': params_predictor}, 
                            player_uuid=predictor_uuid, player_role="predictor", select=True, choice_temperature=τ_predictor)
         
@@ -5086,13 +5085,15 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
         update_method = general_settings.get('update_method', 'grid')
         for game_idx in range(n_games):
             dyad_game = dyad_games[game_idx]
-            if 'parameter_estimates' in dyad_game:
-                if update_method in dyad_game['parameter_estimates']:
-                    dyad_game['parameter_estimates']['sim_pred'] = dyad_game['parameter_estimates'].pop(update_method)
-                else:
-                    raise Exception(f"Predictor failed to record parameter updates. {update_method} no in 'parameter_estimates'.")
-            else:
-                raise Exception(f"Predictor failed to record parameter updates. No 'parameter_estimates' stored in game.")
+            param_est = dyad_game.get('parameter_estimates')
+            if not param_est:
+                raise Exception("Predictor failed to record parameter updates. No 'parameter_estimates' stored in game.")
+
+            if update_method not in param_est:
+                raise Exception(f"Predictor failed to record parameter updates. '{update_method}' not in 'parameter_estimates'.")
+
+            "Move the whole block to 'sim_pred' so optimizer later writes fresh 'grid'"
+            param_est['sim_pred'] = param_est.pop(update_method)
 
     return {dyad_key: dyad_games}
 
@@ -5135,7 +5136,7 @@ def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], 
             A copy is internally created with all booleans turned off except
             `'include_altruism_term': True`, unless `run_analysis` modifies this downstream.
         • param_bds: dict[str, tuple[int | float, int | float]] | None;
-            Bounds for the optimizer parameters, passed through to `gnrl.make_param_info(...)`
+            Bounds for the optimizer parameters, passed through to `make_param_info(...)`
             when `run_analysis=True`. Required if `run_analysis` is True.
         • file_paths: FilePaths | None;
             File path configuration dictionary used for saving simulated histories and directing
@@ -5196,6 +5197,35 @@ def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], 
             raise Exception("param_bds cannot be None if run_analysis.")
         if file_paths is None:
             raise Exception("file_paths cannot be None if run_analysis.")
+
+    if dynamic_predictor and param_bds is None:
+        raise ValueError(f"param_bds cannot be None if dynamic_predictor is True.")
+
+    general_settings_ = {
+        'experiment_num': 0,
+        'run_in_parallel': True,
+        'track_evolution': False,
+        'create_new_file': True,
+        'update_method': 'grid',
+        'analysis_mode': 'bayesian',
+        'analysis_unit': 'player',
+        'n_bins_per_dimension': 9,
+        'include_covariance': False,
+        'softmax_temperature': 1.5,
+        'temperature_is_param': True,
+        'guess_params_randomly': False,
+        'optimization_method': 'globloc',
+        'confidence_weighted': True,
+        'use_particle_filter': True,
+        'fit_roles_together': False,
+        'use_initial_params': True,
+        'loss_funct_type': 'log',
+        'penalty_weight': 0.05,
+        'learning_rate': 0.8,
+        'sample_ratio': 1.0,
+        'export_fig': True,
+        'dark_mode': True
+    }
 
     utility_settings_: UtilitySettings = {setting_key: False for setting_key in utility_settings.keys()}
     utility_settings_['include_altruism_term'] = True
@@ -5260,8 +5290,8 @@ def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], 
                                     params_predictor = {'Vᵢᵢ': Vᵢᵢ_predictor, 'Vᵢⱼ': Vᵢⱼ_predictor, 'Vᵢᵢ_std': std_predictor, 'Vᵢⱼ_std': std_predictor, 'τ': τ_predictor}
 
                                     "Generate the series of games played between these artificial agents."
-                                    player_dyad = create_simulated_dyad(n_games=n_games, params_chooser=params_chooser, 
-                                                                        params_predictor=params_predictor, utility_settings=utility_settings_, 
+                                    player_dyad = create_simulated_dyad(n_games=n_games, params_chooser=params_chooser, params_predictor=params_predictor, 
+                                                                        utility_settings=utility_settings_, general_settings=general_settings_,
                                                                         payoff_structures=payoff_structures, param_bds=param_bds, dynamic_predictor=dynamic_predictor)
                                     
                                     "update player_histories with {DyadKey: DyadGames} dictionary."
@@ -5304,33 +5334,7 @@ def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], 
     player_histories = {'histories': player_histories, 'player_info': player_info}
 
     if run_analysis:
-        general_settings_ = {
-            'experiment_num': 0,
-            'run_in_parallel': True,
-            'track_evolution': False,
-            'create_new_file': True,
-            'update_method': 'grid',
-            'analysis_mode': 'bayesian',
-            'analysis_unit': 'player',
-            'n_bins_per_dimension': 9,
-            'include_covariance': False,
-            'softmax_temperature': 1.5,
-            'temperature_is_param': True,
-            'guess_params_randomly': False,
-            'optimization_method': 'globloc',
-            'confidence_weighted': True,
-            'use_particle_filter': True,
-            'fit_roles_together': False,
-            'use_initial_params': True,
-            'loss_funct_type': 'log',
-            'penalty_weight': 0.05,
-            'learning_rate': 0.8,
-            'sample_ratio': 1.0,
-            'export_fig': True,
-            'dark_mode': True
-        }
-
-        param_info_ = gnrl.make_param_info(param_bds=param_bds, utility_settings=utility_settings_, general_settings=general_settings_, 
+        param_info_ = make_param_info(param_bds=param_bds, utility_settings=utility_settings_, general_settings=general_settings_, 
                                                  random_guesses_are_unique=not general_settings_['run_in_parallel'])
 
         # Create file name suffix from these settings.
@@ -5579,18 +5583,18 @@ def load_simulated_fits_from_json(json_path: str) -> pd.DataFrame:
             "Extracting the posteriors originating from the simulated predictor's assigned priors, not from fitted priors."
             sim_pred = param_est.get('sim_pred')
             if sim_pred is not None:
-                simulated_predictor_true_params = sim_pred.get(predictor_str, {}).get('predictor', {}).get('params', {})
-                if 'temp' in simulated_predictor_true_params:
-                    simulated_predictor_true_params["τ"] = simulated_predictor_true_params.pop("temp")
-                for param_key, param_val in simulated_predictor_true_params.items():
-                    row[f"{param_key}_predictor_posterior"] = param_val
+                sim_pred_predictor_params = sim_pred.get(predictor_str, {}).get('predictor', {}).get('params', {})
+                if 'temp' in sim_pred_predictor_params:
+                    sim_pred_predictor_params["τ"] = sim_pred_predictor_params.pop("temp")
+                for param_key, param_val in sim_pred_predictor_params.items():
+                    row[f"{param_key}_sim_pred_predictor"] = param_val
  
             rows.append(row)
 
     return pd.DataFrame(rows)
 
 
-def compute_param_recovery_correlations(df: pd.DataFrame, dir_path: str, out_csv_name: str, *, true_role: str = "predictor", 
+def compute_param_recovery_correlations(df: pd.DataFrame, dir_path: str, out_csv_name: str, *, true_role: str = "predictor", fitted_suffix: str = "_fitted_predictor",
                                         round_mode: str = "first", params: list[str] | None = None, create_new_file: bool = False) -> pd.DataFrame:
     """
     Compute correlations between true and fitted parameters in the simulation.
@@ -5682,7 +5686,7 @@ def compute_param_recovery_correlations(df: pd.DataFrame, dir_path: str, out_csv
         for col in df_use.columns:
             if col.endswith(suffix_true):
                 base = col[: -len(suffix_true)]
-                paired = f"{base}_fitted_predictor"
+                paired = f"{base}{fitted_suffix}"
                 if paired in df_use.columns:
                     params.append(base)
         params = sorted(set(params))
@@ -5691,7 +5695,7 @@ def compute_param_recovery_correlations(df: pd.DataFrame, dir_path: str, out_csv
         recs = []
         for p in params:
             tcol = f"{p}_true_{true_role}"
-            fcol = f"{p}_fitted_predictor"
+            fcol = f"{p}{fitted_suffix}"
             s2 = subdf.dropna(subset=[tcol, fcol])
             n = len(s2)
             if n < 3:
@@ -5725,7 +5729,7 @@ def compute_param_recovery_correlations(df: pd.DataFrame, dir_path: str, out_csv
 
 
 def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSettings, file_paths: FilePaths, export_fig: bool = True, create_new_file: bool = False, 
-                                     produce_figures: bool = True, include_dropdown: bool = True, correlation_csv_name: str = "correlation_results.csv") -> pd.DataFrame:
+                                     produce_figures: bool = True, include_dropdown: bool = True, correlation_csv_name: str = "correlation_results.csv", use_dynamic_predictor: bool = False) -> pd.DataFrame:
     """
     End-to-end analysis of simulation-based parameter recovery.
 
@@ -5767,7 +5771,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
             The merged, long-format simulation DataFrame (all dyads × rounds).
     """
     def plot_correlation(df: pd.DataFrame, file_paths: FilePaths, round_selection: str = "first", as_scatterplot: bool = True, params: list = None, boxplot_param: str = "Vij", 
-                        include_dropdown: bool = True, fig_lay: dict = None, export_fig: bool = True, out_path: str = "corr_plot.html"):
+                        include_dropdown: bool = True, fig_lay: dict = None, export_fig: bool = True, out_path: str = "corr_plot.html", fitted_suffix: str = "_fitted_predictor"):
         """
         Visualize true vs fitted parameters for a chosen round.
 
@@ -5841,14 +5845,14 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                 try:
                     # gather data
                     xcol = f"{param}_true_predictor"
-                    ycol = f"{param}_fitted_predictor"
+                    ycol = f"{param}{fitted_suffix}"
                     subp = df_sub.dropna(subset=[xcol, ycol])
                 except KeyError:
                     param = param.replace('Vii', 'Vᵢᵢ')
                     param = param.replace('Vij', 'Vᵢⱼ')
                     # gather data
                     xcol = f"{param}_true_predictor"
-                    ycol = f"{param}_fitted_predictor"
+                    ycol = f"{param}{fitted_suffix}"
                     subp = df_sub.dropna(subset=[xcol, ycol])
                 # print(subp), exit()
                 # correlation
@@ -6111,9 +6115,12 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
     # 3) correlation + plots: we can use the same approach as before
     #    e.g. we do correlation between "Vij_true_predictor" and "Vij_fitted_predictor" etc.
 
+    fitted_suffix = "_sim_pred_predictor" if use_dynamic_predictor else "_fitted_predictor"
+
     # here's the function that does round-based correlation
     corr_df_out = compute_param_recovery_correlations(df=df_combined, dir_path=sim_dir, 
-                    out_csv_name=correlation_csv_name, create_new_file=create_new_file)
+                    out_csv_name=correlation_csv_name, create_new_file=create_new_file,
+                    true_role="chooser", round_mode="all", fitted_suffix=fitted_suffix)
 
     if produce_figures:
         for round_selection in ('first', 'final'):
@@ -6538,7 +6545,7 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         u_settings_k = utility_settings_by_k[k]
 
         # Build param_info for this utility
-        param_info_k = gnrl.make_param_info(
+        param_info_k = make_param_info(
             param_bds=param_bds, utility_settings=u_settings_k, guess_seed=None,
             general_settings=general_settings, random_guesses_are_unique=True, 
         )
@@ -9610,7 +9617,7 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
 
         general_settings_["update_method"] = "grid"
 
-        param_info_ = gnrl.make_param_info(param_bds=param_bds, utility_settings=utility_settings, general_settings=general_settings_, 
+        param_info_ = make_param_info(param_bds=param_bds, utility_settings=utility_settings, general_settings=general_settings_, 
                                                 random_guesses_are_unique=not general_settings_.get('run_in_parallel', True))
 
         for pdx, param_key in enumerate(param_info_['keys']):
@@ -11028,7 +11035,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         # Loop over each valid config.
         for utility_idx, utility_setting_variety in enumerate(utility_setting_varieties):
 
-            param_info = gnrl.make_param_info(param_bds=param_bds, 
+            param_info = make_param_info(param_bds=param_bds, 
                 utility_settings=utility_setting_variety, general_settings=general_settings, 
                 random_guesses_are_unique=True, guess_seed=None)
                 # random_guesses_are_unique=not general_settings['run_in_parallel'])
@@ -13009,8 +13016,8 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
         parent_settings = gnrl.convert_utility_settings(parent_tuple, into=dict)  # type: ignore
 
         # Build param_info for child and parent (means-only keys for evaluation)
-        child_param_info = gnrl.make_param_info(param_bds=param_bds, utility_settings=child_settings, general_settings=general_settings)
-        parent_param_info = gnrl.make_param_info(param_bds=param_bds, utility_settings=parent_settings, general_settings=general_settings)
+        child_param_info = make_param_info(param_bds=param_bds, utility_settings=child_settings, general_settings=general_settings)
+        parent_param_info = make_param_info(param_bds=param_bds, utility_settings=parent_settings, general_settings=general_settings)
 
         # 1) Sample random child parameter dictionary within bounds (child_param_info)
         child_parameter_dict = _sample_random_parameter_dict(
@@ -13620,7 +13627,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
     Exhaustively (or randomly) verifies that utility_function(...) and the numeric
     evaluation of utility_function_str(...) produce identical utilities across:
         • all generated, valid utility settings (via gnrl.generate_utility_settings),
-        • random parameter means (via gnrl.make_param_info + uniform sampling within bounds),
+        • random parameter means (via make_param_info + uniform sampling within bounds),
         • many payoff structures (random or full 5^4 grid over {1..5}^4).
 
     In addition to the *total* utility, the routine compares *components*:
@@ -13722,7 +13729,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
         Means-only sampling following your conventions. Uses make_param_info to get proper keys,
         but then samples uniformly within global bounds so the sweep explores the space.
         """
-        param_info = gnrl.make_param_info(
+        param_info = make_param_info(
             param_bds=param_bds,
             utility_settings=utility_settings,
             general_settings={"update_method": "naive"},
@@ -14804,7 +14811,7 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
         for plr_uuid in player_uuids:
             parent_warmstart[plr_uuid] = {}
             for plr_role in player_roles:
-                plr_param_info = gnrl.make_param_info(param_bds=param_bds, utility_settings=utility_settings, 
+                plr_param_info = make_param_info(param_bds=param_bds, utility_settings=utility_settings, 
                                                       general_settings=general_settings, guess_seed=None, random_guesses_are_unique=True)
                 parent_warmstart[plr_uuid][plr_role] = _fallback_random_parent_guess_from_bounds(param_info=plr_param_info, rng=None)
 
@@ -14880,7 +14887,7 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
             # warmstart[plr_uuid][plr_role] = parent_params
 
 
-            parent_param_info = gnrl.make_param_info(
+            parent_param_info = make_param_info(
                 param_bds=param_bds, utility_settings=utility_settings_parent,
                 general_settings=general_settings, guess_seed=None,
                 random_guesses_are_unique=True
@@ -16157,20 +16164,20 @@ def main():
     if run_code_settings['run_simulation_analyses']:
 
         # sample_ratios = list(np.round(np.linspace(start=0.05, stop=0.95, num=19), decimals=3))
-        sample_ratios = list(np.round(np.linspace(start=0.05, stop=0.10, num=2 ), decimals=3))
-        verify_particle_filter_fidelity(general_settings=general_settings, utility_settings=utility_settings, 
-                                        param_info=param_info, file_paths=file_paths, fig_lay=fig_lay, 
-                                        sample_ratios=sample_ratios, n_predictors=8, n_games_per_dyad=8)
+        # sample_ratios = list(np.round(np.linspace(start=0.05, stop=0.10, num=2 ), decimals=3))
+        # verify_particle_filter_fidelity(general_settings=general_settings, utility_settings=utility_settings, 
+        #                                 param_info=param_info, file_paths=file_paths, fig_lay=fig_lay, 
+        #                                 sample_ratios=sample_ratios, n_predictors=8, n_games_per_dyad=8)
 
         create_simulated_data(n_games=24, randomize_parameters=False, param_bds=param_bds, file_paths=file_paths, run_analysis=True,
                               params_chooser_range={'Vᵢᵢ': (1, 1, 1), 'Vᵢⱼ': (-1, 1, 5), 'std': (1.0, 1.0, 1), 'τ': (0.5, 3, 3)}, 
                               params_predictor_range={'Vᵢᵢ': (1, 1, 1), 'Vᵢⱼ': (-1, 1, 7), 'std': (0.5, 1.5, 3), 'τ': (0.5, 3, 3)}, 
-                              utility_settings=utility_settings)
+                              utility_settings=utility_settings, param_bds=param_bds, dynamic_predictor=True)
 
         df_merged = run_simulation_recovery_analysis(
             general_settings=general_settings, file_paths=file_paths,
             fig_lay=fig_lay, export_fig=True, create_new_file=True, produce_figures=True, 
-            correlation_csv_name="correlation_results.csv", include_dropdown=False
+            correlation_csv_name="correlation_results.csv", include_dropdown=False, use_dynamic_predictor=True
         )
 
         compute_recovery_by_prior_bins(
@@ -16178,7 +16185,7 @@ def main():
             var_col="Vᵢⱼ_std_fitted_predictor",
             temp_col="temp_fitted_predictor",
             param_true_chooser="Vᵢⱼ_true_chooser",
-            param_fitted_predictor="Vᵢⱼ_fitted_predictor",
+            param_fitted_predictor="Vᵢⱼ_sim_pred_predictor",
             player_id_col="player_uuid_predictor",
             last_rounds=[18, 19, 20],    
             var_edges=None,       
