@@ -4932,8 +4932,8 @@ def simulated_bot_uuids(n_games: int, params_predictor: dict[str, float], params
 
 
 def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params_predictor: dict[str, float], 
-                          utility_settings: UtilitySettings, payoff_structures: list[dict[str, int]] | None = None, 
-                          default_utility_settings: bool = True, embed_true_params: bool = False) -> dict[DyadKey, DyadGames]:
+                          utility_settings: UtilitySettings, param_bds: ParamBounds, payoff_structures: list[dict[str, int]] | None = None, 
+                          default_utility_settings: bool = True, embed_true_params: bool = False, dynamic_predictor: bool = True) -> dict[DyadKey, DyadGames]:
     """
     Create a single synthetic chooser–predictor dyad with recorded choices and predictions.
 
@@ -4968,6 +4968,9 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
             If False, use the caller-provided `utility_settings`.
         • embed_true_params: bool; 
             If True, saves the true params in the dyads so that they are easier to find later.
+        • dynamic_predictor: bool;
+            If True, runs the full UBM via agent() for predictors, meaning belief updating.
+            If False, runs choice() fro predictors, meaning no belief updating.
 
     Returns:
         • dict[DyadKey, DyadGames]
@@ -5071,12 +5074,32 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
 
         dyad_games.append(dyad_game)
 
+    if dynamic_predictor:
+        "Use UBM with belief updating for predictors, overwriting previous choices"
+        param_info_ = make_param_info(param_bds=param_bds, utility_settings=utility_settings_, 
+                                      general_settings=general_settings, guess_seed=None, random_guesses_are_unique=True)
+        dyad_games = agent(dyad_games=dyad_games, game_idx_start=0, game_idx_stop=n_games, general_settings=general_settings, 
+                           utility_settings=utility_settings_, param_info=param_info_, initial_params={'predictor': params_predictor}, 
+                           player_uuid=predictor_uuid, player_role="predictor", select=True, choice_temperature=τ_predictor)
+        
+        "Move parameter updates so they will not be overwritten by the optimizer during the parameter recovery process."
+        update_method = general_settings.get('update_method', 'grid')
+        for game_idx in range(n_games):
+            dyad_game = dyad_games[game_idx]
+            if 'parameter_estimates' in dyad_game:
+                if update_method in dyad_game['parameter_estimates']:
+                    dyad_game['parameter_estimates']['sim_pred'] = dyad_game['parameter_estimates'].pop(update_method)
+                else:
+                    raise Exception(f"Predictor failed to record parameter updates. {update_method} no in 'parameter_estimates'.")
+            else:
+                raise Exception(f"Predictor failed to record parameter updates. No 'parameter_estimates' stored in game.")
+
     return {dyad_key: dyad_games}
 
 
 def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], params_predictor_range: dict[str, float], utility_settings: UtilitySettings,
                           param_bds: Dict[str, tuple[int | float, int | float]] | None = None, file_paths: FilePaths | None = None,
-                          payoff_structures: list[dict[str, int]] | None = None, run_analysis: bool = True, 
+                          payoff_structures: list[dict[str, int]] | None = None, run_analysis: bool = True, dynamic_predictor: bool = True,
                           randomize_parameters: bool = True, max_iter: int = 1000) -> dict[DyadKey, DyadGames]:
     """
     Generate a grid (or randomized grid) of artificial chooser–predictor dyads and optionally
@@ -5126,6 +5149,9 @@ def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], 
             If True, writes the simulated histories to disk and calls `run_analysis_bayes(...)`
             using the provided `param_bds`, `file_paths`, and `utility_settings`. If False,
             only returns the in-memory `player_histories` dict.
+        • dynamic_predictor: bool;
+            If True, runs the full UBM via agent() for predictors, meaning belief updating.
+            If False, runs choice() fro predictors, meaning no belief updating.
         • randomize_parameters: bool;
             If True (default), parameter grids are populated by sampling uniform random values
             within each (min, max) range. If False, use evenly spaced linspace grids across
@@ -5236,7 +5262,7 @@ def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], 
                                     "Generate the series of games played between these artificial agents."
                                     player_dyad = create_simulated_dyad(n_games=n_games, params_chooser=params_chooser, 
                                                                         params_predictor=params_predictor, utility_settings=utility_settings_, 
-                                                                        payoff_structures=payoff_structures)
+                                                                        payoff_structures=payoff_structures, param_bds=param_bds, dynamic_predictor=dynamic_predictor)
                                     
                                     "update player_histories with {DyadKey: DyadGames} dictionary."
                                     player_histories.update(player_dyad)
@@ -5293,6 +5319,7 @@ def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], 
             'guess_params_randomly': False,
             'optimization_method': 'globloc',
             'confidence_weighted': True,
+            'use_particle_filter': True,
             'fit_roles_together': False,
             'use_initial_params': True,
             'loss_funct_type': 'log',
@@ -5549,6 +5576,15 @@ def load_simulated_fits_from_json(json_path: str) -> pd.DataFrame:
             if "temp" in predictor_true and "τ" not in predictor_true:   
                 predictor_true["τ"] = predictor_true.pop("temp")
 
+            "Extracting the posteriors originating from the simulated predictor's assigned priors, not from fitted priors."
+            sim_pred = param_est.get('sim_pred')
+            if sim_pred is not None:
+                simulated_predictor_true_params = sim_pred.get(predictor_str, {}).get('predictor', {}).get('params', {})
+                if 'temp' in simulated_predictor_true_params:
+                    simulated_predictor_true_params["τ"] = simulated_predictor_true_params.pop("temp")
+                for param_key, param_val in simulated_predictor_true_params.items():
+                    row[f"{param_key}_predictor_posterior"] = param_val
+ 
             rows.append(row)
 
     return pd.DataFrame(rows)
@@ -7349,8 +7385,6 @@ def plot_param_recovery_by_round(
         fig.show()
 
     return fig
-
-
 
 
 def compute_prediction_accuracy_by_segment(file_paths: Dict[str, Dict[str, str] | str], general_settings: Dict[str, Any], utility_settings: Dict[str, bool], n_segments: int = 2) -> Dict[str, Any]:
@@ -16107,7 +16141,7 @@ def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: F
 "=========================================================================================="
 
 run_code_settings = {
-    'run_simulation_analyses': False, 
+    'run_simulation_analyses': True, 
     'run_illustrate_belief_updates': False, 
     'run_alternative_model_constest': False, 
     'run_typological_bayesian_models': False, 
