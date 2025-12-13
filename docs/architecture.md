@@ -44,8 +44,4 @@ This codebase follows a “single switchboard” pattern: **`config.py`** define
 5. **Figures**  
    Written to `visuals/` as Plotly HTML (export parameters in `config.py`).
 
-## Development tips
 
-- Keep paths repo‑relative (use `config.file_paths`).
-- If adding a new figure, write a function (saves to `visuals/`) and call it from `main.py`.
-- For large datasets, use OSF and place files under `raw_data/` or `processed/` locally.

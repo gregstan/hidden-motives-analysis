@@ -161,7 +161,7 @@ def get_dyad_data(dyad_key: int | DyadKey, file_paths: FilePaths, dyad_already_a
         full_path = os.path.join(file_paths["processed"], file_paths[
             "file_names"][f'player_pairs_exper{experiment_num}'])
         if os.path.exists(full_path):
-            with open(full_path, "r") as file:
+            with open(full_path, "r", encoding="utf-8") as file:
                 histories_: Histories = json.load(file)
             histories: DyadGames | PlayerInfo | None = histories_.get('histories', None)
             if histories is None:
@@ -258,7 +258,13 @@ def dyads_for_a_player(player_uuid: str | int, experiment_num: int, file_paths: 
         raise ValueError(f"experiment_num({experiment_num}) must be 1, 2, or 3.")
 
     if experiment_num == 0:
-        histories_file_path = os.path.join(ROOT, 'processed', 
+        demo_mode = True  #HACK REMOVE AFTER DEMO
+        if demo_mode:
+            histories_file_path = os.path.join(ROOT, 'demo_files', 'processed', 
+                                           file_paths['file_names'][f'player_pairs_exper0'])
+
+        else:
+            histories_file_path = os.path.join(ROOT, 'processed', 
                                            file_paths['file_names'][f'player_pairs_exper0'])
 
         with open(histories_file_path, "r", encoding='utf-8') as file:

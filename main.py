@@ -3062,6 +3062,10 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
         elif game_dict.get('predictor') == player_uuid:
             actual_game_role = 'predictor'
         else:
+            print(f"Game {idx} player_uuid {player_uuid}")
+            game_copy = copy.deepcopy(game_dict)
+            del game_copy['parameter_estimates']
+            pp.pprint(game_copy)
             raise Exception(f"No role found in game {idx} for player {player_uuid}")
 
         # assigned_role is what the caller wants us to run
@@ -4914,7 +4918,20 @@ def simulated_bot_uuids(n_games: int, params_predictor: dict[str, float], params
 
         chooser_uuid = f"robot_chooser_Vii=({round(Vᵢᵢ_chooser, 2)},{round(Vᵢᵢ_std_chooser, 2)})_Vij="
         chooser_uuid += f"({round(Vᵢⱼ_chooser, 2)},{round(Vᵢⱼ_std_chooser, 2)})_t={round(τ_chooser, 2)}_n={n_games}"
-        chooser_uuid += f"~{int(Vᵢᵢ_predictor)}{int(Vᵢⱼ_predictor)}{round(Vᵢⱼ_std_predictor, 2)}{round(τ_predictor, 2)}" #HACK
+        # chooser_uuid += f"~{int(Vᵢᵢ_predictor)}{int(Vᵢⱼ_predictor)}{round(Vᵢⱼ_std_predictor, 2)}{round(τ_predictor, 2)}" #HACK
+
+        # --- Toggle: set False to revert to old behavior quickly ---
+        UNIQUE_PLAYERS_PER_DYAD = True
+
+        chooser_uuid += (
+            f"~{int(Vᵢᵢ_predictor)}{int(Vᵢⱼ_predictor)}"
+            f"{round(Vᵢⱼ_std_predictor, 2)}{round(τ_predictor, 2)}"
+        )  # HACK
+
+        # Make chooser unique per dyad (matches predictor behavior)
+        if UNIQUE_PLAYERS_PER_DYAD:
+            chooser_uuid += f"_{global_chooser_id}"
+
         predictor_uuid = f"robot_predictor_Vii=({round(Vᵢᵢ_predictor, 2)},{round(Vᵢᵢ_std_predictor, 2)})_Vij="
         predictor_uuid += f"({round(Vᵢⱼ_predictor, 3)},{round(Vᵢⱼ_std_predictor, 2)})_t={round(τ_predictor, 2)}_n={n_games}"
         # predictor_uuid += f"~{int(Vᵢᵢ_chooser)}{int(Vᵢⱼ_chooser)}{round(Vᵢⱼ_std_chooser, 2)}{round(τ_chooser, 2)}" #HACK
@@ -8607,11 +8624,13 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
     The new parameter fix_z_axis (default True) allows the user to opt to fix the z-axis and color
     axis in scene 1 so that they range from 0 to the maximum probability.
     """
+    update_method = general_settings.get('update_method', 'grid')
+
     if isinstance(dyad_games_or_key, list):
         dyad_games = dyad_games_or_key
     else:
         dyad_games = prep.get_dyad_data(dyad_key=dyad_games_or_key, file_paths=file_paths, 
-                                              experiment_num=experiment_num, analysis_mode='bayesian')
+                                              experiment_num=general_settings.get('experiment_num', 3), analysis_mode='bayesian', dyad_already_analyzed=False)
 
     first_game = dyad_games[0]
 
@@ -8641,15 +8660,15 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
     "Find the first game with grid data for predictor."
     first_grid_game = None
     for game in filtered_games:
-        grid_data = game.get("parameter_estimates", {}).get("grid", {}).get(player_uuid, {}).get("predictor", {})
+        grid_data = game.get("parameter_estimates", {}).get(update_method, {}).get(player_uuid, {}).get("predictor", {})
         if grid_data and grid_data.get("meta_data", None) is not None:
             first_grid_game = game
-            break
+            break         
     if first_grid_game is None:
         raise ValueError("No grid data found for predictor in any game for player_uuid: " + player_uuid)
     
     # Extract meta_data and tickvals from the first grid game.
-    grid_data = first_grid_game["parameter_estimates"]["grid"][player_uuid]["predictor"]
+    grid_data = first_grid_game["parameter_estimates"][update_method][player_uuid]["predictor"]
     meta_data = grid_data["meta_data"]
     tickvals = meta_data["tickvals"]
 
@@ -8668,12 +8687,13 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
         global_max_prob = 0
         for game in filtered_games:
             grid_predictor = game.get("parameter_estimates", {}).get(
-                "grid", {}).get(player_uuid, {}).get("predictor", None)
+                update_method, {}).get(player_uuid, {}).get("predictor", None)
             if grid_predictor is None:
                 continue
             prior_dict: dict = grid_predictor.get("param_vectors", {})
             temp_grid = np.full((len(Vᵢᵢ_vals), len(Vᵢⱼ_vals)), np.nan)
             for idx_tuple, prob in prior_dict.items():
+                idx_tuple = ast.literal_eval(idx_tuple)
                 idx, jdx = idx_tuple[0], idx_tuple[1]
                 if 0 <= idx < len(Vᵢᵢ_vals) and 0 <= jdx < len(Vᵢⱼ_vals):
                     temp_grid[idx, jdx] = prob
@@ -8725,7 +8745,7 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
     
     # Loop over the filtered games.
     for game_idx, game in enumerate(filtered_games):
-        grid_predictor = game.get("parameter_estimates", {}).get("grid", {}).get(player_uuid, {}).get("predictor", None)
+        grid_predictor = game.get("parameter_estimates", {}).get(update_method, {}).get(player_uuid, {}).get("predictor", None)
         if grid_predictor is None:
             continue
 
@@ -8737,6 +8757,7 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
 
         # Iterate through the prior_dict to aggregate probabilities based on Vᵢᵢ and Vᵢⱼ dimensions.
         for idx_tuple, prob in prior_dict.items():
+            idx_tuple = ast.literal_eval(idx_tuple)
             idx, jdx = idx_tuple[0], idx_tuple[1]  # Get Vᵢᵢ and Vᵢⱼ indices
             if 0 <= idx < len(Vᵢᵢ_vals) and 0 <= jdx < len(Vᵢⱼ_vals):
                 if (idx, jdx) not in aggregated_probs:
@@ -8758,7 +8779,9 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
         filtered_data = {}
         Vᵢᵢ_idx = list(tickvals.keys()).index("Vᵢᵢ")
         Vᵢⱼ_idx = list(tickvals.keys()).index("Vᵢⱼ")
+
         for param_vector, prob in prior_dict.items():
+            param_vector = ast.literal_eval(param_vector)
             val_Vᵢᵢ = tickvals["Vᵢᵢ"][param_vector[Vᵢᵢ_idx]]
             val_Vᵢⱼ = tickvals["Vᵢⱼ"][param_vector[Vᵢⱼ_idx]]
             key = (val_Vᵢᵢ, val_Vᵢⱼ)
@@ -8939,8 +8962,12 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
     # Use fig_lay's width and height if provided.
     if fig_lay.get("width") and fig_lay.get("height"):
         fig.update_layout(width=fig_lay["width"], height=fig_lay["height"])
-    
-    file_name = f"bayesian_update_visualization_{dyad_name}" + f"{file_paths.get('file_name_suffix', '')}.html"
+
+    file_name = f"bayesian_update_visualization_{dyad_name}"
+    if isinstance(dyad_games_or_key, int):
+        file_name += f"_{dyad_games_or_key}"
+    file_name += f"{file_paths.get('file_name_suffix', '')}.html"
+    # file_name = f"bayesian_update_visualization_{dyad_name}" + f"{file_paths.get('file_name_suffix', '')}.html"
     # file_name = f"bayesian_update_visualization" + f"{file_paths.get('file_name_suffix', '')}.html"
     visuals_dir = os.path.join(file_paths["visuals"], "bayesian_updates_3d")
     os.makedirs(visuals_dir, exist_ok=True)

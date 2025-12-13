@@ -1,18 +1,18 @@
 from main import create_simulated_data, run_simulation_recovery_analysis, visualize_bayesian_updates_3d, \
-    model_nesting_adjacency_matrices, run_child_parent_embedding_sanity_checks, run_child_parent_probability_equivalence_smoketest, \
-    build_utility_equation
-
+    build_utility_equation, model_nesting_adjacency_matrices, run_child_parent_embedding_sanity_checks, \
+    run_child_parent_probability_equivalence_smoketest
+    
 import utilities as gnrl
 from config import *
 
 analysis_options = {
     'light_mode': True,
     'run_simulation': True,
-    'visualize_belief_updates': False,
-    'run_model_nesting_tests': False,
+    'visualize_belief_updates': True,
+    'run_model_nesting_tests': True,
 }
 
-def run_quick_demo(analysis_options: dict[str: bool]) -> None:
+def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
     Runs a demo of Greg's code for Dr. Falk Lieder.
 
@@ -34,14 +34,33 @@ def run_quick_demo(analysis_options: dict[str: bool]) -> None:
         • 'visualize_belief_updates' assumes preexisting data from the simulation.  
         • All of these analyses will save data files on your machine, which you can delete afterwards.           
     """
+    general_settings['experiment_num'] = 0
     file_paths = {
         "processed":   ROOT / "demo_files" / "processed",
         "player_fits": ROOT / "demo_files" / "player_fits",
-        "visuals":     ROOT / "demo_files" / "visuals",      
+        "param_data":  ROOT / "demo_files" / "param_data", 
+        "visuals":     ROOT / "demo_files" / "visuals", 
+        "file_names": {
+            "player_pairs_exper0": "Social_Preference_Prediction_Pairs_Exper0.json",
+            "params_data_exper0_bayes": "Social_Preference_Prediction_Parameters_Exper0_Bayes.json",
+        }     
     }
     
-    if analysis_options['run_simulation']:
+    "Creating folders"
+    demo_root = ROOT / "demo_files"
+    required_dirs = [
+        demo_root / "processed",
+        demo_root / "param_data",
+        demo_root / "visuals" / "bayesian_update_3d",
+        demo_root / "player_fits" / "experiment_0",
+        demo_root / "player_fits" / "loss_reports" / "experiment_0",
+        demo_root / "player_fits" / "simulation_results",
+    ]
+    for dir in required_dirs:
+        dir.mkdir(parents=True, exist_ok=True)
 
+    if analysis_options['run_simulation']:
+        print("Running 'run_simulation' branch:")
         if analysis_options['light_mode']:
             params_chooser_range =   {'Vᵢᵢ': (1, 1, 1), 'Vᵢⱼ': (-1, 1, 7), 'std': (1.0, 1.0, 1), 'τ': (0.5, 0.5, 1)}
             params_predictor_range = {'Vᵢᵢ': (1, 1, 1), 'Vᵢⱼ': (-1, 1, 7), 'std': (1.0, 1.0, 1), 'τ': (0.5, 0.5, 1)}
@@ -61,28 +80,40 @@ def run_quick_demo(analysis_options: dict[str: bool]) -> None:
         )
 
     if analysis_options['visualize_belief_updates']:
+        print("Running 'visualize_belief_updates' branch:")
 
-        general_settings['experiment_num'] = 0
+        pairs_path = file_paths["processed"] / file_paths["file_names"]["player_pairs_exper0"]
+        if not pairs_path.exists():
+            print(
+                "No simulation data found for visualization.\n"
+                f"Expected: {pairs_path}\n"
+                "Run with analysis_options['run_simulation']=True first."
+            )
+            return
 
-        visualize_bayesian_updates_3d(
-            dyad_games_or_key=0,
-            player_uuid=2,
-            fig_lay=fig_lay,
-            file_paths=file_paths,
-            general_settings=general_settings,
-            fix_z_axis=True
-        )
+        general_settings['update_method'] = 'sim_pred'
+        total_dyads = 49 if analysis_options['light_mode'] else 945
+        n_samples = 9 if analysis_options['light_mode'] else 45
+        dyad_indices = sorted(random.sample(range(total_dyads), n_samples))
+        for dyad_idx in dyad_indices:
+            visualize_bayesian_updates_3d(
+                dyad_games_or_key=dyad_idx,
+                player_uuid=2,
+                fig_lay=fig_lay,
+                file_paths=file_paths,
+                general_settings=general_settings,
+                fix_z_axis=True, 
+            )
 
     if analysis_options['run_model_nesting_tests']:
-
+        print("Running 'run_model_nesting_tests' branch:")
+        
         model_nesting_adjacency_matrices(general_settings=general_settings, utility_settings=utility_settings, 
-                                        file_paths=file_paths, create_new_file=True, equation_form=True, print_=False)
+                                        file_paths=file_paths, create_new_file=True, equation_form=True, print_=True)
+        
         gnrl.summarize_nesting_relationship_counts(general_settings=general_settings, utility_settings=utility_settings, file_paths=file_paths, 
                                             model_nesting_adjacency_matrices=model_nesting_adjacency_matrices, create_new_file=True, print_=True)
-        gnrl.equation_to_settings(equation_function=build_utility_equation, utility_settings=utility_settings, file_paths=file_paths, create_new_file=True)  
         
-        gnrl.test_utility_functions(utility_settings=utility_settings, setting_to_flip='include_social_comparison', print_=True)
-
         run_child_parent_embedding_sanity_checks(
             general_settings=general_settings,
             file_paths=file_paths,
@@ -107,4 +138,7 @@ def run_quick_demo(analysis_options: dict[str: bool]) -> None:
         )
 
 
-run_quick_demo(analysis_options=analysis_options)
+if __name__ == "__main__":
+    import multiprocessing as mp
+    mp.freeze_support()
+    run_quick_demo(analysis_options=analysis_options)

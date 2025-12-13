@@ -62,7 +62,6 @@ def fill_holes_nd(input_array: NDArray[np.float64], method: str = "cubic", outpu
     from scipy.interpolate import griddata, RBFInterpolator # type: ignore
     "1) Convert all None -> np.nan, ensure float"
     arr = np.array(input_array, dtype=float)
-    print('fill_holes_hd')
     shape_in = arr.shape
     ndim = arr.ndim
 
