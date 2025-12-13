@@ -1512,9 +1512,10 @@ def parents_children_of(
     else:
         base = copy.deepcopy(utility_settings)
     ordered_keys = list(base.keys())
-
+    # pp.pprint(base)
     if not is_valid_utility_settings(base):
-        raise ValueError("The provided `utility_settings` is not a valid model.")
+        explanation = is_valid_utility_settings(candidate=base, provide_explanation=True)
+        raise ValueError(explanation)
 
     k0 = count_free_parameters(base, general_settings=general_settings)
 

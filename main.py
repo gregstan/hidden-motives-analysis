@@ -753,33 +753,33 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A")
 "==================================== Shared Functions ===================================="
 "=========================================================================================="
 
-def _init_worker_blas(num_threads: int = 1, seed: int | None = None) -> None:
-    """
-    Worker initializer that forces BLAS/numexpr to a fixed number 
-    of threads. Optionally gives each worker a distinct RNG seed.
-    """
-    # Env vars (some libraries check these only at import; still safe to set)
-    for k in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS",
-              "NUMEXPR_NUM_THREADS", "BLIS_NUM_THREADS"):
-        os.environ[k] = str(num_threads)
+# def _init_worker_blas(num_threads: int = 1, seed: int | None = None) -> None:
+#     """
+#     Worker initializer that forces BLAS/numexpr to a fixed number 
+#     of threads. Optionally gives each worker a distinct RNG seed.
+#     """
+#     # Env vars (some libraries check these only at import; still safe to set)
+#     for k in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS",
+#               "NUMEXPR_NUM_THREADS", "BLIS_NUM_THREADS"):
+#         os.environ[k] = str(num_threads)
 
-    # Try library-specific programmatic controls (best-effort; safe if missing)
-    try:
-        import mkl  # type: ignore
-        mkl.set_num_threads(num_threads)
-    except Exception:
-        pass
-    try:
-        import numexpr as ne  # type: ignore
-        ne.set_num_threads(num_threads)
-    except Exception:
-        pass
+#     # Try library-specific programmatic controls (best-effort; safe if missing)
+#     try:
+#         import mkl  # type: ignore
+#         mkl.set_num_threads(num_threads)
+#     except Exception:
+#         pass
+#     try:
+#         import numexpr as ne  # type: ignore
+#         ne.set_num_threads(num_threads)
+#     except Exception:
+#         pass
 
-    if seed is not None:
-        # Give each worker a distinct but reproducible seed if you want
-        s = int(seed) + os.getpid()
-        random.seed(s)
-        np.random.seed(s & 0x7FFFFFFF)
+#     if seed is not None:
+#         # Give each worker a distinct but reproducible seed if you want
+#         s = int(seed) + os.getpid()
+#         random.seed(s)
+#         np.random.seed(s & 0x7FFFFFFF)
 
 
 def _worker_fit_one(args: Any):
@@ -4749,20 +4749,20 @@ def run_analysis_bayes(histories_data: Histories, file_paths: FilePaths, param_i
         maxtasks = int(general_settings.get('maxtasksperchild', 50))
 
         # On Windows spawn is already the default; making it explicit is fine
-        ctx = mp.get_context("spawn")
-        with ctx.Pool(processes=n_workers,
-                      initializer=_init_worker_blas,
-                      initargs=(1, general_settings.get('random_seed', None)),
-                      maxtasksperchild=maxtasks) as pool:
-            for idx, key_returned in enumerate(
-                    pool.imap_unordered(_worker_fit_one, args_list, chunksize=chunksize), 1):
-                if print_:
-                    print(f"Processed {idx} / {n_items} {analysis_unit}s - {key_returned}.")
-
-        # with mp.Pool(processes=mp.cpu_count() - 1) as pool:
-        #     for idx, key_returned in enumerate(pool.imap_unordered(_worker_fit_one, args_list), 1):
+        # ctx = mp.get_context("spawn")
+        # with ctx.Pool(processes=n_workers,
+        #               initializer=_init_worker_blas,
+        #               initargs=(1, general_settings.get('random_seed', None)),
+        #               maxtasksperchild=maxtasks) as pool:
+        #     for idx, key_returned in enumerate(
+        #             pool.imap_unordered(_worker_fit_one, args_list, chunksize=chunksize), 1):
         #         if print_:
         #             print(f"Processed {idx} / {n_items} {analysis_unit}s - {key_returned}.")
+
+        with mp.Pool(processes=mp.cpu_count() - 1) as pool:
+            for idx, key_returned in enumerate(pool.imap_unordered(_worker_fit_one, args_list), 1):
+                if print_:
+                    print(f"Processed {idx} / {n_items} {analysis_unit}s - {key_returned}.")
 
     else:
         "Process players/dyads serially"
@@ -16267,16 +16267,16 @@ def main():
     if run_code_settings['run_simulation_analyses']:
 
         # sample_ratios = list(np.round(np.linspace(start=0.05, stop=0.95, num=19), decimals=3))
-        # sample_ratios = list(np.round(np.linspace(start=0.05, stop=0.10, num=2 ), decimals=3))
-        # verify_particle_filter_fidelity(general_settings=general_settings, utility_settings=utility_settings, 
-        #                                 param_info=param_info, file_paths=file_paths, fig_lay=fig_lay, 
-        #                                 sample_ratios=sample_ratios, n_predictors=8, n_games_per_dyad=8)
+        sample_ratios = list(np.round(np.linspace(start=0.05, stop=0.10, num=2 ), decimals=3))
+        verify_particle_filter_fidelity(general_settings=general_settings, utility_settings=utility_settings, 
+                                        param_info=param_info, file_paths=file_paths, fig_lay=fig_lay, 
+                                        sample_ratios=sample_ratios, n_predictors=8, n_games_per_dyad=8)
 
         use_dynamic_predictor = True
-        # create_simulated_data(n_games=24, randomize_parameters=False, param_bds=param_bds, file_paths=file_paths, run_analysis=True,
-        #                       params_chooser_range={'Vᵢᵢ': (1, 1, 1), 'Vᵢⱼ': (-1, 1, 5), 'std': (1.0, 1.0, 1), 'τ': (0.5, 3, 3)}, 
-        #                       params_predictor_range={'Vᵢᵢ': (1, 1, 1), 'Vᵢⱼ': (-1, 1, 7), 'std': (0.5, 1.5, 3), 'τ': (0.5, 3, 3)}, 
-        #                       utility_settings=utility_settings, dynamic_predictor=use_dynamic_predictor)
+        create_simulated_data(n_games=24, randomize_parameters=False, param_bds=param_bds, file_paths=file_paths, run_analysis=True,
+                              params_chooser_range={'Vᵢᵢ': (1, 1, 1), 'Vᵢⱼ': (-1, 1, 5), 'std': (1.0, 1.0, 1), 'τ': (0.5, 3, 3)}, 
+                              params_predictor_range={'Vᵢᵢ': (1, 1, 1), 'Vᵢⱼ': (-1, 1, 7), 'std': (0.5, 1.5, 3), 'τ': (0.5, 3, 3)}, 
+                              utility_settings=utility_settings, dynamic_predictor=use_dynamic_predictor)
 
         suffix = "_sim_pred_predictor" if use_dynamic_predictor else "_fitted_predictor"
         temp_col = f"τ{suffix}" if use_dynamic_predictor else f"temp{suffix}"
@@ -16286,19 +16286,6 @@ def main():
             correlation_csv_name="correlation_results.csv", include_dropdown=False, 
             use_dynamic_predictor=use_dynamic_predictor
         )
-
-        # compute_recovery_by_prior_bins(
-        #     df=df_merged,
-        #     var_col=f"Vᵢⱼ_std{suffix}",
-        #     temp_col=temp_col,
-        #     param_true_chooser="Vᵢⱼ_true_chooser",
-        #     param_fitted_predictor=f"Vᵢⱼ{suffix}",
-        #     player_id_col="player_uuid_predictor",
-        #     last_rounds=[18,19,20],
-        #     var_edges=None,
-        #     temp_edges=None,
-        #     print_=True,
-        # )
 
         compute_recovery_by_prior_bins(
             df=df_merged,

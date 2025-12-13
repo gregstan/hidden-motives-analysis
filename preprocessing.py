@@ -393,7 +393,8 @@ def serialize_param_vectors(dyad_games: DyadGames, general_settings: dict[str, A
                                                 else [round(val, 9) for val in list(ticks_array)] for key, ticks_array in meta_data['tickvals'].items()}
                 param_vectors = grid_data.get('param_vectors', None)   
                 if param_vectors is not None:
-                    grid_data['param_vectors'] = {str(vect_key): value for vect_key, value in param_vectors.items()}        
+                    # grid_data['param_vectors'] = {str(vect_key): value for vect_key, value in param_vectors.items()}  
+                    grid_data['param_vectors'] = {str(tuple(x.item() for x in vect_key)): value for vect_key, value in param_vectors.items()}   
 
     return dyad_games
 

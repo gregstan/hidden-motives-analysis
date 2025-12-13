@@ -7,8 +7,8 @@ from config import *
 
 analysis_options = {
     'light_mode': True,
-    'run_simulation': True,
-    'visualize_belief_updates': True,
+    'run_simulation': False,
+    'visualize_belief_updates': False,
     'run_model_nesting_tests': True,
 }
 
@@ -36,6 +36,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
     general_settings['experiment_num'] = 0
     file_paths = {
+        "bic_aic":     ROOT / "demo_files" / "bic_aic", 
         "processed":   ROOT / "demo_files" / "processed",
         "player_fits": ROOT / "demo_files" / "player_fits",
         "param_data":  ROOT / "demo_files" / "param_data", 
@@ -43,15 +44,17 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
         "file_names": {
             "player_pairs_exper0": "Social_Preference_Prediction_Pairs_Exper0.json",
             "params_data_exper0_bayes": "Social_Preference_Prediction_Parameters_Exper0_Bayes.json",
+            "information_criterion": "All_Utility_Forms_IC_Analysis_Experiment3.csv",
         }     
     }
     
     "Creating folders"
     demo_root = ROOT / "demo_files"
     required_dirs = [
+        demo_root / "bic_aic",
         demo_root / "processed",
         demo_root / "param_data",
-        demo_root / "visuals" / "bayesian_update_3d",
+        demo_root / "visuals" / "bayesian_updates_3d",
         demo_root / "player_fits" / "experiment_0",
         demo_root / "player_fits" / "loss_reports" / "experiment_0",
         demo_root / "player_fits" / "simulation_results",
@@ -107,12 +110,17 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
 
     if analysis_options['run_model_nesting_tests']:
         print("Running 'run_model_nesting_tests' branch:")
-        
+
         model_nesting_adjacency_matrices(general_settings=general_settings, utility_settings=utility_settings, 
-                                        file_paths=file_paths, create_new_file=True, equation_form=True, print_=True)
-        
+                                         file_paths=file_paths, create_new_file=True, equation_form=True, print_=True)
+
+        all_utility_settings = gnrl.generate_utility_settings(utility_settings=utility_settings, sort_by_k=False)
+        for idx, usetting in enumerate(all_utility_settings):
+            equation_str = build_utility_equation(utility_settings=usetting)
+            print(f"Equation {idx:03d}: {equation_str}")
+
         gnrl.summarize_nesting_relationship_counts(general_settings=general_settings, utility_settings=utility_settings, file_paths=file_paths, 
-                                            model_nesting_adjacency_matrices=model_nesting_adjacency_matrices, create_new_file=True, print_=True)
+                                                   model_nesting_adjacency_matrices=model_nesting_adjacency_matrices, create_new_file=True, print_=True)
         
         run_child_parent_embedding_sanity_checks(
             general_settings=general_settings,
@@ -120,22 +128,22 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             param_bds=param_bds,
             utility_settings=utility_settings,
             player_role_to_fit="chooser",
-            fit_for_n_players=1,           
+            fit_for_n_players=1,
             random_seed=20250406,
             numeric_tolerance=1e-3,
             verbose=True
         )
 
-        run_child_parent_probability_equivalence_smoketest(
-            utility_settings=utility_settings,
-            file_paths=file_paths,
-            param_bds=param_bds,            
-            rand_payoff_idx=True,
-            n_trials=12,
-            rng_seed=None,
-            tolerance=1e-12,
-            verbose=True
-        )
+        # run_child_parent_probability_equivalence_smoketest( #Debugging
+        #     utility_settings=utility_settings,
+        #     file_paths=file_paths,
+        #     param_bds=param_bds, 
+        #     rand_payoff_idx=True,
+        #     n_trials=12,
+        #     rng_seed=None,
+        #     tolerance=1e-12,
+        #     verbose=True
+        # )
 
 
 if __name__ == "__main__":
