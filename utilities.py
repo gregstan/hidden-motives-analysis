@@ -311,15 +311,13 @@ def parameter_penalty(
         • *_std, *_cov, temp: off by default for IC fairness; you can enable later
             when you fit a single winning model.
 
-    Notes
-    -----
+    Notes:
         • This function intentionally does **not** normalize by the number of parameters.
             Normalizing can subtly reintroduce anti-parent bias by shrinking children more.
         • No special `*args` trickery here — the `*` in the signature only forces keyword
             usage for the boolean switches (helps avoid accidental positional bugs).
 
-    Returns
-    -------
+    Returns:
         • A scalar penalty = penalty_weight × (sum of term penalties).
     """
     if penalty_weight <= 0:

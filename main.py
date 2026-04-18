@@ -95,7 +95,7 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
     exp2 = params.get('γ2', exp1)
     exp3 = params.get('γ3', exp1)
 
-    # Enforce a single exponent when requested (even if γ2/γ3 are present in params)
+    "Enforce a single exponent when requested (even if γ2/γ3 are present in params)"
     if utility_settings.get('single_exponential_parameter', False):
         exp2 = exp1
         exp3 = exp1
@@ -333,16 +333,17 @@ def choice(current_game: dict[str, Any], agent_params: Dict[str, float], utility
     """
     Compute the agent's probability of 'A' given the current game and agent parameters.
 
-    • current_game: dict; Includes roles, payoffs, and participant responses.
-    • agent_params: dict[str, float]; The agent's social preference parameter 
-        set, including means and standard deviations.
-        Example: {
-            'Vᵢᵢ': 0.95831, 'Vᵢⱼ': 0.33333, 'Ƹᵢⱼ': 0.27374, 'Ʒᵢⱼ': 0.01629, 'γ1': 0.80022,
-            'Vᵢᵢ_std': 0.5, 'Vᵢⱼ_std': 0.3, 'Ƹᵢⱼ_std': 0.1, 'Ʒᵢⱼ_std': 0.2, 'γ1_std': 0.9,
-        }
-    • select: bool;
-        - If True, returns a binary selection (1 or 0) instead of a float probability.
-        - If False, returns a float probability in [0, 1].
+    Arguments:
+        • current_game: dict; Includes roles, payoffs, and participant responses.
+        • agent_params: dict[str, float]; The agent's social preference parameter 
+            set, including means and standard deviations.
+            Example: {
+                'Vᵢᵢ': 0.95831, 'Vᵢⱼ': 0.33333, 'Ƹᵢⱼ': 0.27374, 'Ʒᵢⱼ': 0.01629, 'γ1': 0.80022,
+                'Vᵢᵢ_std': 0.5, 'Vᵢⱼ_std': 0.3, 'Ƹᵢⱼ_std': 0.1, 'Ʒᵢⱼ_std': 0.2, 'γ1_std': 0.9,
+            }
+        • select: bool;
+            - If True, returns a binary selection (1 or 0) instead of a float probability.
+            - If False, returns a float probability in [0, 1].
 
     Returns:
         • dict to be merged into the current game with "model_choose_A", whose value is either:
@@ -390,7 +391,6 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A")
 
     Arguments:
         • utility_settings: Dict[str, bool]; Dict of booleans controlling functional form.
-        • in_latex: bool; If True, returns the LaTeX version of the utility function.
         • option: string literal ('A' or 'B'); The option label under consideration.
     
     Returns:
@@ -424,13 +424,13 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A")
         • max(-π·,0)    → 0
         """
         toks = r"(πᵢᴬ|πⱼᴬ|πᵢᴮ|πⱼᴮ|3)"
-        # With exponent
+        "With exponent"
         pretty = re.sub(rf"max\(\s*{toks}\s*,\s*0\s*\)\s*\^γ([₁₂₃])", r"\1^γ\2", pretty)
         pretty = re.sub(rf"max\(\s*-\s*{toks}\s*,\s*0\s*\)\s*\^γ([₁₂₃])", r"0", pretty)
-        # Without exponent
+        "Without exponent"
         pretty = re.sub(rf"max\(\s*{toks}\s*,\s*0\s*\)", r"\1", pretty)
         pretty = re.sub(rf"max\(\s*-\s*{toks}\s*,\s*0\s*\)", r"0", pretty)
-        # Clean up trivial "× 0" terms that may remain
+        "Clean up trivial '× 0' terms that may remain"
         pretty = re.sub(r"\s*[+−-]\s*[^+−]*×\s*0(\^γ[₁₂₃])?", "", pretty)
         return pretty
 
@@ -441,14 +441,14 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A")
         It rewrites outer ^γt into per-payoff exponents inside the bracket/parenthesis/max.
 
         Handles:
-        • (πX - πY)^γt                → (πX^γt - πY^γt)
-        • max(πX - πY, 0)^γt          → max(πX^γt - πY^γt, 0)
-        • (πX - 3)^γt, (3 - πX)^γt    → (πX^γt - 3^γt), (3^γt - πX^γt)
-        • max(πX - 3, 0)^γt           → max(πX^γt - 3^γt, 0)
-        • max(3 - πX, 0)^γt           → max(3^γt - πX^γt, 0)
-        • [inner]^γt                  → [inner with π·^γt and 3^γt]
-        • max([inner], 0)^γt          → max([inner with π·^γt and 3^γt], 0)
-        • max(-[inner], 0)^γt         → max(-[inner with π·^γt and 3^γt], 0)
+            • (πX - πY)^γt                → (πX^γt - πY^γt)
+            • max(πX - πY, 0)^γt          → max(πX^γt - πY^γt, 0)
+            • (πX - 3)^γt, (3 - πX)^γt    → (πX^γt - 3^γt), (3^γt - πX^γt)
+            • max(πX - 3, 0)^γt           → max(πX^γt - 3^γt, 0)
+            • max(3 - πX, 0)^γt           → max(3^γt - πX^γt, 0)
+            • [inner]^γt                  → [inner with π·^γt and 3^γt]
+            • max([inner], 0)^γt          → max([inner with π·^γt and 3^γt], 0)
+            • max(-[inner], 0)^γt         → max(-[inner with π·^γt and 3^γt], 0)
         """
         if not utility_settings.get('apply_exponents_to_payoffs', False):
             return pretty_equation
@@ -459,58 +459,56 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A")
         PHI  = r"π[ᵢⱼ][ᴬᴮ]"  # πᵢᴬ, πⱼᴬ, πᵢᴮ, πⱼᴮ
 
         def raise_inside(inner: str, t: str) -> str:
-            # Raise all π tokens
+            "Raise all π tokens"
             inner = re.sub(rf"{PHI}", lambda m: f"{m.group(0)}^γ{t}", inner)
 
-            # Raise bare '3' tokens (avoid touching '1/3' etc., and don't re-raise 3^γ)
-            # 1) Start-of-string '3'
+            "Raise bare '3' tokens (avoid touching '1/3' etc., and don't re-raise 3^γ)"
+            "1) Start-of-string '3'"
             inner = re.sub(rf"^3(?!\^γ)", f"3^γ{t}", inner)
-            # 2) '3' between non-word chars
+            "2) '3' between non-word chars"
             inner = re.sub(rf"(?<=\W)3(?!\^γ)(?=\W)", f"3^γ{t}", inner)
-            # 3) End-of-string '3'
+            "3) End-of-string '3'"
             inner = re.sub(rf"(?<=\W)3(?!\^γ)$", f"3^γ{t}", inner)
 
             return inner
 
-        # (π - π)^γt
+        "(π - π)^γt"
         out = re.sub(rf"\(\s*({PHI})\s*-\s*({PHI})\s*\)\s*\^γ([{subs}])",
                     lambda m: f"({m.group(1)}^γ{m.group(3)} - {m.group(2)}^γ{m.group(3)})", out)
 
-        # (π - 3)^γt and (3 - π)^γt
+        "(π - 3)^γt and (3 - π)^γt"
         out = re.sub(rf"\(\s*({PHI})\s*-\s*3\s*\)\s*\^γ([{subs}])",
                     lambda m: f"({m.group(1)}^γ{m.group(2)} - 3^γ{m.group(2)})", out)
         out = re.sub(rf"\(\s*3\s*-\s*({PHI})\s*\)\s*\^γ([{subs}])",
                     lambda m: f"(3^γ{m.group(2)} - {m.group(1)}^γ{m.group(2)})", out)
 
-        # max(π - π, 0)^γt
+        "max(π - π, 0)^γt"
         out = re.sub(rf"max\(\s*({PHI})\s*-\s*({PHI})\s*,\s*0\s*\)\s*\^γ([{subs}])",
                     lambda m: f"max({m.group(1)}^γ{m.group(3)} - {m.group(2)}^γ{m.group(3)}, 0)", out)
 
-        # max(π - 3, 0)^γt and max(3 - π, 0)^γt
+        "max(π - 3, 0)^γt and max(3 - π, 0)^γt"
         out = re.sub(rf"max\(\s*({PHI})\s*-\s*3\s*,\s*0\s*\)\s*\^γ([{subs}])",
                     lambda m: f"max({m.group(1)}^γ{m.group(2)} - 3^γ{m.group(2)}, 0)", out)
         out = re.sub(rf"max\(\s*3\s*-\s*({PHI})\s*,\s*0\s*\)\s*\^γ([{subs}])",
                     lambda m: f"max(3^γ{m.group(2)} - {m.group(1)}^γ{m.group(2)}, 0)", out)
 
-        # [ ... ]^γt
+        "[ ... ]^γt"
         out = re.sub(rf"\[\s*([^\]]+?)\s*\]\s*\^γ([{subs}])",
                     lambda m: "[" + raise_inside(m.group(1), m.group(2)) + "]", out)
 
-        # max([ ... ], 0)^γt
+        "max([ ... ], 0)^γt"
         out = re.sub(rf"max\(\s*\[\s*([^\]]+?)\s*\]\s*,\s*0\s*\)\s*\^γ([{subs}])",
                     lambda m: "max([" + raise_inside(m.group(1), m.group(2)) + "], 0)", out)
 
-        # max(-[ ... ], 0)^γt
+        "max(-[ ... ], 0)^γt"
         out = re.sub(rf"max\(\s*-\s*\[\s*([^\]]+?)\s*\]\s*,\s*0\s*\)\s*\^γ([{subs}])",
                     lambda m: "max(-[" + raise_inside(m.group(1), m.group(2)) + "], 0)", out)
 
-        # Also: ( - [ … ] )^γt  (if present anywhere)
+        "Also: ( - [ … ] )^γt  (if present anywhere)"
         out = re.sub(rf"\(\s*-\s*\[\s*([^\]]+?)\s*\]\s*\)\s*\^γ([{subs}])",
                     lambda m: "(-[" + raise_inside(m.group(1), m.group(2)) + "])", out)
 
-        # New ----------------------------
         out = _simplify_nonnegatives(out)
-        # New ----------------------------
 
         return out
     
@@ -576,7 +574,7 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A")
 
         "Place bases within parentheses or max operators."
         if (term_type == "social_comparison" and la_socc) or loss_av:
-            # comparison = "0.5" if pay_rats and term_type != "social_comparison" else "0"
+            "comparison = '0.5' if pay_rats and term_type != 'social_comparison' else '0'"
             comparison = "0"
             if fix_self and term_type == "self-interest":
                 base1 = f"max({base1}, {comparison})" 
@@ -610,7 +608,7 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A")
 
         "Use both groups if negativity parameters are included."
         if (loss_av and not (term_type == "self-interest" and fix_self)) or (la_socc and term_type == "social_comparison"):
-        # if loss_av or (la_socc and term_type == "social_comparison"):
+            "if loss_av or (la_socc and term_type == 'social_comparison'):"
             return group1 + group2
         else:
             return group1
@@ -703,21 +701,21 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A")
                 basej = f"({basej})^γ₂"
 
 
-        # --- Avoid complex numbers: split parenthetic powers into ReLU-signed powers ---
-        # Only for the min-max family when the exponent is applied to the BASE (not payoffs).
+        "--- Avoid complex numbers: split parenthetic powers into ReLU-signed powers ---"
+        "Only for the min-max family when the exponent is applied to the BASE (not payoffs)."
         def _split_parenthetic_power_to_relu(expr_with_pow: str) -> str:
             """
             Turn '(inner)^γₖ' or '[inner]^γₖ' into:
                 (max(inner, 0)^γₖ - max(-(inner), 0)^γₖ)
             This preserves sign for any real γₖ>0 and never yields complex numbers.
             """
-            # Parenthesis form
+            "Parenthesis form"
             expr_with_pow = re.sub(
                 r"\(\s*([^\)]+?)\s*\)\s*\^γ([₁₂₃])",
                 lambda m: f"({m.group(1)}^γ{m.group(2)}" if one_pay else f"(max({m.group(1)}, 0)^γ{m.group(2)} - max(-({m.group(1)}), 0)^γ{m.group(2)})",
                 expr_with_pow
             )
-            # Bracket form
+            "Bracket form"
             expr_with_pow = re.sub(
                 r"\[\s*([^\]]+?)\s*\]\s*\^γ([₁₂₃])",
                 lambda m: f"({m.group(1)}^γ{m.group(2)}" if one_pay else f"(max({m.group(1)}, 0)^γ{m.group(2)} - max(-({m.group(1)}), 0)^γ{m.group(2)})",
