@@ -753,35 +753,6 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A")
 "==================================== Shared Functions ===================================="
 "=========================================================================================="
 
-# def _init_worker_blas(num_threads: int = 1, seed: int | None = None) -> None:
-#     """
-#     Worker initializer that forces BLAS/numexpr to a fixed number 
-#     of threads. Optionally gives each worker a distinct RNG seed.
-#     """
-#     # Env vars (some libraries check these only at import; still safe to set)
-#     for k in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS",
-#               "NUMEXPR_NUM_THREADS", "BLIS_NUM_THREADS"):
-#         os.environ[k] = str(num_threads)
-
-#     # Try library-specific programmatic controls (best-effort; safe if missing)
-#     try:
-#         import mkl  # type: ignore
-#         mkl.set_num_threads(num_threads)
-#     except Exception:
-#         pass
-#     try:
-#         import numexpr as ne  # type: ignore
-#         ne.set_num_threads(num_threads)
-#     except Exception:
-#         pass
-
-#     if seed is not None:
-#         # Give each worker a distinct but reproducible seed if you want
-#         s = int(seed) + os.getpid()
-#         random.seed(s)
-#         np.random.seed(s & 0x7FFFFFFF)
-
-
 def _worker_fit_one(args: Any):
     """
     Fit parameters for a single dyad and save results to a JSON file.
@@ -10570,7 +10541,7 @@ def typological_model_comparison_fit_individually(best_profiles: list[tuple[floa
 "=========================================================================================="
 
 def information_criterion_analysis(general_settings: Dict[str, Any], utility_settings: Dict[str, bool], file_paths: Dict[str, str], 
-                                   param_bds: Dict[str, tuple[int | float, int | float]], max_iters: int = 1, robustness_epsilon: float = 10,
+                                   param_bds: Dict[str, tuple[int | float, int | float]], dynamic_updating: bool = False, max_iters: int = 1, robustness_epsilon: float = 10,
                                    check_for_n_players: int | str = "all", write_mode: WriteMode = "resume") -> Tuple[pd.DataFrame, Dict[str, Dict[Tuple[bool], Dict[str, Any]]]]:
     """
     Computes and compares AIC/BIC across different utility function configurations.
@@ -10582,6 +10553,9 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         • param_info: Dict[str, Any]; Contains parameter keys, bounds, guesses, etc.
         • robustness_epsilon: float; If sum of ΔMinLoss < this threshold for two 
             consecutive iterations, we stop early.
+        • dynamic_updating: bool; Because the computational demands of fitting individual-level belief updating
+            are prohibitive, this analysis relies on a static (no updating) version of the UBM by default. Yet,
+            setting this input to True can work on a machine with more cores.  
 
     Returns:
         • df: pd.DataFrame; Dataframe summarizing the IC metrics (loss, AIC, BIC) for each utility configuration.
@@ -11068,13 +11042,17 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         file_paths=base_file_paths, file_name_suffix=None, add_suffix=False
     )
 
-    # Set default for naive approach.
-    update_method = 'naive'
+    "Use static updating by default"
+    if dynamic_updating:
+        update_method = 'grid'
+        general_settings['use_particle_filter'] = True
+    else:
+        update_method = 'naive'
     general_settings['update_method'] = update_method
 
     "Temperature should be held constant to keep all models on an even footing."
     general_settings['temperature_is_param'] = False
-    general_settings['run_in_parallel'] = True                                        # NOTE change this back to True
+    general_settings['run_in_parallel'] = True                                       
 
     # Determine which experiment to analyze.
     experiment_num = general_settings.get('experiment_num', 3)
@@ -16300,30 +16278,29 @@ def main():
             print_=True,
         )
 
+        run_param_recovery_by_k(
+            n_games=28,
+            n_predictors=70,
+            n_choosers_per_predictor=3,
+            k_params_range=(1, 9),
+            n_altruism_steps=7,
+            evenly_space_altruism=True,
+            utility_settings_by_k=None,
+            general_settings=general_settings,
+            file_paths=file_paths,
+            fig_lay=fig_lay,
+            param_bds=param_bds,
+            analysis_experiment_num=0,
+            random_seed=2025
+        )
 
-        # run_param_recovery_by_k(
-        #     n_games=28,
-        #     n_predictors=70,
-        #     n_choosers_per_predictor=3,
-        #     k_params_range=(1, 9),
-        #     n_altruism_steps=7,
-        #     evenly_space_altruism=True,
-        #     utility_settings_by_k=None,
-        #     general_settings=general_settings,
-        #     file_paths=file_paths,
-        #     fig_lay=fig_lay,
-        #     param_bds=param_bds,
-        #     analysis_experiment_num=0,
-        #     random_seed=2025
-        # )
+        plot_param_recovery_by_round(df_merged=df_merged, fig_lay=fig_lay)
 
-        # plot_param_recovery_by_round(df_merged=df_merged, fig_lay=fig_lay)
+        run_update_speed_simulation_regression(general_settings=general_settings)
 
-        # run_update_speed_simulation_regression(general_settings=general_settings)
-
-        # update_speeds = analyze_update_speed_in_human_bot(file_paths=file_paths, general_settings=general_settings, utility_settings=utility_settings)
-        # plot_update_speed_by_counterpart(update_speeds_per_counterpart=update_speeds['update_speeds_per_counterpart'], fig_lay=fig_lay, 
-        #                                  export_fig=export_fig, file_name="visuals/update_speeds_per_avatar.html")
+        update_speeds = analyze_update_speed_in_human_bot(file_paths=file_paths, general_settings=general_settings, utility_settings=utility_settings)
+        plot_update_speed_by_counterpart(update_speeds_per_counterpart=update_speeds['update_speeds_per_counterpart'], fig_lay=fig_lay, 
+                                         export_fig=export_fig, file_name="visuals/update_speeds_per_avatar.html")
 
     if run_code_settings['run_illustrate_belief_updates']:
 

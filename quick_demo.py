@@ -7,8 +7,8 @@ from config import *
 
 analysis_options = {
     'light_mode': True,
-    'run_simulation': False,
-    'visualize_belief_updates': False,
+    'run_simulation': True,
+    'visualize_belief_updates': True,
     'run_model_nesting_tests': True,
 }
 
@@ -133,17 +133,6 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             numeric_tolerance=1e-3,
             verbose=True
         )
-
-        # run_child_parent_probability_equivalence_smoketest( #Debugging
-        #     utility_settings=utility_settings,
-        #     file_paths=file_paths,
-        #     param_bds=param_bds, 
-        #     rand_payoff_idx=True,
-        #     n_trials=12,
-        #     rng_seed=None,
-        #     tolerance=1e-12,
-        #     verbose=True
-        # )
 
 
 if __name__ == "__main__":

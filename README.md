@@ -1,14 +1,18 @@
 # Inferring Hidden Motives — Code Sample (Utility Bayesian Model)
 
-This repository contains executable code for the **Utility Bayesian Model (UBM)** from *Stanley, Zhang, & Lewis (2025; arXiv)*. The UBM formalizes how an observer updates beliefs about another person’s latent *social preferences* (e.g., altruism vs. selfishness; envy vs. guilt) from their repeated payoff-allocation choices in *iterated binary dictator games*.
+This repository contains executable code for the *Utility Bayesian Model (UBM)* from **Inferring Hidden Motives: Bayesian Models of Preference Learning in Repeated Dictator Games, *Stanley, Zhang, & Lewis (2025; arXiv)***. The UBM formalizes how an observer updates beliefs about another person’s *social preferences* (e.g., altruism vs. selfishness; envy vs. guilt) from their repeated payoff-allocation choices in *iterated binary dictator games*.
 
-The full paper includes large-scale analyses (e.g., extensive parameter fitting and a 476-model utility-function comparison). Those runs can be very time-intensive. To make this code sample easy to evaluate, I provide a **quick demo** that reproduces a working subset: (i) a light-mode parameter-recovery simulation, (ii) interactive 3D belief-update visualizations, and (iii) optional model-nesting validity checks.
+The full paper includes large-scale analyses (e.g., parameter fitting and a 476-model utility-function comparison). Those runs can be very time-intensive. To make this code sample easy to evaluate, I provide a **quick demo** that reproduces a working subset: (i) a light-mode parameter-recovery simulation with figures, (ii) an interactive 3D belief-update visualizations, and (iii) an optional model-nesting validity checks.
+
+I provided all my code in a .zip file. [`quick_demo.py`](quick_demo.py) runs the demo. The most important and interesting code lives in [`main.py`](main.py) (and also utilities.py).
+
+By the way, if you didn't already see them in my application, feel free to watch the videos I uploaded to the Google folder, which are about the Morality Game (total ~5 minutes). The Morality Game is my platform for running online multiplayer game theoretic experiments. The bots are cognitive models in themselves, but there is too much of that code to demo here, and so I'm attaching videos instead. Morality_Game_Demo_RA_Lab.mp4 shows the user-experience and Live_Morality_Game_Demo.MOV shows the experience of the researcher. Eventually, I'll integrate the UBM into the Morality Game artificial agents
 
 ---
 
 ## 1) Requirements
 
-- **Python**: 3.8+
+- **Python**: 3.9+
 - **Packages** [see `requirements.txt`](requirements.txt):
   - `numpy>=1.24`
   - `pandas>=2.2`
@@ -27,7 +31,7 @@ The full paper includes large-scale analyses (e.g., extensive parameter fitting 
 python -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-python run_quick_demo.py
+python quick_demo.py
 ```
 
 All demo outputs are written under `demo_files/` so you can delete that folder afterward if desired.
@@ -162,5 +166,19 @@ If you’re reading the PDF and want to jump to the most relevant parts:
 
 ---
 
-## 8) Optional note: Morality Game platform (separate project)
-I also included short videos of the Morality Game in the Google Drive folder, which is my online multiplayer behavioral game theory experiment platform. That codebase is much larger than is practical for this code-sample request, so I’m including it as optional context rather than the primary submission. 
+## 8) Optional: Full IC model comparison output (not run in demo)
+
+I also ran a large-scale information-criterion model comparison across 476 candidate utility functions (the full pipeline is too compute-intensive to include in the quick demo). The results are included as:
+
+[`All_Utility_Forms_IC_Analysis_Experiment3.csv`](demo_files/bic_aic/All_Utility_Forms_IC_Analysis_Experiment3.csv)
+
+How to read the file: each row is one utility-function specification (defined by the boolean utility_settings columns). Key columns:
+
+- *equation*: human-readable utility function (string form)
+- *loss*: best-fit negative log-likelihood (summed over n_data)
+- *k_params*: number of free parameters
+- *AIC*, *BIC*: information criteria scores (lower is better)
+- *ΔAIC*, *ΔBIC*: difference from the best model within the same k_params
+- *AIC_rank, *BIC_rank*: ranks within each k_params group (for overall ranking, sort by BIC directly)
+
+The generating code is information_criterion_analysis(...) in main.py (starts around line ~10369). It refits models across multiple restarts/iterations and uses a model-nesting graph + child→parent warm-starting (with “special parameter” mappings) to prevent nesting violations (cases where a parent fits worse than a nested child due to optimization/penalty artifacts).
