@@ -261,7 +261,7 @@ def should_penalize_parameter_key(parameter_key: str) -> bool:
         return False
     if parameter_key.endswith("_cov"):
         return False
-    # Means and stds are penalized (stds with lighter rule); exponents and weights included.
+    "Means and stds are penalized (stds with lighter rule); exponents and weights included."
     return True
 
 
@@ -454,11 +454,11 @@ def compute_statistics(joint_pmf: NDArray[np.float64],
                     'Vᵢⱼ_Ƹᵢⱼ_cov': <covariance between Vᵢⱼ and Ƹᵢⱼ>
                 }
     """
-    "Extract the names for the parameters (exclude any keys ending with '_std')"
+    # Extract the names for the parameters (exclude any keys ending with '_std')
     parameter_mean_names = [param for param in param_info["keys"] if not param.endswith('_std')]
     num_parameters: int = len(parameter_mean_names)
 
-    "Ensure that the joint PMF is normalized; otherwise, normalize it."
+    # Ensure that the joint PMF is normalized; otherwise, normalize it.
     total_probability_mass: float = float(np.sum(joint_pmf)) #type: ignore   Type of "sum" is partially unknown
     if total_probability_mass <= 0 or np.isnan(total_probability_mass):
         if print_warnings:
@@ -466,14 +466,14 @@ def compute_statistics(joint_pmf: NDArray[np.float64],
         total_probability_mass = 1.0
 
     normalized_joint_pmf = joint_pmf / total_probability_mass
-    "Each coordinate array has the same shape as the joint PMF."
+    # Each coordinate array has the same shape as the joint PMF.
     meshgrid_coordinate_arrays: List[NDArray[np.float64]] = np.meshgrid(*grids, indexing='ij')
 
-    "Initialize lists to store computed means and standard deviations for each parameter."
+    # Initialize lists to store computed means and standard deviations for each parameter.
     computed_means: List[float] = [0.0] * num_parameters
     computed_standard_deviations: List[float] = [0.0] * num_parameters
 
-    "Compute marginal means and variances for each parameter dimension."
+    # Compute marginal means and variances for each parameter dimension.
     for parameter_index in range(num_parameters):
         coordinate_values: NDArray[np.float64] = meshgrid_coordinate_arrays[parameter_index]
         
@@ -490,7 +490,7 @@ def compute_statistics(joint_pmf: NDArray[np.float64],
 
         computed_standard_deviations[parameter_index] = np.sqrt(parameter_variance)
 
-    "Compute pairwise covariances between parameters."
+    # Compute pairwise covariances between parameters.
     computed_covariances: Dict[str, float] = {}
     for idx in range(num_parameters):
         for jdx in range(idx + 1, num_parameters):
@@ -499,13 +499,13 @@ def compute_statistics(joint_pmf: NDArray[np.float64],
             covariance_key = f"{parameter_mean_names[idx]}_{parameter_mean_names[jdx]}_cov"
             computed_covariances[covariance_key] = covariance_value
 
-    "Build the final statistics dictionary."
+    # Build the final statistics dictionary.
     computed_statistics: Dict[str, float] = {}
-    "Add the means."
+    # Add the means.
     computed_statistics.update({param_name: computed_means[idx] for idx, param_name in enumerate(parameter_mean_names)})
-    "Add the standard deviations with key format '<parameter>_std'"
+    # Add the standard deviations with key format '<parameter>_std'
     computed_statistics.update({f"{param_name}_std": computed_standard_deviations[idx] for idx, param_name in enumerate(parameter_mean_names)})
-    "Add the pairwise covariances."
+    # Add the pairwise covariances.
     computed_statistics.update(computed_covariances)
 
     return computed_statistics
@@ -623,33 +623,33 @@ def validate_covariance_matrix(
             - If fix_invalid_matrices=False, returns the matrix itself if valid,
               else None.
     """
-    # 1) Check symmetry
+    "1) Check symmetry"
     if not np.allclose(cov_matrix, cov_matrix.T, atol=1e-8):
-        # Optionally fix symmetry
+        "Optionally fix symmetry"
         print(f"[validate_cov] '{name}' not symmetric. Making symmetric via (M + M^T)/2.")
         cov_matrix = 0.5 * (cov_matrix + cov_matrix.T)
 
-    # 2) Check eigenvalues
+    "2) Check eigenvalues"
     eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)  # For symmetric mat
     if np.any(eigenvalues < 0):
-        # If there's a negative eigenvalue
+        "If there's a negative eigenvalue"
         if not fix_invalid_matrices:
-            # Return None => "invalid" if not allowed to fix
+            "Return None => \"invalid\" if not allowed to fix"
             return None
         else:
             print(f"[validate_cov] '{name}' not PSD. Fixing negative eigenvalues.")
             print("  Original eigenvalues:", eigenvalues)
-            # Clip them to min_eigval
+            "Clip them to min_eigval"
             eigenvalues = np.maximum(eigenvalues, min_eigval)
             cov_matrix = eigenvectors @ np.diag(eigenvalues) @ eigenvectors.T
-            # If you want to re-check, you can do so here:
-            # Re-check we are PSD
+            "If you want to re-check, you can do so here:"
+            "Re-check we are PSD"
             re_eigs, _ = np.linalg.eigh(cov_matrix)
             if np.any(re_eigs < 0):
                 print("  Could not fix it entirely. Returning None.")
                 return None
 
-    # 3) Return final PSD matrix
+    "3) Return final PSD matrix"
     return cov_matrix
 
 
@@ -760,11 +760,11 @@ def serialize_opt_result(opt_result: OptimizeResult,
         • Arrays are converted to lists and any non-serializable objects (like hess_inv) are converted to strings.
     """
     def _json_sanitize(obj):
-        # Fast path for primitives
+        "Fast path for primitives"
         if obj is None or isinstance(obj, (bool, int, float, str)):
             return obj
 
-        # Numpy scalar types
+        "Numpy scalar types"
         if isinstance(obj, np.bool_):
             return bool(obj)
         if isinstance(obj, np.integer):
@@ -772,38 +772,38 @@ def serialize_opt_result(opt_result: OptimizeResult,
         if isinstance(obj, np.floating):
             return float(obj)
 
-        # Numpy arrays
+        "Numpy arrays"
         if isinstance(obj, np.ndarray):
             return obj.tolist()
 
-        # Mappings
+        "Mappings"
         if isinstance(obj, dict):
             return {str(key): _json_sanitize(val) for key, val in obj.items()}
 
-        # Sequences
+        "Sequences"
         if isinstance(obj, (list, tuple)):
             return [_json_sanitize(val) for val in obj]
 
-        # Special SciPy objects (e.g., L-BFGS-B hess_inv OperatorInverseHessian)
-        # or anything else non-serializable: fall back to string
+        "Special SciPy objects (e.g., L-BFGS-B hess_inv OperatorInverseHessian)"
+        "or anything else non-serializable: fall back to string"
         try:
-            # Some objects (rare) implement array-like protocol
+            "Some objects (rare) implement array-like protocol"
             return np.asarray(obj).tolist()
         except Exception:
             return str(obj)
 
     report_dict: Dict[str, Any] = {}
 
-    # OptimizeResult behaves like a dict; use its items to avoid fabricating fields
+    "OptimizeResult behaves like a dict; use its items to avoid fabricating fields"
     try:
         for key, val in opt_result.items():
-            # Be gentle with 'hess_inv' (stringify to avoid massive or opaque structures)
+            "Be gentle with 'hess_inv' (stringify to avoid massive or opaque structures)"
             if key == "hess_inv":
                 report_dict[key] = str(val)
             else:
                 report_dict[key] = _json_sanitize(val)
     except Exception:
-        # Fallback: probe common attributes defensively (still keep "only-if-present")
+        "Fallback: probe common attributes defensively (still keep \"only-if-present\")"
         for key in ("fun", "x", "jac", "hess_inv", "grad", "status", "success",
                   "message", "nfev", "nit", "njev", "maxcv",        # SLSQP / COBYLA-ish fields
                   "constr_violation", "barrier_parameter", "cg_niter"):  # trust-constr
@@ -811,7 +811,7 @@ def serialize_opt_result(opt_result: OptimizeResult,
                 val = getattr(opt_result, key)
                 report_dict[key] = str(val) if key == "hess_inv" else _json_sanitize(val)
 
-    # Optional extras
+    "Optional extras"
     if duration is not None:
         report_dict["duration"] = float(duration)
     if loss is not None:
@@ -1063,7 +1063,7 @@ def convert_utility_settings(utility_settings: Union[Dict[str, bool], Tuple[bool
             raise ValueError(f"N keys ({n_ordered_keys}) ≠ N settings ({n_settings})!")
         return {key: bool(val) for key, val in zip(ordered_keys, utility_settings)}
 
-    # Already the requested type
+    "Already the requested type"
     return utility_settings  # type: ignore[return-value]
 
 
@@ -1304,10 +1304,10 @@ def identify_redundant_utility_functions(
             ['utility_idx', <flags… in canonical order>, 'equation_count',
              'redundant_with', 'differing_settings', 'equation']
     """
-    # Canonical flag order derived from the provided utility_settings
+    "Canonical flag order derived from the provided utility_settings"
     canonical_flags: list[str] = list(convert_utility_settings(utility_settings, into=dict).keys())
 
-    # Enumerate all valid settings in canonical order
+    "Enumerate all valid settings in canonical order"
     all_settings: list[dict[str, bool]] = generate_utility_settings(utility_settings=utility_settings)
 
     rows: list[dict[str, Any]] = []
@@ -1316,17 +1316,17 @@ def identify_redundant_utility_functions(
         equation_string = build_equation_function(settings_dict)
 
         row: dict[str, Any] = {"utility_idx": utility_index, "equation": equation_string}
-        # Add flags in canonical order
+        "Add flags in canonical order"
         for flag_name in canonical_flags:
             row[flag_name] = bool(settings_dict[flag_name])
         rows.append(row)
 
     df = pd.DataFrame(rows)
 
-    # Count identical equations
+    "Count identical equations"
     df["equation_count"] = df.groupby("equation")["utility_idx"].transform("count")
 
-    # Build 'redundant_with': sorted tuple of utility_idx sharing the equation
+    "Build 'redundant_with': sorted tuple of utility_idx sharing the equation"
     equation_to_indices: dict[str, tuple[int, ...]] = (
         df.groupby("equation")["utility_idx"]
           .apply(lambda s: tuple(sorted(map(int, s.tolist()))))
@@ -1334,11 +1334,11 @@ def identify_redundant_utility_functions(
     )
     df["redundant_with"] = df["equation"].map(equation_to_indices)
 
-    # Build 'differing_settings': which flags differ within each equation group
+    "Build 'differing_settings': which flags differ within each equation group"
     def _differing_flags_for_group(group_df: pd.DataFrame) -> tuple[str, ...]:
         differing: list[str] = []
         for flag in canonical_flags:
-            # unique values in this group for the flag
+            "unique values in this group for the flag"
             uniques = group_df[flag].unique()
             if len(uniques) > 1:
                 differing.append(flag)
@@ -1351,17 +1351,17 @@ def identify_redundant_utility_functions(
     )
     df["differing_settings"] = df["equation"].map(differing_by_equation)
 
-    # Sorting so redundant rows are adjacent:
-    #   1) equation_count (desc) — put redundancies on top
-    #   2) redundant_with (ascending by tuple) — groups adjacent
-    #   3) utility_idx (asc) — stable within group
+    "Sorting so redundant rows are adjacent:"
+    "1) equation_count (desc) — put redundancies on top"
+    "2) redundant_with (ascending by tuple) — groups adjacent"
+    "3) utility_idx (asc) — stable within group"
     df = df.sort_values(
         by=["equation_count", "redundant_with", "utility_idx"],
         ascending=[False, True, True]
     ).reset_index(drop=True)
 
-    # Reorder columns: utility_idx, flags (canonical order), equation_count,
-    #                  redundant_with, differing_settings, equation (rightmost)
+    "Reorder columns: utility_idx, flags (canonical order), equation_count,"
+    "redundant_with, differing_settings, equation (rightmost)"
     ordered_cols = (
         ["utility_idx"] +
         canonical_flags +
@@ -1369,12 +1369,12 @@ def identify_redundant_utility_functions(
     )
     df = df[ordered_cols]
 
-    # Write CSV
+    "Write CSV"
     out_path = os.path.join(file_paths["processed"], "redundant_utility_functions.csv")
     try: df.to_csv(out_path, index=False, encoding="utf-8-sig")
     except (PermissionError, OSError): pass
 
-    # Console feedback
+    "Console feedback"
     n_total = len(df)
     n_unique = df["equation"].nunique()
     if n_unique == n_total:
@@ -1399,7 +1399,7 @@ def count_free_parameters(
         utility_settings=utility_settings,
         general_settings=general_settings,
     )
-    # Strip covariance keys if present (we never add them here).
+    "Strip covariance keys if present (we never add them here)."
     return len([key for key in keys if not key.endswith('_cov')])
 
 
@@ -1434,7 +1434,7 @@ def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str
         if utility_settings['use_negativity_parameters']:
             utility_settings['negativity_social_comparison'] = True
         else:
-            # If no social comparison, must be False
+            "If no social comparison, must be False"
             if not utility_settings['include_social_comparison']:
                 utility_settings['negativity_social_comparison'] = False
 
@@ -1448,7 +1448,7 @@ def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str
         utility_settings['reference_dependent_utility'] = False
 
     if pivot == 'min_max_rawlsian_leontief' and utility_settings['min_max_rawlsian_leontief']:
-        # Enforce the 'min-max' bundle from your generator
+        "Enforce the 'min-max' bundle from your generator"
         utility_settings['conditional_welfare_mode'] = False
         utility_settings['reference_dependent_altruism'] = False
         utility_settings['use_negativity_parameters'] = False
@@ -1462,12 +1462,12 @@ def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str
         utility_settings['include_social_comparison'] = True
         utility_settings['negativity_social_comparison'] = True
         if not utility_settings['include_altruism_term']:
-            # This is required to remain valid in your generator under conditional mode
+            "This is required to remain valid in your generator under conditional mode"
             utility_settings['fix_self_interest_parameter'] = False
             utility_settings['single_exponential_parameter'] = True
 
-    # Enforce trailing implications that might be triggered indirectly:
-    # (No extra pivots beyond the minimal implications above.)
+    "Enforce trailing implications that might be triggered indirectly:"
+    "(No extra pivots beyond the minimal implications above.)"
     if not utility_settings['include_social_comparison']:
         utility_settings['negativity_social_comparison'] = False
     if utility_settings['payoff_ratios_not_differences']:
@@ -1504,7 +1504,7 @@ def parents_children_of(
             {'children': [tuple[bool], ...] or [],
              'parents':  [tuple[bool], ...] or None }  # None when not requested
     """
-    # Normalize to dict with preserved key order
+    "Normalize to dict with preserved key order"
     if isinstance(utility_settings, tuple):
         base = convert_utility_settings(utility_settings, into=dict)  # type: ignore
     else:
@@ -1520,7 +1520,7 @@ def parents_children_of(
     candidates: Dict[str, List[BoolTuple]] = {'children': [], 'parents': []}
     seen: set = set()
 
-    # Consider each boolean flag as the single *pivot* to toggle; add dependent fixes minimally
+    "Consider each boolean flag as the single *pivot* to toggle; add dependent fixes minimally"
     for pivot in ordered_keys:
         cand = copy.deepcopy(base)
         cand[pivot] = not cand[pivot]
@@ -1708,13 +1708,13 @@ def load_fitted_parameters(
           which mirrors the example file you shared. :contentReference[oaicite:1]{index=1}
         • We pick the first matching block found during a recursive scan of the JSON payload.
     """
-    # Normalize options -> dict to build file name suffix deterministically
+    "Normalize options -> dict to build file name suffix deterministically"
     if isinstance(utility_settings, tuple):
         uopts = convert_utility_settings(utility_settings, into=dict)  # type: ignore
     else:
         uopts = utility_settings
 
-    # Import locally to avoid circulars if these live in different modules
+    "Import locally to avoid circulars if these live in different modules"
     try:
         file_name_suffix = create_file_name_suffix(general_settings, uopts)  # type: ignore[name-defined]
     except NameError as err:
@@ -1725,7 +1725,7 @@ def load_fitted_parameters(
 
     fname = f"{file_name_suffix}_{player_uuid}.json"
 
-    # Candidate roots to search (prefer outputs, then inputs)
+    "Candidate roots to search (prefer outputs, then inputs)"
     roots: List[str] = []
     if 'outputs' in file_paths:
         roots.append(os.path.join(file_paths['outputs'], 'Iter_Binary_Dictator', 
@@ -1740,7 +1740,7 @@ def load_fitted_parameters(
         if os.path.exists(candidate):
             found_path = candidate
             break
-        # Fallback: look for the exact suffix + uuid among files if the name had changed slightly upstream
+        "Fallback: look for the exact suffix + uuid among files if the name had changed slightly upstream"
         if os.path.isdir(root):
             for file in os.listdir(root):
                 if file.endswith(f"_{player_uuid}.json") and file.startswith(file_name_suffix):
@@ -1764,7 +1764,7 @@ def load_fitted_parameters(
                 pe = obj['parameter_estimates']
                 if isinstance(pe, dict) and update_method in pe:
                     block = pe[update_method]
-                    # The file format uses UUID at the next level
+                    "The file format uses UUID at the next level"
                     if isinstance(block, dict) and player_uuid in block:
                         by_role = block[player_uuid]
                         if isinstance(by_role, dict) and player_role in by_role:
@@ -1772,9 +1772,9 @@ def load_fitted_parameters(
                             if isinstance(rblock, dict) and 'params' in rblock:
                                 params = rblock['params']
                                 if isinstance(params, dict):
-                                    # Coerce to floats
+                                    "Coerce to floats"
                                     return {key: float(val) for key, val in params.items()}
-            # Recurse dict values
+            "Recurse dict values"
             for val in obj.values():
                 out = _extract_params(val)
                 if out is not None:
@@ -1793,13 +1793,13 @@ def load_fitted_parameters(
             f"['{update_method}']['{player_uuid}']['{player_role}']['params']."
         )
 
-    # Order according to param_info['keys'] if provided
+    "Order according to param_info['keys'] if provided"
     if isinstance(param_info, dict) and 'keys' in param_info:
         ordered = {}
         for key in param_info['keys']:
             if key in params_found:
                 ordered[key] = params_found[key]
-        # Also include any extra params from the file (if any)
+        "Also include any extra params from the file (if any)"
         for key, val in params_found.items():
             if key not in ordered:
                 ordered[key] = val
@@ -1842,7 +1842,7 @@ def map_child_to_parent_special_param_info(
         • ValueError if the pair is not a valid child→parent relation under your rules.
         • NotImplementedError for transitions involving `min_max_rawlsian_leontief=True`.
     """
-    # Normalize typed inputs to dicts (preserving insertion order of keys).
+    "Normalize typed inputs to dicts (preserving insertion order of keys)."
     if isinstance(child_utility_settings, tuple):
         child_utility_settings = convert_utility_settings(child_utility_settings, into=dict)  # type: ignore
     if isinstance(parent_utility_settings, tuple):
@@ -1866,7 +1866,7 @@ def map_child_to_parent_special_param_info(
             print(f"Model 2: {build_utility_equation(parent_utility_settings)}")
         raise ValueError(f"Requested mapping is not child→parent. Got: {relation_1_to_2} / {relation_2_to_1} - Flipped Setting: {changed_utility_setting}.")
 
-    # Build a parent param_info scaffold (keys, bounds, covar). We'll override the guesses deterministically.
+    "Build a parent param_info scaffold (keys, bounds, covar). We'll override the guesses deterministically."
     parent_param_info = make_param_info(
         param_bds=param_bds,
         utility_settings=parent_utility_settings,
@@ -1876,26 +1876,26 @@ def map_child_to_parent_special_param_info(
     )
     parent_keys: List[str] = list(parent_param_info["keys"])
 
-    # Helper: robust lookup for a child's parameter with sensible embedding defaults.
+    "Helper: robust lookup for a child's parameter with sensible embedding defaults."
     def _value_or_default(param_name: str) -> float:
         if param_name in child_fitted_parameters:
             return float(child_fitted_parameters[param_name])
-        # Structured defaults for embedding when child lacked this dimension.
+        "Structured defaults for embedding when child lacked this dimension."
         if param_name == 'Vᵢᵢ':
-            # If child had fixed self-interest, emulate the same behavior.
+            "If child had fixed self-interest, emulate the same behavior."
             return 1.0
         if param_name in ('Vᵢⱼ', 'Ʌᵢⱼ', 'Ƹᵢⱼ', 'Ʒᵢⱼ'):
-            # If the term did not exist before, set to zero.
+            "If the term did not exist before, set to zero."
             return 0.0
         if param_name.startswith('γ'):
-            # If the child had no exponents, embedding requires γ ≡ 1.
+            "If the child had no exponents, embedding requires γ ≡ 1."
             return 1.0
         if param_name == 'Ʌᵢᵢ':
-            # Without an explicit Vᵢᵢ in the child, the symmetric embedding is 1.
+            "Without an explicit Vᵢᵢ in the child, the symmetric embedding is 1."
             return 1.0
         return 0.0  # Safe fallback for unexpected keys
 
-    # Collect child's gamma structure for smarter tying.
+    "Collect child's gamma structure for smarter tying."
     child_gamma_keys: List[str] = [key for key in child_fitted_parameters.keys() if key.startswith('γ')]
     child_has_no_gammas: bool = (len(child_gamma_keys) == 0)
     child_has_single_gamma: bool = (len(child_gamma_keys) == 1)
@@ -1903,36 +1903,36 @@ def map_child_to_parent_special_param_info(
     if child_has_single_gamma:
         child_common_gamma_value = float(child_fitted_parameters[child_gamma_keys[0]])
 
-    # Precompute base weights from the child when present (to tie negative/conditioned sides).
+    "Precompute base weights from the child when present (to tie negative/conditioned sides)."
     child_Vii: Optional[float] = child_fitted_parameters.get('Vᵢᵢ', None)
     child_Vij: Optional[float] = child_fitted_parameters.get('Vᵢⱼ', None)
     child_Envy: Optional[float] = child_fitted_parameters.get('Ƹᵢⱼ', None)  # envy
     child_Guilt: Optional[float] = child_fitted_parameters.get('Ʒᵢⱼ', None)  # guilt
 
-    # Pass 1: create a dict of embedded values for the parent means.
+    "Pass 1: create a dict of embedded values for the parent means."
     embedded_parent_values: Dict[str, float] = {}
     for param_name in parent_keys:
         if param_name.endswith('_std'):
-            # Fill stds later after means are set.
+            "Fill stds later after means are set."
             continue
 
         if param_name in child_fitted_parameters:
             embedded_parent_values[param_name] = float(child_fitted_parameters[param_name])
             continue
 
-        # New parameter in the parent—choose an embedding value based on structure.
+        "New parameter in the parent—choose an embedding value based on structure."
         if param_name == 'Ʌᵢᵢ':
-            # Tie to self-interest mean if available; else fall back to fixed value 1.0
+            "Tie to self-interest mean if available; else fall back to fixed value 1.0"
             embedded_parent_values['Ʌᵢᵢ'] = float(child_Vii) if child_Vii is not None else 1.0
             continue
 
         if param_name == 'Ʌᵢⱼ':
-            # Tie to altruism mean if available; else fall back to 0.0
+            "Tie to altruism mean if available; else fall back to 0.0"
             embedded_parent_values['Ʌᵢⱼ'] = float(child_Vij) if child_Vij is not None else 0.0
             continue
 
         if param_name == 'Ʒᵢⱼ':
-            # Split envy/guilt: set guilt equal to envy to reproduce the child.
+            "Split envy/guilt: set guilt equal to envy to reproduce the child."
             if child_Guilt is not None:
                 embedded_parent_values['Ʒᵢⱼ'] = float(child_Guilt)
             elif child_Envy is not None:
@@ -1942,37 +1942,37 @@ def map_child_to_parent_special_param_info(
             continue
 
         if param_name == 'Ƹᵢⱼ':
-            # If social comparison is newly introduced, set envy to zero.
+            "If social comparison is newly introduced, set envy to zero."
             embedded_parent_values['Ƹᵢⱼ'] = 0.0
             continue
 
         if param_name == 'Vᵢⱼ':
-            # If altruism is newly introduced, set to zero.
+            "If altruism is newly introduced, set to zero."
             embedded_parent_values['Vᵢⱼ'] = 0.0
             continue
 
         if param_name == 'Vᵢᵢ':
-            # If self-interest becomes unfixed in the parent, set to 1.0 to embed the child's fixed case.
+            "If self-interest becomes unfixed in the parent, set to 1.0 to embed the child's fixed case."
             embedded_parent_values['Vᵢᵢ'] = 1.0
             continue
 
         if param_name.startswith('γ'):
-            # Exponent handling:
+            "Exponent handling:"
             if child_has_no_gammas:
                 embedded_parent_values[param_name] = 1.0
             elif child_has_single_gamma and child_common_gamma_value is not None:
-                # Tie all parent gammas to child's single gamma
+                "Tie all parent gammas to child's single gamma"
                 embedded_parent_values[param_name] = child_common_gamma_value
             else:
-                # Child had multiple gammas; align by name when possible, otherwise default to 1.0
+                "Child had multiple gammas; align by name when possible, otherwise default to 1.0"
                 embedded_parent_values[param_name] = float(child_fitted_parameters.get(param_name, 1.0))
             continue
 
 
-        # Generic fallback (should be rare): use structured defaults.
+        "Generic fallback (should be rare): use structured defaults."
         embedded_parent_values[param_name] = _value_or_default(param_name)
 
-    # Pass 2: fill std keys if required by update method.
+    "Pass 2: fill std keys if required by update method."
     if general_settings.get('update_method') in ('MCMC', 'grid'):
         min_std_guess = 0.5
         for param_name in parent_keys:
@@ -1984,13 +1984,13 @@ def map_child_to_parent_special_param_info(
             else:
                 embedded_parent_values[param_name] = min_std_guess
 
-    # --- SPECIAL: conditional-welfare child (no explicit altruism) → parent (explicit altruism)
+    "--- SPECIAL: conditional-welfare child (no explicit altruism) → parent (explicit altruism)"
     if (parent_utility_settings.get('conditional_welfare_mode', False)
         and child_utility_settings.get('conditional_welfare_mode', False)
         and (parent_utility_settings.get('include_altruism_term', False)
         != child_utility_settings.get('include_altruism_term', False))):
 
-        # 1) tie altruism means to self-interest means (to reproduce child)
+        "1) tie altruism means to self-interest means (to reproduce child)"
         Vii = float(child_fitted_parameters.get('Vᵢᵢ', 1.0))
         Lai = float(child_fitted_parameters.get('Ʌᵢᵢ', 0.0))
         if 'Vᵢⱼ' in parent_keys:
@@ -1998,15 +1998,15 @@ def map_child_to_parent_special_param_info(
         if 'Ʌᵢⱼ' in parent_keys:
             embedded_parent_values['Ʌᵢⱼ'] = 1.0 - Lai
 
-        # 2) tie altruism curvature to self-interest curvature (if parent exposes γ2)
+        "2) tie altruism curvature to self-interest curvature (if parent exposes γ2)"
         if 'γ2' in parent_keys:
             gamma1 = float(child_fitted_parameters.get('γ1', 1.0))
             embedded_parent_values['γ2'] = gamma1
 
-    # Finally, override guesses with the deterministic embedded vector, ordered by parent_keys.
+    "Finally, override guesses with the deterministic embedded vector, ordered by parent_keys."
     parent_param_info["guesses"] = [float(embedded_parent_values[k]) for k in parent_keys]
 
-    # Optional: annotate with a small, human-readable note to facilitate debugging/printing.
+    "Optional: annotate with a small, human-readable note to facilitate debugging/printing."
     parent_param_info["init_from_child"] = {
         "changed_utility_setting": changed_utility_setting,
         "child_has_exponents": not child_has_no_gammas,
@@ -2051,15 +2051,15 @@ def summarize_nesting_relationship_counts(
     adj_lists: Dict[str, List[List[int]]] = nesting['adjacency_lists']
     n_models = len(settings_list)
 
-    # ---- Parent–child: take from 'parent_of' only (already directed, no double-count) ----
+    "---- Parent–child: take from 'parent_of' only (already directed, no double-count) ----"
     parent_child_pairs: set[tuple[int, int]] = set()
     for parent_idx, child_idxs in enumerate(adj_lists.get('parent_of', [[] for _ in range(n_models)])):
         for child_idx in child_idxs:
             if 0 <= child_idx < n_models:
                 parent_child_pairs.add((parent_idx, child_idx))
 
-    # ---- Siblings: prefer provided adjacency if present; else infer robustly ----
-    # 1) If provided by adjacency builder
+    "---- Siblings: prefer provided adjacency if present; else infer robustly ----"
+    "1) If provided by adjacency builder"
     sib_key_candidates = ('siblings_of', 'sibling_of', 'siblings', 'sibling')
     provided_sib_key = next((k for k in sib_key_candidates if k in adj_lists), None)
 
@@ -2068,11 +2068,11 @@ def summarize_nesting_relationship_counts(
         for i, nbrs in enumerate(adj_lists[provided_sib_key]):
             for j in nbrs:
                 if 0 <= j < n_models and i != j:
-                    # store undirected as (min,max)
+                    "store undirected as (min,max)"
                     sibling_pairs.add((min(i, j), max(i, j)))
     else:
-        # 2) Infer siblings:
-        #    Convert settings to tuples of 0/1 flags once, and compute k & family tags.
+        "2) Infer siblings:"
+        "Convert settings to tuples of 0/1 flags once, and compute k & family tags."
         settings_tuples: List[tuple[int, ...]] = [
             convert_utility_settings(utility_settings=s, into=tuple) for s in settings_list
         ]
@@ -2095,7 +2095,7 @@ def summarize_nesting_relationship_counts(
 
         for i in range(n_models):
             for j in range(i + 1, n_models):
-                # siblings: same k, same family, and differ by exactly one boolean flag
+                "siblings: same k, same family, and differ by exactly one boolean flag"
                 if (k_list[i] == k_list[j]) and (fam_list[i] == fam_list[j]) \
                    and (_hamming(settings_tuples[i], settings_tuples[j]) == 1):
                     sibling_pairs.add((i, j))
@@ -2172,7 +2172,7 @@ def test_utility_functions(build_utility_equation: Callable, general_settings: G
 import re as _re_eval
 import math as _math_eval
 
-# Map subscript to plain gamma names if needed downstream
+"Map subscript to plain gamma names if needed downstream"
 _SUB_TO_GAMMA = {"₁": "γ1", "₂": "γ2", "₃": "γ3"}
 _SC_EXP_TAG   = r"\^[^\s)]+?"  # matches ^γ₁/^γ₂/^γ₃ or numeric after substitution
 _SC_GROUPED = _re_eval.compile(
@@ -2291,29 +2291,29 @@ def normalize_pretty_rhs_for_eval(rhs_text: str, sc_mode: str = "twoterm") -> st
     Unicode/operator cleanup, canonicalize symmetric SC (both ways), insert implicit '*',
     and convert '^' with parenthesis-aware capture to pow_signed(...).
     """
-    # unicode & ops
+    "unicode & ops"
     norm = (rhs_text.replace("\u00A0", " ")
                     .replace("−", "-").replace("–", "-").replace("—", "-")
                     .replace("≥", ">=").replace("≤", "<=").replace("≠", "!=")
                     .replace("×", "*").replace("·", "*").replace("⋅", "*"))
-    # brackets→parens
+    "brackets→parens"
     norm = norm.replace("[", "(").replace("]", ")")
-    # implicit multiplication (numbers against '(')
+    "implicit multiplication (numbers against '(')"
     norm = _re_eval.sub(r"(?<![A-Za-z0-9_])(\-?\d+(?:\.\d+)?)\s*\(", r"\1*(", norm)
     norm = norm.replace(")(", ")*(")
     norm = _re_eval.sub(r"\)\s*(\-?\d+(?:\.\d+)?)", r")*\1", norm)
-    # function calls stuck to numbers or ')'
+    "function calls stuck to numbers or ')'"
     norm = _re_eval.sub(r"(\d)\s*(max|min)\s*\(", r"\1*\2(", norm)
     norm = _re_eval.sub(r"(\d)(?=(max|min)\()", r"\1*", norm)
     norm = _re_eval.sub(r"\)(?=(max|min)\()", r")*", norm)
 
-    # symmetric SC canonicalization both ways; choose stable target
+    "symmetric SC canonicalization both ways; choose stable target"
     norm = canon_sc_both_ways(norm, mode=sc_mode)
 
-    # '^' replacement (captures bases incl. function calls)
+    "'^' replacement (captures bases incl. function calls)"
     out = _replace_powers(norm)
 
-    # ensure pow_signed is multiplied when stuck to numbers or ')'
+    "ensure pow_signed is multiplied when stuck to numbers or ')'"
     out = _re_eval.sub(r"(\d)\s*(pow_signed)\s*\(", r"\1*\2(", out)
     out = _re_eval.sub(r"\)\s*(pow_signed)\s*\(", r")*\1(", out)
     out = _re_eval.sub(r"(\d)(?=(pow_signed)\()", r"\1*", out)

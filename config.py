@@ -187,7 +187,7 @@ def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, gener
                 if utility_settings['single_exponential_parameter']:
                     param_keys.append('γ1')
                 else:
-                    # match your enumeration rule for γ's across present terms
+                    "match your enumeration rule for γ's across present terms"
                     param_keys_ = copy.deepcopy(param_keys)
                     if utility_settings['fix_self_interest_parameter']:
                         param_keys_ = ['Vᵢᵢ'] + param_keys_
@@ -197,7 +197,7 @@ def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, gener
                         if key in param_keys_
                     ]
 
-    # Append std keys if needed (same convention as make_param_info)
+    "Append std keys if needed (same convention as make_param_info)"
     if general_settings is not None:
         if general_settings.get('update_method') in ('MCMC', 'grid'):
             param_keys += [f"{key}_std" for key in param_keys]
@@ -373,7 +373,7 @@ def add_remove_file_name_suffix(file_paths: FileNames, file_name_suffix: str | N
                     fname, extension = file_name.rsplit(".", 1)
                 else:
                     fname, extension = file_name, ""
-                # Remove everything from the first "~" onward
+                "Remove everything from the first \"~\" onward"
                 if "~" in fname:
                     fname = fname.split("~", 1)[0]
                 file_paths["file_names"][key] = fname + "." + extension  
@@ -401,35 +401,35 @@ def ensure_directory_and_join(base_dir: str, file_name: str, max_total_path_len:
     Returns:
         • str; a safe absolute or relative path guaranteed to exist up to the parent directory.
     """
-    # Make sure base_dir exists (idempotent for parallel workers).
+    "Make sure base_dir exists (idempotent for parallel workers)."
     os.makedirs(base_dir, exist_ok=True)
 
-    # Split extension once; keep it and sanitize only the stem.
+    "Split extension once; keep it and sanitize only the stem."
     stem, ext = os.path.splitext(file_name)
     if not ext:
         ext = ""  # keep consistent behavior
 
-    # Sanitize stem (filesystem-friendly).
+    "Sanitize stem (filesystem-friendly)."
     stem_sanitized = re.sub(r"[^A-Za-z0-9._-]+", "~", str(stem))
 
-    # After sanitization and initial shortening
+    "After sanitization and initial shortening"
     if len(stem_sanitized) > max_file_name_len - len(ext):
-        # Clamp the stem to max length minus extension length
+        "Clamp the stem to max length minus extension length"
         stem_sanitized = stem_sanitized[:max(0, max_file_name_len - len(ext) - 3)] + "~"
 
-    # First-pass shortener for the file name itself.
+    "First-pass shortener for the file name itself."
     file_name_candidate = f"{stem_sanitized}{ext}"
 
     if len(file_name_candidate) > max_file_name_len:
         digest = hashlib.sha1(file_name_candidate.encode("utf-8")).hexdigest()[:10]
-        # Keep both ends to remain informative.
+        "Keep both ends to remain informative."
         keep = max_file_name_len - len(ext) - len(digest) - 2  # hyphens around hash
         keep = max(12, keep)  # keep something human-readable
         head = stem_sanitized[: keep // 2]
         tail = stem_sanitized[-(keep - len(head)):]
         file_name_candidate = f"{head}-{digest}-{tail}{ext}"
 
-    # Now check full path length and, if needed, fall back to a compact hashed name.
+    "Now check full path length and, if needed, fall back to a compact hashed name."
     full_candidate = os.path.join(base_dir, file_name_candidate)
     if len(full_candidate) > max_total_path_len:
         digest = hashlib.sha1(full_candidate.encode("utf-8")).hexdigest()[:16]

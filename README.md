@@ -100,12 +100,20 @@ analysis_options = {
 
 ## 5) Codebase structure (high level)
 
-- `run_quick_demo.py` — entry point for the reproducible demo (creates outputs in `demo_files/`).
+- `quick_demo.py` — entry point for the reproducible demo (creates outputs in `demo_files/`).
+- `main.py` — thin entry point for the full pipeline: `run_code_settings` flags + `main()`.
 - `config.py` — configuration dictionaries used throughout (`general_settings`, `utility_settings`, `param_info`, `param_bds`, `fig_lay`, etc.).
-- `main.py` — core model implementation + simulation + optimization + plotting + (full) analyses.
-- `utilities.py` — general helpers (including utility-function enumeration and model-nesting utilities).
+- `model.py` — utility functions, choice model, `build_utility_equation`.
+- `optimization.py` — shared optimization helpers + full MLE pipeline (`run_analysis_mle`).
+- `bayesian.py` — the core UBM: `bayesian_update_grid`, `agent`, `run_analysis_bayes`.
+- `simulation.py` — parameter recovery simulations.
+- `visualization.py` — belief-update visualizations (2D, 3D, accuracy).
+- `analysis.py` — typological model comparison, IC analysis, nesting verification, parameter distributions, inequality aversion.
+- `utilities.py` — general helpers (utility-function enumeration, model-nesting utilities).
 - `preprocessing.py` — data cleaning/merges (used by full analyses).
 - `typological.py` — discrete/typological Bayesian variants (not used by the quick demo).
+
+**Import chain:** `config → preprocessing/utilities/typological → model → optimization → bayesian → simulation → visualization → analysis → main`
 
 Additional docs:
 - [`docs/data_dictionary.md`](docs/data_dictionary.md): data structures + file outputs.

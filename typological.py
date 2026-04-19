@@ -673,7 +673,7 @@ def distance_to_perfection(Vᵢᵢ: float, Vᵢⱼ: float, avatar_type: str, ret
     Returns:
         • float - Normalized angular distance (0 to 1) OR percent correct (if return_percent=True).
     """
-    # Define true parameter vectors (ideal angles)
+    "Define true parameter vectors (ideal angles)"
     true_parameters = {
         "utilitarian":  45,  # 1.5 o'clock position
         "selfish":       0,  # 3   o'clock position
@@ -681,29 +681,29 @@ def distance_to_perfection(Vᵢᵢ: float, Vᵢⱼ: float, avatar_type: str, ret
         "masochistic": 180   # 9   o'clock position
     }
     
-    # Get the target angle in degrees
+    "Get the target angle in degrees"
     if avatar_type not in true_parameters:
         raise ValueError(f"Invalid avatar type '{avatar_type}'. Must be one of {list(true_parameters.keys())}")
 
     target_angle = np.radians(true_parameters[avatar_type])  # Convert degrees to radians
 
-    # Compute the angle of the given (Vᵢᵢ, Vᵢⱼ) vector
+    "Compute the angle of the given (Vᵢᵢ, Vᵢⱼ) vector"
     angle = np.arctan2(Vᵢⱼ, Vᵢᵢ)  # Radians in range [-π, π]
 
-    # Ensure positive angle in range [0, 2π] for correct comparison
+    "Ensure positive angle in range [0, 2π] for correct comparison"
     if angle < 0:
         angle += 2 * np.pi
 
-    # Compute absolute angular difference
+    "Compute absolute angular difference"
     angle_diff = abs(angle - target_angle)
 
-    # Normalize to [0, π] (max difference is 180 degrees = π radians)
+    "Normalize to [0, π] (max difference is 180 degrees = π radians)"
     angle_diff = min(angle_diff, 2 * np.pi - angle_diff)  # Ensures shortest angular distance
 
-    # Normalize to [0,1], where 0 = perfect match, 1 = complete opposite (π radians = 180 degrees)
+    "Normalize to [0,1], where 0 = perfect match, 1 = complete opposite (π radians = 180 degrees)"
     normalized_distance = round(angle_diff / np.pi, 3)
 
-    # Convert to percent correct if requested
+    "Convert to percent correct if requested"
     if return_percent:
         percent_correct = round((1 - normalized_distance) * 100, 1)
         return percent_correct
