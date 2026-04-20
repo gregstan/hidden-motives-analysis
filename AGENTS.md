@@ -1,4 +1,4 @@
-# CLAUDE.md — Hidden Motives Analysis
+# AGENTS.md — Hidden Motives Analysis
 
 This file orients an AI collaborator to the project, codebase, and collaboration style.
 Read this before writing or suggesting any code changes.

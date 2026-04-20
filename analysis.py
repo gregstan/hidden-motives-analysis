@@ -13,7 +13,7 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
     This function:
         • Loads experiment data (Experiment 2) from disk.
         • Fits discrete Bayesian models with various hypothesis spaces 
-          ("good_versus_evil", "social_value_ori", "perfect_oracle").
+            ("good_versus_evil", "social_value_ori", "perfect_oracle").
         • Calculates NLL for each discrete Bayesian model.
         • Calculates NLL for a purely stochastic model (uniform random).
         • Calculates NLL for a "no-memory" Bayesian model (only uses the most recent observation).
@@ -47,7 +47,7 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
                    'no_memory_model':   <NLL>,
                    'good_versus_evil':  <NLL>,
                    'social_value_ori':  <NLL>,
-                   'perfect_oracle':  <NLL>,
+                   'perfect_oracle':    <NLL>,
                }
     """
     "1) Copy and modify high-level settings for Experiment 2 analysis"
@@ -346,7 +346,7 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
     model_names = [model_names[model] for model in sorted_model_losses.keys()]
     colors = [f'hsla({int(115 + 360/(len(model_names)+4) * idx) % 360}, 80%, 40%, 1.0)' for idx in range(len(model_names))]
     loss_values = list(sorted_model_losses.values())
-    exit()
+
     "Create the figure"
     fig = go.Figure()
 

@@ -93,7 +93,7 @@ def main():
             if file_name.endswith('.json'):
                 player_fits_file_names.append(file_name)
         if len(player_fits_file_names) < n_players_experiment_2:
-            raise Exception("No data from which to visualize! You must run the code within "
+            raise Exception("No data from which to visualize! Must run the code within "
                             "'run_parameter_distribution_results' before you can visualize Bayesian updates.")
 
         visualize_bayesian_updates_2d(

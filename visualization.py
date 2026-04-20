@@ -43,7 +43,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
     """
     "1) Filter the dyad games for relevant rounds."
     experiment_num = general_settings.get('experiment_num', 3)
-    player_uuids = prep.all_player_uuids(file_paths=file_paths, experiment_num=experiment_num, only_humans=False ) #HACK DELETE!!!
+    player_uuids = prep.all_player_uuids(file_paths=file_paths, experiment_num=experiment_num, only_humans=False)
     if experiment_num == 0:
         player_uuids = [uuid for uuid in player_uuids if 'predictor' in uuid]
 
@@ -63,10 +63,10 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
     else:
         raise ValueError(f"player_uuid type {type(player_uuid)} not supported.")
 
-    "Load the player's data file"
+    "Load the player's data file."
     plr_file_path = os.path.join(
         file_paths["player_fits"], f"experiment_{experiment_num}",
-        player_uuid + ".json"  # or suffix logic
+        player_uuid + ".json"
     )
 
     if not os.path.exists(plr_file_path):
@@ -92,7 +92,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
             break
 
     if not found_counterpart:
-        "Fallback if user wants an index-based approach"
+        "Raise a clear error when the counterpart is unavailable."
         raise Exception(f"Counterpart {counterpart_uuid} not in {dyad_keys}")
 
     if dyad_key is None:
@@ -116,18 +116,6 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
             1, n_rounds + 1)] + ["" for rval in range(1, (n_rounds + 1) * 2)])
     )
 
-    "# Optional: set the subplot titles." # TODO Consider if this should go here
-    "# Just label columns as Round 1..N for the top row."
-    # for cdx in range(1, n_rounds+1):
-    #     fig.add_annotation(
-    #         text=f"Round {cdx}",
-    #         xref="x domain", yref="y domain",
-    #         x=0.5+(cdx-1)/n_rounds, y=1.02,
-    #         showarrow=False,
-    #         font=dict(size=20),
-    #         row=1, col=cdx
-    ")"
-
     max_prior_prob = 0.0
     for game in filtered_games:
         grid_predictor = game.get("parameter_estimates", {}).get(
@@ -140,8 +128,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
     for col_idx, game in enumerate(filtered_games, start=1):
         if col_idx > n_rounds:
             break
-        "(A) Top row => Observed choice in payoff-diff space"
-        "e.g. payoff_A_chooser, payoff_B_chooser, etc."
+        "(A) Top row => observed choice in payoff-difference space."
         payoff_As = game.get("payoff_A_chooser", 0)
         payoff_Bs = game.get("payoff_B_chooser", 0)
         payoff_Ao = game.get("payoff_A_predictor", 0)
@@ -169,7 +156,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
         fig.add_trace(dot_trace, row=1, col=col_idx)
 
         """
-        (B) Middle row => \"Likelihood\" heatmap"
+        (B) Middle row => likelihood heatmap.
         Reconstructs the Nx x Ny array:
             1) Build the param grid from meta_data/tickvals
             2) For each point, compute p(choose A) or 1 - p(choose A)
@@ -180,14 +167,14 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
             "grid", {}).get(player_uuid, {}).get("predictor", None)
 
         if not grid_predictor:
-            "If no grid data, skip"
+            "Skips rounds without grid data."
             continue
 
         meta_data = grid_predictor.get("meta_data", {})
         tickvals = meta_data.get("tickvals", {})
 
         if "Vᵢᵢ" not in tickvals or "Vᵢⱼ" not in tickvals:
-            continue  # skip if incomplete
+            continue  # Skips incomplete grid metadata.
  
         "Extract param axes"
         Vii_vals = np.array(tickvals["Vᵢᵢ"], dtype=float)
@@ -202,15 +189,13 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
                     "Vᵢᵢ": v_ii,
                     "Vᵢⱼ": v_ij
                 }
-                "Compute p(choose A)"
-                "(Might need other param defaults or exponents.)"
-                "Just do a fallback exponent or read from ..."
+                "Compute p(choose A)."
                 p_choose_A = choice(
                     current_game=game,
                     agent_params=agent_params,
-                    utility_settings=utility_settings,  # or pass the relevant toggles
-                    softmax_temperature=grid_predictor.get('params', {}).get('temp', 1.5) * 0.75, #HACK This makes the figure more visible
-                    # softmax_temperature=1.2, #HACK This makes the figure more visible TODO figure out what to do about these lines.
+                    utility_settings=utility_settings,
+                    # TODO Decide whether visualization should dampen temperature or use the fitted value directly.
+                    softmax_temperature=grid_predictor.get('params', {}).get('temp', 1.5) * 0.75,
                     select=False
                 )["model_choose_A"]
 
@@ -219,7 +204,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
                 else:
                     likelihood_2d[ix, jx] = 1.0 - p_choose_A
         
-        "Make the Heatmap (transposing if x-> Nx, y-> Ny is preferred)"
+        "Create the likelihood heatmap."
         likelihood_hm = go.Heatmap(
             x=Vii_vals,
             y=Vij_vals,
@@ -251,7 +236,6 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
             y=Vij_vals,
             z=prior_2d.T,
             colorscale=fig_lay.get("colorscales", ["Viridis"])[1] if len(fig_lay.get("colorscales", []))>1 else "Plasma",
-            # zmin=0, zmax=prior_2d.max(),
             zmin=0, zmax=max_prior_prob,
             hovertemplate=("Vᵢᵢ: %{x:.3f}, Vᵢⱼ: %{y:.3f}<br>Prob: %{z:.5f}<extra></extra>"),
             showscale=False
@@ -259,9 +243,9 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
         fig.add_trace(prior_hm, row=3, col=col_idx)
 
         if col_idx == 1:
-            crazy_prior = list(copy.deepcopy(prior_2d.T))
-            for row in crazy_prior:
-                print([round(prob, 9) for prob in list(row)])
+            prior_preview = list(copy.deepcopy(prior_2d.T))
+            for prior_row in prior_preview:
+                print([round(prob, 9) for prob in list(prior_row)])
 
     "4) Stylistic adjustments"
     fig.update_layout(
@@ -313,7 +297,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
             row=1, col=cdx
         )
         scale_count += 1
-        # Middle => likelihood param space
+        "Middle row => likelihood parameter space."
         fig.update_xaxes(
             title_text="",
             range=range_par, tickvals=tickvals_par, ticktext=ticktext_par_x,
@@ -327,7 +311,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
             row=2, col=cdx
         )
         scale_count += 1
-        # Bottom => prior/posterior param space
+        "Bottom row => prior/posterior parameter space."
         fig.update_xaxes(
             title_text="Vᵢᵢ (self-interest)",
             range=range_par, tickvals=tickvals_par, ticktext=ticktext_par_x,
@@ -342,7 +326,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
         )
         scale_count += 1
 
-    "If you want to save or show:"
+    "Save or show the figure."
     outdir = os.path.join(file_paths.get("visuals","."), "bayesian_updates_2d")
     os.makedirs(outdir, exist_ok=True)
     file_name = f"bayes2d_{player_uuid}_{counterpart_uuid}.html"
@@ -425,9 +409,8 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
             raise ValueError("No games found where the given player is the predictor and did not abdicate.")
         
     else:
-        "TODO For experiments 1 and 2, I need to extract the choice dot from the observation phase games"
-        filtered_games = [game for game in dyad_games 
-                        if game.get('predictor', None) == player_uuid]
+        # TODO Extract the choice marker from observation-phase games for experiments 1 and 2.
+        filtered_games = [game for game in dyad_games if game.get('predictor', None) == player_uuid]
 
     "Find the first game with grid data for predictor."
     first_grid_game = None
@@ -448,12 +431,14 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
         raise ValueError("Tickvals must contain 'Vᵢᵢ' and 'Vᵢⱼ' keys.")
     
     "Build a common parameter grid."
-    Vᵢᵢ_vals = np.array([round(val, 9) for val in tickvals["Vᵢᵢ"]])  # assume numpy array
+    Vᵢᵢ_vals = np.array([round(val, 9) for val in tickvals["Vᵢᵢ"]])
     Vᵢⱼ_vals = np.array([round(val, 9) for val in tickvals["Vᵢⱼ"]])
     Vᵢᵢ_mesh, Vᵢⱼ_mesh = np.meshgrid(Vᵢᵢ_vals, Vᵢⱼ_vals, indexing='ij')
     
-    "If requested, loop over all filtered games to compute the global maximum probability"
-    "after normalization (i.e., from the full grid). This will be used to fix the z-axis and color axis."
+    """
+    If requested, compute the global maximum normalized probability across filtered
+    games. This value fixes the z-axis and color axis for the prior surface.
+    """
     global_max_prob = None
     if fix_z_axis:
         global_max_prob = 0
@@ -475,7 +460,7 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
             candidate = np.nanmax(temp_grid)
             if candidate > global_max_prob:
                 global_max_prob = candidate
-        "If no valid grid was found (should not happen), set global_max_prob to 1."
+        "Fallback when no valid grid contributes to the global maximum."
         if global_max_prob is None or global_max_prob == 0:
             global_max_prob = 1
 
@@ -485,7 +470,7 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
                         subplot_titles=["Prior Probability Distribution", "Likelihood Probability Distribution"],
                         specs=[[{'type': 'surface'}, {'type': 'surface'}]])
     
-    "Update layout using fig_lay."
+    "Apply the shared figure layout."
     fig.update_layout(
         template=fig_lay["template"] if fig_lay else None,
         hoverlabel=dict(font_size=14),
@@ -526,13 +511,13 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
         "Build the full prior PMF array from the sparse dictionary."
         prior_dict = grid_predictor.get("param_vectors", {})
 
-        "Initialize a dictionary to store the sum of probabilities and counts for averaging."
+        "Initialize probability sums and counts for averaging."
         aggregated_probs = {}
 
-        "Iterate through the prior_dict to aggregate probabilities based on Vᵢᵢ and Vᵢⱼ dimensions."
+        "Aggregate probabilities by Vᵢᵢ and Vᵢⱼ grid indices."
         for idx_tuple, prob in prior_dict.items():
             idx_tuple = ast.literal_eval(idx_tuple)
-            idx, jdx = idx_tuple[0], idx_tuple[1]  # Get Vᵢᵢ and Vᵢⱼ indices
+            idx, jdx = idx_tuple[0], idx_tuple[1]  # Vᵢᵢ and Vᵢⱼ indices.
             if 0 <= idx < len(Vᵢᵢ_vals) and 0 <= jdx < len(Vᵢⱼ_vals):
                 if (idx, jdx) not in aggregated_probs:
                     aggregated_probs[(idx, jdx)] = {"prob_sum": 0, "count": 0}
@@ -542,12 +527,12 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
         "Create the full_grid with averaged probabilities."
         full_grid = np.full((len(Vᵢᵢ_vals), len(Vᵢⱼ_vals)), np.nan)
         for (idx, jdx), data in aggregated_probs.items():
-            full_grid[idx, jdx] = data["prob_sum"] / data["count"]  # Calculate the average probability
+            full_grid[idx, jdx] = data["prob_sum"] / data["count"]
 
         "Handle missing values in the grid and normalize."
         full_grid = gnrl.fill_holes_nd(input_array=full_grid, output_shape=(len(Vᵢᵢ_vals), len(Vᵢⱼ_vals)), method="cubic")
         sum_full_grid = np.nansum(full_grid)
-        full_grid = full_grid / sum_full_grid  # Normalize
+        full_grid = full_grid / sum_full_grid
     
         "Prepare sparse prior sample points."
         filtered_data = {}
@@ -564,7 +549,7 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
             filtered_data[key].append(prob)
         unique_points = np.array(list(filtered_data.keys()))
         probabilities = np.array([np.mean(filtered_data[key]) for key in filtered_data])
-        scatter_z = [prob / sum_full_grid for prob in probabilities]  # normalized sparse probabilities
+        scatter_z = [prob / sum_full_grid for prob in probabilities]  # Normalized sparse probabilities.
         
         scatter_x, scatter_y = unique_points[:, 0], unique_points[:, 1]
         
@@ -606,7 +591,7 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
         observed_choice_point = (payoff_diff_self, payoff_diff_other)
         hover_text += f"Payoff Difference Self (chooser) =     {int(payoff_diff_self*4)}<br>"
         hover_text += f"Payoff Difference Other (predictor) = {int(payoff_diff_self*4)}<extra></extra>"
-        observed_z = 0.05  # slight elevation
+        observed_z = 0.05  # Slight elevation.
         
         "Build traces for this game."
         game_traces = []
@@ -741,8 +726,6 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
     if isinstance(dyad_games_or_key, int):
         file_name += f"_{dyad_games_or_key}"
     file_name += f"{file_paths.get('file_name_suffix', '')}.html"
-    # file_name = f"bayesian_update_visualization_{dyad_name}" + f"{file_paths.get('file_name_suffix', '')}.html"
-    # file_name = f"bayesian_update_visualization" + f"{file_paths.get('file_name_suffix', '')}.html"
     visuals_dir = os.path.join(file_paths["visuals"], "bayesian_updates_3d")
     os.makedirs(visuals_dir, exist_ok=True)
     out_path = os.path.join(visuals_dir, file_name)
@@ -921,7 +904,7 @@ def belief_accuracy_analysis(file_paths: FilePaths, general_settings: GeneralSet
         "Merge all data into a single dictionary indexed by counterpart avatar type."
         player_dyads_data[avatar_type] = {**dyad_data, **param_data_human, **param_data_optimum}        
 
-    "Tripple length of masochistic avatar data to make its length equal to the others."
+    "Repeat masochistic avatar data so its length matches the other avatar series."
     for key, data_list in player_dyads_data['masochistic'].items():
         player_dyads_data['masochistic'][key] = [val for val in data_list for _ in range(3)]
  
@@ -964,7 +947,7 @@ def belief_accuracy_analysis(file_paths: FilePaths, general_settings: GeneralSet
         "Line plots representing mean parameter belief updates."
         for avatar_type in ['utilitarian','selfish','competitive','masochistic']:
 
-            "Marking regions of where parameters are compatible with avatar choices."
+            "Marks regions where parameters are compatible with avatar choices."
             for line_idx in (0, 1):
                 fig.add_trace(
                     go.Scatter(
@@ -1014,20 +997,20 @@ def belief_accuracy_analysis(file_paths: FilePaths, general_settings: GeneralSet
             )
             n_traces += 1
 
-            "Marking the current posteriors more clearly.xref"
+            "Highlights the current posterior."
             first_game = player_dyads[avatar_type][0]
             optimum_update_data: dict = first_game.get('parameter_estimates', {}).get(
                 general_settings.get('update_method', 'grid'), {}).get('optimum_update', None)
             if optimum_update_data is not None:
                 model_winner: str = optimum_update_data.get('model_winner')
-                continious_model_loss = optimum_update_data.get('total_continious_model_loss')
+                continuous_model_loss = optimum_update_data.get('total_continious_model_loss')
                 discrete_model_loss = optimum_update_data.get('total_discrete_model_loss')
-                if all(val is not None for val in (model_winner, continious_model_loss, discrete_model_loss)):
-                    continious_model_loss = round(continious_model_loss, 3)    
+                if all(val is not None for val in (model_winner, continuous_model_loss, discrete_model_loss)):
+                    continuous_model_loss = round(continuous_model_loss, 3)    
                     discrete_model_loss = round(discrete_model_loss, 3) 
                     hover_text = f"Posterior:<br>Vᵢᵢ = {round(x_line[-1], 2)}<br>"
                     hover_text += f"Vᵢⱼ = {round(y_line[-1], 3)}<br><br>Model Loss:<br>"
-                    hover_text += f"Continious: {continious_model_loss}<br>"
+                    hover_text += f"Continuous: {continuous_model_loss}<br>"
                     hover_text += f"Discrete:     {discrete_model_loss}<br>"
                     hover_text += f"<br>Winning Model:<br>{model_winner.capitalize()}!"
                     "Mark the final posteriors."
@@ -1060,7 +1043,7 @@ def belief_accuracy_analysis(file_paths: FilePaths, general_settings: GeneralSet
             )
             n_traces += 1   
 
-        "4 bar charts indicating p(avatar type) by optimum discrete Bayesian model"
+        "Four bar charts indicate p(avatar type) under the optimum discrete Bayesian model."
         for avatar_type in ['utilitarian','selfish','competitive','masochistic']:
             opt_util = player_dyads_data[avatar_type]['utilitarian'][idx] 
             opt_self = player_dyads_data[avatar_type]['selfish'][idx]     
@@ -1138,20 +1121,20 @@ def belief_accuracy_analysis(file_paths: FilePaths, general_settings: GeneralSet
         frames = []
 
         for frame_idx in range(n_games):
-            "Build a list of booleans for each trace's visibility."
+            "Builds a list of booleans for each trace's visibility."
             visible_flags = [False] * total_traces
             start_index = frame_idx * n_traces
-            "Mark traces for the current game as visible."
+            "Marks traces for the current game as visible."
             for kdx in range(start_index, start_index + n_traces):
                 visible_flags[kdx] = True
 
-            "Build a minimal update for each trace that sets 'visible' and preserves 'type'."
+            "Builds a minimal update for each trace that sets 'visible' and preserves 'type'."
             frame_update = []
             for ldx in range(total_traces):
-                trace_type = fig.data[ldx].type  # e.g. "bar" or "scatter"
+                trace_type = fig.data[ldx].type
                 frame_update.append({"visible": visible_flags[ldx], "type": trace_type})
             
-            "Create a frame with name equal to the frame index."
+            "Creates a frame with name equal to the frame index."
             frames.append(go.Frame(data=frame_update, name=str(frame_idx)))
 
         "Attach frames to the figure."
