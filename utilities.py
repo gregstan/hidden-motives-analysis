@@ -57,7 +57,7 @@ def fill_holes_nd(input_array: NDArray[np.float64], method: str = "cubic", outpu
 
     Notes:
         • Large nD arrays or large fractions of missing data can make this approach slow, 
-          since we do a scattered-data interpolation over up to (d1*d2*...*dn) points. 
+          since scattered-data interpolation can span up to (d1*d2*...*dn) points. 
     """
     from scipy.interpolate import griddata, RBFInterpolator # type: ignore
     "1) Convert all None -> np.nan, ensure float"
@@ -79,7 +79,7 @@ def fill_holes_nd(input_array: NDArray[np.float64], method: str = "cubic", outpu
     valid_indices = np.argwhere(valid_mask)  # shape=(N, ndim), N=number of valid points
     sample_values = arr[valid_mask]          # shape=(N,)
 
-    "3) Build the “output grid”. If out_shape=None, we reuse shape_in. Otherwise use out_shape."
+    "3) Builds the output grid. If out_shape=None, reuses shape_in. Otherwise uses out_shape."
     if output_shape is None:
         output_shape = shape_in
     
@@ -107,7 +107,7 @@ def fill_holes_nd(input_array: NDArray[np.float64], method: str = "cubic", outpu
     "meshgrid => list of length=ndim, each array shape=out_shape"
     mg = np.meshgrid(*coords_list, indexing='ij')  
 
-    "Flatten them so we can pass to griddata. Shape=(out_shape product, ndim)"
+    "Flattens coordinates for griddata. Shape=(out_shape product, ndim)."
     target_coords = np.stack([m.flatten() for m in mg], axis=-1)
 
     "4) Interpolate using the chosen method."
@@ -278,7 +278,7 @@ def parameter_penalty(
 
     Why this exists
     ----------------
-    Many of your utility variants are (nearly) scale-invariant in the weight means:
+    Many utility variants are (nearly) scale-invariant in the weight means:
     multiplying all active weights by c often leaves the induced choice probabilities
     essentially unchanged. Without a regularizer, optimizers can "wander" to large
     magnitudes and stall. This function applies a small, smooth penalty to keep the
@@ -291,21 +291,20 @@ def parameter_penalty(
     penalty as the child. Concretely:
 
         • For positivity/negativity pairs on the *same* term (self, altruism, social):
-            we penalize the **mean absolute magnitude** of the pair, not each coordinate
+            penalizes the **mean absolute magnitude** of the pair, not each coordinate
             separately. That way, a parent with (V, Λ) = (v, v) or (E, G) = (e, e) pays
             exactly what the child pays with the single weight = v or e.
 
-        • If a negativity mate is absent (only Vᵢᵢ, Vᵢⱼ, or Ƹᵢⱼ exists), we fall back to
+        • If a negativity mate is absent (only Vᵢᵢ, Vᵢⱼ, or Ƹᵢⱼ exists), falls back to
             the usual L2: penalty += (weight)^2.
 
         • Exponents (if penalized) are biased toward 1.0 via (γ - 1)^2. To avoid bias
-            when moving from one gamma to many, we penalize the **mean** gamma deviation:
+            when moving from one gamma to many, penalizes the **mean** gamma deviation:
                 mean_gamma = avg({all gammas present})
                 penalty += (#gammas) * (mean_gamma - 1)^2
             This preserves fairness between a child with one γ and a parent with several.
 
-    What we DO and DON’T penalize by default
-    ----------------------------------------
+    What this DOES and DOESN’T penalize by default:
         • Mean weights: yes (always; this is the primary stabilizer).
         • Exponents: on by default (set `penalize_exponents=False` to disable).
         • *_std, *_cov, temp: off by default for IC fairness; you can enable later
@@ -577,10 +576,10 @@ def is_positive_semidefinite(matrix: NDArray[np.float64], tol: float = 1e-12) ->
 def nearest_psd_matrix(matrix: NDArray[np.float64], min_eigval: float = 0.0) -> NDArray[np.float64]:
     """
     Converts M into a PSD matrix by:
-      1) Symmetrizing
-      2) Eigen-decomposing
-      3) Clamping negative eigenvalues to 'min_eigval' (usually 0 or small)
-      4) Reconstructing a PSD matrix
+        1) Symmetrizing
+        2) Eigen-decomposing
+        3) Clamping negative eigenvalues to 'min_eigval' (usually 0 or small)
+        4) Reconstructing a PSD matrix
 
     Returns the PSD-fixed matrix. This map is generally *not* invertible one-to-one.
     """
@@ -591,8 +590,8 @@ def nearest_psd_matrix(matrix: NDArray[np.float64], min_eigval: float = 0.0) -> 
     eigvals, eigvecs = np.linalg.eigh(M_sym)
 
     "3) Clamp eigenvalues"
-    "If min_eigval=0, we clamp negatives to 0 => PSD."
-    "If min_eigval>0, we force *strict* positive definiteness."
+    "If min_eigval=0, clamps negatives to 0 => PSD."
+    "If min_eigval>0, forces *strict* positive definiteness."
     eigvals_clamped = np.maximum(eigvals, min_eigval)
 
     "4) Reconstruct"
@@ -643,7 +642,7 @@ def validate_covariance_matrix(
             eigenvalues = np.maximum(eigenvalues, min_eigval)
             cov_matrix = eigenvectors @ np.diag(eigenvalues) @ eigenvectors.T
             "If you want to re-check, you can do so here:"
-            "Re-check we are PSD"
+            "Re-checks PSD after repair."
             re_eigs, _ = np.linalg.eigh(cov_matrix)
             if np.any(re_eigs < 0):
                 print("  Could not fix it entirely. Returning None.")
@@ -820,10 +819,54 @@ def serialize_opt_result(opt_result: OptimizeResult,
     return report_dict
 
 
-def transform_cov_params(params: dict[str, float], param_info: dict[str, list[str | float | tuple[float]]], 
-                         huge_loss: float = 1e6, is_psd_tol: float = 1e-12, asymmetry_tol: float = 1e-12, minimum_eigval: float = 1e-6, 
+def transform_cov_params(params: dict[str, float], param_info: dict[str, list[str | float | tuple[float]]],
+                         huge_loss: float = 1e6, is_psd_tol: float = 1e-12, asymmetry_tol: float = 1e-12, minimum_eigval: float = 1e-6,
                          player_role: str = 'predictor', include_covariance: bool = True, print_: bool = False) -> dict[str, dict[str, float] | str | float | None]:
-    """"""
+    """
+    Validate and repair a predictor's covariance parameter block so that it is positive semidefinite
+    and consistent with the declared parameter bounds.
+
+    If the covariance matrix implied by `params` is not PSD, the nearest PSD matrix (in Frobenius
+    norm) is computed and the repaired diagonal standard deviations are checked against the bounds
+    stored in `param_info`.  Any standard deviation that falls outside its declared bounds is
+    clamped to the nearest boundary.  The repaired parameter values are written back into a copy
+    of `params` and returned alongside a diagnostic report string.
+
+    If `player_role != 'predictor'` or `include_covariance` is False, a penalty loss is returned
+    immediately without attempting any repair, because covariance parameters only apply to the
+    predictor role.
+
+    Arguments:
+        • params: dict[str, float]
+            Current parameter dict, expected to include `_std` and `_cov` entries that together
+            define a covariance matrix via `build_covariation_matrix`.
+        • param_info: dict[str, list[str | float | tuple[float]]]
+            Full parameter specification including `'keys'` and `'bounds'`; used to look up
+            `_std` bounds for boundary enforcement after PSD repair.
+        • huge_loss: float
+            Penalty value returned when the role or settings make covariance repair inapplicable.
+        • is_psd_tol: float
+            Tolerance passed to `is_positive_semidefinite`; eigenvalues below this are treated
+            as non-positive.
+        • asymmetry_tol: float
+            Tolerance for asymmetry detection (currently passed to the PSD check infrastructure).
+        • minimum_eigval: float
+            Minimum eigenvalue enforced when constructing the nearest PSD matrix.
+        • player_role: str
+            Must be `'predictor'`; any other value triggers an immediate penalty return.
+        • include_covariance: bool
+            If False, no covariance matrix exists and the function returns a penalty immediately.
+        • print_: bool
+            If True, prints diagnostic messages when the matrix is altered or bounds are violated.
+
+    Returns:
+        • dict with keys:
+            - `'params'`: dict[str, float] — repaired parameter dict (or the original if no
+              repair was needed).
+            - `'report'`: str — human-readable description of any changes made.
+            - `'loss'`: float | None — penalty loss if repair was inapplicable or a bound
+              violation was found; None if the parameters are valid.
+    """
     if player_role != 'predictor':
         report_str = "Warning: Only use transform_cov_params for 'predictors'."
         if print_:
@@ -995,7 +1038,7 @@ def convert_utility_settings(utility_settings: Union[Dict[str, bool], Tuple[bool
         • keys: list[str] | None; Required when converting from tuple->dict to recover names.
             - If converting dict->tuple and 'keys' is None, uses the dict's insertion order.
             - If converting tuple->dict, you *must* provide 'keys' in the canonical order
-              used across your codebase (e.g., list(utility_settings_template.keys())).
+              used across this codebase (e.g., list(utility_settings_template.keys())).
 
     Returns:
         • dict[str, bool] or tuple[bool]
@@ -1069,11 +1112,11 @@ def convert_utility_settings(utility_settings: Union[Dict[str, bool], Tuple[bool
 
 def is_valid_utility_settings(candidate: UtilitySettings, provide_explanation: bool = False) -> bool:
     """
-    Boolean-only validator that mirrors the filtering logic in your `generate_utility_settings`.
+    Boolean-only validator that mirrors the filtering logic in `generate_utility_settings`.
     Returns True iff the candidate passes exactly the same constraints.
 
     Notes
-        • This is a direct transcription of your rules, but expressed as returns rather than 'continue'.
+        • This is a direct transcription of the rules, but expressed as returns rather than 'continue'.
         • Keep this in one place so generation & validation remain consistent.
     """
     "Determines how many social preference parameters are in the equation."
@@ -1399,13 +1442,13 @@ def count_free_parameters(
         utility_settings=utility_settings,
         general_settings=general_settings,
     )
-    "Strip covariance keys if present (we never add them here)."
+    "Strips covariance keys if present; this helper does not add them."
     return len([key for key in keys if not key.endswith('_cov')])
 
 
 def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str) -> UtilitySettings:
     """
-    Apply the *minimal* additional flips implied by your rules 
+    Apply the *minimal* additional flips implied by the rules 
     so a single pivot yields a valid candidate wherever possible.
 
     Examples of couplings handled:
@@ -1448,7 +1491,7 @@ def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str
         utility_settings['reference_dependent_utility'] = False
 
     if pivot == 'min_max_rawlsian_leontief' and utility_settings['min_max_rawlsian_leontief']:
-        "Enforce the 'min-max' bundle from your generator"
+        "Enforce the 'min-max' bundle from the generator"
         utility_settings['conditional_welfare_mode'] = False
         utility_settings['reference_dependent_altruism'] = False
         utility_settings['use_negativity_parameters'] = False
@@ -1462,7 +1505,7 @@ def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str
         utility_settings['include_social_comparison'] = True
         utility_settings['negativity_social_comparison'] = True
         if not utility_settings['include_altruism_term']:
-            "This is required to remain valid in your generator under conditional mode"
+            "This is required to remain valid in the generator under conditional mode"
             utility_settings['fix_self_interest_parameter'] = False
             utility_settings['single_exponential_parameter'] = True
 
@@ -1559,18 +1602,18 @@ def classify_pair_relation(model_1: Union[UtilitySettings, BoolTuple], model_2: 
         'parent', 'child', 'sibling', or 'neither'.
 
     Rules implemented:
-      • Only models differing in exactly one boolean setting can be relatives.
-      • Flipping 'min_max_rawlsian_leontief' or 'conditional_welfare_mode' alone ⇒ neither.
-      • Inside the min–max family, flipping 'include_social_comparison' (Rawlsian ↔ Leontief) ⇒ neither.
-      • Siblings: flags that change functional form without changing number of free parameters
-        (e.g., apply_exponents_to_payoffs, single_payoffs_not_differences, payoff_ratios_not_differences,
-         reference_dependent_*).
-      • Parent/child: flags that change the number of free parameters
-        (e.g., use_exponential_parameters, single_exponential_parameter, use_negativity_parameters,
-         negativity_social_comparison, include_social_comparison (outside min–max), include_altruism_term,
-         fix_self_interest_parameter).
-      • For conditional-welfare models, flipping include_altruism_term **is** parent/child; the parent has explicit
-        altruism weights (Vᵢⱼ, Ʌᵢⱼ). The child ties them to self-interest (1−Vᵢᵢ, 1−Ʌᵢᵢ).
+        • Only models differing in exactly one boolean setting can be relatives.
+        • Flipping 'min_max_rawlsian_leontief' or 'conditional_welfare_mode' alone ⇒ neither.
+        • Inside the min–max family, flipping 'include_social_comparison' (Rawlsian ↔ Leontief) ⇒ neither.
+        • Siblings: flags that change functional form without changing number of free parameters
+            (e.g., apply_exponents_to_payoffs, single_payoffs_not_differences, payoff_ratios_not_differences,
+            reference_dependent_*).
+        • Parent/child: flags that change the number of free parameters
+            (e.g., use_exponential_parameters, single_exponential_parameter, use_negativity_parameters,
+            negativity_social_comparison, include_social_comparison (outside min–max), include_altruism_term,
+            fix_self_interest_parameter).
+        • For conditional-welfare models, flipping include_altruism_term **is** parent/child; the parent has explicit
+            altruism weights (Vᵢⱼ, Ʌᵢⱼ). The child ties them to self-interest (1-Vᵢᵢ, 1-Ʌᵢᵢ).
     """
     model_1 = convert_utility_settings(utility_settings=model_1, into=dict)
     model_2 = convert_utility_settings(utility_settings=model_2, into=dict)
@@ -1683,7 +1726,7 @@ def load_fitted_parameters(
     """
     Loads the fitted parameters for a given player/role under the specified settings.
 
-    This uses your file-naming convention via `create_file_name_suffix(general_settings, utility_settings)`
+    This uses the file-naming convention via `create_file_name_suffix(general_settings, utility_settings)`
     and searches the player-fits directory:
         Iter_Binary_Dictator/player_fits/experiment_{experiment_num}/
     for a file named:
@@ -1695,7 +1738,7 @@ def load_fitted_parameters(
         • general_settings: dict[str, Any]
         • utility_settings: dict[str, bool] | tuple[bool]
         • param_info: dict with at least 'keys' field (used to filter/ordered return)
-        • file_paths: your `file_paths` mapping (uses 'outputs' first, then 'inputs' as fallback)
+        • file_paths: the `file_paths` mapping (uses 'outputs' first, then 'inputs' as fallback)
         • experiment_num: Optional[int]; If None, attempts general_settings['experiment_num'].
         • keys: Required only if `utility_settings` is passed as a tuple (for flag-name recovery)
 
@@ -1705,8 +1748,7 @@ def load_fitted_parameters(
     Notes:
         • JSON structure is expected to contain:
               parameter_estimates[update_method][player_uuid][role]['params']
-          which mirrors the example file you shared. :contentReference[oaicite:1]{index=1}
-        • We pick the first matching block found during a recursive scan of the JSON payload.
+        • Picks the first matching block found during a recursive scan of the JSON payload.
     """
     "Normalize options -> dict to build file name suffix deterministically"
     if isinstance(utility_settings, tuple):
@@ -1839,7 +1881,7 @@ def map_child_to_parent_special_param_info(
             - optional 'covar' sub-dict if `include_covariance` is True
 
     Raises:
-        • ValueError if the pair is not a valid child→parent relation under your rules.
+        • ValueError if the pair is not a valid child→parent relation under the rules.
         • NotImplementedError for transitions involving `min_max_rawlsian_leontief=True`.
     """
     "Normalize typed inputs to dicts (preserving insertion order of keys)."
@@ -1866,13 +1908,13 @@ def map_child_to_parent_special_param_info(
             print(f"Model 2: {build_utility_equation(parent_utility_settings)}")
         raise ValueError(f"Requested mapping is not child→parent. Got: {relation_1_to_2} / {relation_2_to_1} - Flipped Setting: {changed_utility_setting}.")
 
-    "Build a parent param_info scaffold (keys, bounds, covar). We'll override the guesses deterministically."
+    "Build a parent param_info scaffold (keys, bounds, covar). Override the guesses deterministically."
     parent_param_info = make_param_info(
         param_bds=param_bds,
         utility_settings=parent_utility_settings,
         general_settings=general_settings,
         guess_seed=None,
-        # random_guesses_are_unique=not general_settings.get('run_in_parallel', True),  # not used for final guesses
+        # random_guesses_are_unique=not general_settings.get('run_in_parallel', True),  # not used for final guesses TODO delete???
     )
     parent_keys: List[str] = list(parent_param_info["keys"])
 
@@ -2028,7 +2070,7 @@ def summarize_nesting_relationship_counts(
     Compute counts of unique parent–child and sibling–sibling relationships.
 
     Uses the adjacency lists produced by `model_nesting_adjacency_matrices`.
-    If a direct sibling adjacency is not provided by that function, we infer
+    If a direct sibling adjacency is not provided by that function, infers
     siblings as (i) same k (free parameter count), (ii) same model family
     (base vs conditional_welfare vs min_max), and (iii) Hamming distance = 1
     over the boolean settings vector.

@@ -145,7 +145,7 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
         for hspace_name, hypothesis_space in hypothesis_spaces.items():
             for dyad_id, dyad_games in histories_exper2.items():
                 these_dyad_games = copy.deepcopy(dyad_games)
-                human_player_uuid = these_dyad_games[0]["predictor"]  # assumed consistent across the dyad
+                human_player_uuid = these_dyad_games[0]["predictor"]  # Assumed consistent across the dyad.
                 updated_dyad = typo.discrete_bayesian_model(
                     dyad_games=these_dyad_games,
                     choice_funct=choice,
@@ -232,7 +232,6 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
 
         "9) Calculate loss for \"no learning\" model"
         "(static parameters, no posterior updates)"
-        # general_settings_["update_method"] = "learning not"
         general_settings_["update_method"] = "naive"
 
         "Remove or add suffix to file paths to track results"
@@ -259,7 +258,6 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
 
         for pdx, param_key in enumerate(param_info_['keys']):
             if '_std' in param_key:
-                # param_info_['bounds'][pdx] = (0.01, 0.01)
                 param_info_['bounds'][pdx] = (1e-6, 2e-6)
         param_info_['guesses'] = [
             random.uniform(bound[0], bound[1]) for bound in param_info_['bounds']
@@ -338,11 +336,11 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
                     general_settings=general_settings_
                 ).get(player_uuid, {}).get("predictor", {})
                 model_losses["utility_bayesian"] += loss_dict.get("raw_neglogprob_sum", 0.0)
-                # print(dyad_key, model_losses["utility_bayesian"])
+
         pp.pprint(model_losses)
 
     "Sort the models by ascending loss for easier comparison"
-    sorted_model_losses = dict(sorted(model_losses.items(), key=lambda x: x[1]))
+    sorted_model_losses = dict(sorted(model_losses.items(), key=lambda model_loss_item: model_loss_item[1]))
 
     "Extract names and losses"
     model_names = [model_names[model] for model in sorted_model_losses.keys()]
@@ -420,16 +418,7 @@ def compute_loss_for_typological_model_across_all_data(hypothesis_space: Dict[Tu
         • Tuple[float, int]
             (total negative log-likelihood, total number of data points used).
     """
-    "This part depends on how your data is structured. You might replicate"
-    "the logic from your alternative_model_contest(...) or similar code"
-    "that sums up raw_neglogprob across all players/dyads."
-
-    "For example:"
-    "1) Load or retrieve your \"histories_exper2\" from disk (like you do in alternative_model_contest)."
-    "2) For each dyad in experiment 2, run discrete_bayesian_model(dyad, choice_funct=..., hypothesis_space=...)."
-    "3) Summate raw_neglogprob from create_loss_report(...)."
-    "4) Count total \"rp\" data points."
-
+    "Compute NLL by replaying experiment histories with a discrete Bayesian hypothesis space."
 
     experiment_num = general_settings.get('experiment_num', 2)
     full_path_histories = os.path.join(
@@ -437,28 +426,26 @@ def compute_loss_for_typological_model_across_all_data(hypothesis_space: Dict[Tu
         file_paths["file_names"][f'player_pairs_exper{experiment_num}']
     )
 
-    with open(full_path_histories, "r", encoding="utf-8") as f:
-        histories_info = json.load(f)
+    with open(full_path_histories, "r", encoding="utf-8") as file:
+        histories_info = json.load(file)
     histories_exper2 = histories_info['histories']
 
     total_nll = 0.0
     total_data_points = 0
 
     for dyad_key, dyad_games in histories_exper2.items():
-        "run model"
-        "Be sure to re-copy the hypothesis_space so we don't mutate it"
+        "Run model - Be sure to re-copy the hypothesis_space to prevent mutating it."
         human_player_uuid = dyad_games[0]['predictor']
         local_space = copy.deepcopy(hypothesis_space)
         updated_dyad = typo.discrete_bayesian_model(
             dyad_games=copy.deepcopy(dyad_games),
-            # dyad_games=dyad_games,
             choice_funct=choice,
-            player_uuid=human_player_uuid,  # or however you parse it
+            player_uuid=human_player_uuid,
             general_settings=general_settings,
             hypothesis_space=local_space,
             update_method='discrete'
         )
-        "compute the per-dyad NLL"
+        "Compute the per-dyad NLL"
         loss_report = create_loss_report(updated_dyad, general_settings).get(human_player_uuid, {}).get("predictor", {})
         total_nll += loss_report.get('raw_neglogprob_sum', 0.0)
         total_data_points += loss_report.get('n_data', 0)
@@ -500,8 +487,8 @@ def _parallel_process_worker_typological_model_comparison_population_fit(args: T
 
     "--- 1) Prepare the objective function"
     def objective_fn(alpha: np.ndarray) -> float:
-        "convert alpha to priors"
-        priors = gnrl.transform_to_simplex(alpha)  # shape (k,)
+        "Convert alpha to priors"
+        priors = gnrl.transform_to_simplex(alpha)  # Shape (k,).
 
         "Build the dictionary for the discrete model"
         hypothesis_space = {
@@ -509,22 +496,22 @@ def _parallel_process_worker_typological_model_comparison_population_fit(args: T
         }
 
         "Evaluate negative log-likelihood across data"
-        "plus penalty to help gradient"
+        "Plus penalty to help gradient"
         nll, _ = compute_loss_for_typological_model_across_all_data(
             hypothesis_space=hypothesis_space,
             general_settings=general_settings,
             file_paths=file_paths
         )
-        # print(hypothesis_space, nll)
+
         "Add a penalty if desired"
-        "e.g. penalty = penalty_weight * sum( p^2 )"
+        "E.g. penalty = penalty_weight * sum( p^2 )"
         sum_sq = sum(priors * priors)
         penalty = penalty_weight * sum_sq
 
         return nll + penalty
 
-    "--- 2) Dimensions of alpha = k. We do an unconstrained reparameterization"
-    "bounds for alpha, let's do [-3,3] for each dimension"
+    "--- 2) Dimensions of alpha = k. Unconstrained reparameterization"
+    "Bounds for alpha."
     x_bounds = [(0.0, 1.0)] * k_params
     if prior_init_method == "uniform":
         x_guesses = [1/len(x_bounds) for bound in x_bounds]
@@ -536,8 +523,8 @@ def _parallel_process_worker_typological_model_comparison_population_fit(args: T
         objective_fn=objective_fn,
         x_bounds=x_bounds,
         x_guesses=x_guesses,
-        maxiter_global=None,   # can tune
-        maxiter_local=None,   # can tune
+        maxiter_global=None,   # Can tune.
+        maxiter_local=None,   # Can tune.
         maxfun_global=100,
         maxfun_local=None
     )
@@ -552,17 +539,12 @@ def _parallel_process_worker_typological_model_comparison_population_fit(args: T
         general_settings=general_settings,
         file_paths=file_paths
     )
-    "If you want, also compute the penalty for best_alpha:"
+    "Also compute the penalty for best_alpha."
     sum_sq_final = sum(best_priors * best_priors)
     penalty_final = penalty_weight * sum_sq_final
     total_loss = nll_no_penalty + penalty_final
 
-    "compute IC"
-    # k_params = dimension of priors minus 1, effectively, 
-    "but if you're counting them all, it's k. "
-    "It's arguable whether the sum-to-1 constraint reduces one degree of freedom. "
-    "We'll do k-1 if you like:"
-    "For now, let's do k_params = k-1"
+    "Compute IC"
     k_params = max(k_params, 1) 
     ic_dict = compute_ic(k_params, n_data, nll_no_penalty)
     aic_val = ic_dict["AIC"]
@@ -576,7 +558,7 @@ def _parallel_process_worker_typological_model_comparison_population_fit(args: T
         "duration": duration,
         "subset_id": subset_id,
         "k_params": k_params,
-        "profiles": subset_profiles,  # or str(subset_profiles)
+        "profiles": subset_profiles,  # Or str(subset_profiles).
         "nll_no_penalty": nll_no_penalty,
         "penalty": penalty_final,
         "total_loss": total_loss,
@@ -584,7 +566,7 @@ def _parallel_process_worker_typological_model_comparison_population_fit(args: T
         "best_alpha": list(best_alpha['final']['x']),
         "best_priors_normalized": list(best_priors),
     }
-    # print(result_dict)
+
     return result_dict
 
 
@@ -629,8 +611,8 @@ def typological_model_comparison_fit_population(file_paths: Dict[str, str], gene
 
     Notes:
         • The final DataFrame is saved/overwritten every `save_after_n_iter` subsets.
-        • At the end, you will have multiple CSV files, one for each k in [k_min, k_max].
-        • Later you can parse these CSVs to find the best discrete model overall.
+        • At the end, the output contains multiple CSV files, one for each k in [k_min, k_max].
+        • Later analysis can parse these CSVs to find the best discrete model overall.
     """
     "Validate folder"
     output_dir = file_paths.get("discrete", None)
@@ -639,8 +621,8 @@ def typological_model_comparison_fit_population(file_paths: Dict[str, str], gene
     os.makedirs(output_dir, exist_ok=True)
 
     "1) Build the 2D grid of possible profiles"
-    step = 2.0 / (intervals_per_dim - 1)  # e.g. 2.0 / 8 = 0.25 if intervals_per_dim=9
-    possible_values = [round(-1.0 + i*step, 4) for i in range(intervals_per_dim)]
+    step = 2.0 / (intervals_per_dim - 1)  # E.g. 2.0 / 8 = 0.25 if intervals_per_dim=9.
+    possible_values = [round(-1.0 + idx*step, 4) for idx in range(intervals_per_dim)]
     all_profiles = [(vx, vy) for vx in possible_values for vy in possible_values if not (vx == 0 and vy == 0)]
 
     general_settings_ = copy.deepcopy(general_settings)
@@ -710,7 +692,6 @@ def typological_model_comparison_fit_population(file_paths: Dict[str, str], gene
                         time_now = time.time()
                         total_time = time_now - time_start
                         average_duration = total_time / (idx + 1)
-                        # average_duration = df_results["duration"].mean()
                         n_remaining_iters = len(args_list) - idx
                         remaining_seconds = average_duration * n_remaining_iters / max(mp.cpu_count()-1, 1)
                         remaining_minutes = remaining_seconds / 60
@@ -754,7 +735,6 @@ def typological_model_comparison_fit_population(file_paths: Dict[str, str], gene
                     time_now = time.time()
                     total_time = time_now - time_start
                     average_duration = total_time / (idx + 1)                    
-                    # average_duration = df_results["duration"].mean()
                     n_remaining_iters = len(args_list) - idx
                     remaining_seconds = average_duration * n_remaining_iters 
                     remaining_minutes = remaining_seconds / 60
@@ -793,10 +773,10 @@ def typological_model_nll_for_player(hypothesis_space: Dict[tuple[float, float],
             Which player's data to load and evaluate.
 
     Returns:
-        (total_nll, total_data_points)
+        • (total_nll, total_data_points)
     """
     experiment_num = general_settings.get("experiment_num", 2)
-    "Load the histories (like your alt_model_contest approach)"
+    "Load histories from the processed experiment file"
     full_path_histories = os.path.join(
         file_paths["processed"],
         file_paths["file_names"][f"player_pairs_exper{experiment_num}"]
@@ -808,10 +788,10 @@ def typological_model_nll_for_player(hypothesis_space: Dict[tuple[float, float],
     total_nll = 0.0
     total_data = 0
 
-    "We only want dyads where this player is the predictor"
+    "Only want dyads where this player is the predictor"
     for dyad_key, dyad_games in all_histories.items():
         if dyad_games and (dyad_games[0].get("predictor") == player_uuid):
-            "run model"
+            "Run model"
             local_space = copy.deepcopy(hypothesis_space)
             these_dyad_games = copy.deepcopy(dyad_games)
             updated_dyad = typo.discrete_bayesian_model(
@@ -822,7 +802,7 @@ def typological_model_nll_for_player(hypothesis_space: Dict[tuple[float, float],
                 hypothesis_space=local_space,
                 update_method="discrete"
             )
-            "gather loss"
+            "Gather loss"
             general_settings_ = copy.deepcopy(general_settings)
             general_settings_["update_method"] = "discrete"
             loss_report = create_loss_report(updated_dyad, general_settings_)
@@ -865,7 +845,7 @@ def _parallel_process_worker_typological_model_comparison_individual_fit(args: T
     k_params = len(best_profiles)
 
     def objective_fn(alpha: np.ndarray) -> float:
-        priors = gnrl.transform_to_simplex(alpha)  # e.g. exp / sum(exp)
+        priors = gnrl.transform_to_simplex(alpha)  # E.g. exp / sum(exp).
         hypothesis_space = {prof: float(pr) for prof, pr in zip(best_profiles, priors)}
 
         nll, _ = typological_model_nll_for_player(
@@ -878,12 +858,11 @@ def _parallel_process_worker_typological_model_comparison_individual_fit(args: T
         penalty = penalty_weight * sum_sq
         return nll + penalty
 
-    "We'll guess alpha ~ 0.0 initially or random"
+    "Initialize alpha at zero"
     x_bounds = [(0.0, 1.0)] * k_params
-    x_guesses = [0.0] * k_params  # or random, or something else
+    x_guesses = [0.0] * k_params  # Or random, or something else.
 
-    "run global+local optimization (the same function you used before)"
-    "e.g. global_local_optimization from your code:"
+    "Run global+local optimization"
     best_result: OptimizeResult = global_local_optimization(
         objective_fn,
         x_bounds=x_bounds,
@@ -907,10 +886,9 @@ def _parallel_process_worker_typological_model_comparison_individual_fit(args: T
     penalty_final = penalty_weight * sum_sq_final
     total_loss = nll_no_penalty + penalty_final
 
-    # if you want AIC/BIC for each player, we define k_eff = k_params - 1 or so
+    "Use k_eff = k_params - 1 for per-player AIC/BIC."
     k_eff = max(k_params - 1, 1)
     ic_dict = compute_ic(k_eff, n_data, nll_no_penalty)
-    # print(f"Loss: {round(total_loss, 6)}; Player: {player_uuid}")
     return {
         "n_data": n_data,
         "player_uuid": player_uuid,
@@ -935,7 +913,7 @@ def typological_model_comparison_fit_individually(best_profiles: list[tuple[floa
 
     Arguments:
         • best_profiles: list[tuple[float, float]]
-            The discrete profiles chosen from your population-level stage.
+            The discrete profiles chosen from the population-level stage.
         • general_settings: Dict[str, Any]
             E.g. {'experiment_num': 2, 'run_in_parallel': True, ...}
         • file_paths: Dict[str, str]
@@ -953,7 +931,7 @@ def typological_model_comparison_fit_individually(best_profiles: list[tuple[floa
             If True, writes results to a CSV file at the end.
 
     Returns:
-        (df, total_nll):
+        • (df, total_nll):
             df is a DataFrame with one row per player:
                 [player_uuid, best_alpha, best_priors_normalized, nll_no_penalty, ...]
             total_nll is sum of all players' nll_no_penalty (no penalty included).
@@ -962,24 +940,25 @@ def typological_model_comparison_fit_individually(best_profiles: list[tuple[floa
         • This is the standard approach to get a per-player best-fitting prior distribution,
           given a single “best” set of profiles for the entire population.
         • Summing the 'nll_no_penalty' column in the returned DataFrame gives the total NLL
-          across all players, so you can compare it to your continuous model's total.
+          across all players, enabling comparison against the continuous model's total.
     """
     "1) Gather the relevant players"
-    "E.g., load from the same file you used in alt_model_contest or create a function"
+    "Load from the same file used in alt_model_contest or a dedicated loader."
     experiment_num = general_settings.get("experiment_num", 2)
-    "load player_info or something:"
-    "Usually, you might have \"histories_data['player_info']\", or you can parse the same file you parse for dyads."
-    "For example:"
+    "Load player_info from the histories payload"
+    "Usually, \"histories_data['player_info']\" is available, or the dyad file can be parsed directly."
 
     full_path_histories = os.path.join(
         file_paths["processed"],
         file_paths["file_names"][f"player_pairs_exper{experiment_num}"]
     )
-    with open(full_path_histories, "r", encoding="utf-8") as f:
-        data_all = json.load(f)
-    "We can gather all predictor players:"
-    "If \"player_info\" is available, you can do that. "
-    "Otherwise, parse the \"histories\" to get unique predictor IDs:"
+    with open(full_path_histories, "r", encoding="utf-8") as file:
+        data_all = json.load(file)
+    """
+    Can gather all predictor players:
+    Use \"player_info\" when available.
+    Otherwise, parse the \"histories\" to get unique predictor IDs:   
+    """
     all_histories = data_all["histories"]
 
     player_uuids = set()
@@ -1122,7 +1101,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         • file_paths: Dict[str, str]; Paths to files/directories for reading/writing data.
         • param_info: Dict[str, Any]; Contains parameter keys, bounds, guesses, etc.
         • robustness_epsilon: float; If sum of ΔMinLoss < this threshold for two 
-            consecutive iterations, we stop early.
+            consecutive iterations, then stop early.
         • dynamic_updating: bool; Because the computational demands of fitting individual-level belief updating
             are prohibitive, this analysis relies on a static (no updating) version of the UBM by default. Yet,
             setting this input to True can work on a machine with more cores.  
@@ -1135,7 +1114,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
     """
     "Storing terminal printouts in a .txt file"
     ic_terminal_printouts = [
-        # This document contains terminal print statements for the information criterion utility function model comparison.
+        "This document contains terminal print statements for the information criterion utility function model comparison."
     ]
 
     def compute_mean_param_variance(param_info: Dict[str, Any], param_runs: List[Dict[str, Dict[str, Dict[str, float]]]]) -> float:
@@ -1160,22 +1139,20 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             Inside each "..." is a mapping param_key -> param_value.
 
         Returns:
-        --------
-        A single float in [0,1] (roughly). 
-        A value near 0 means all runs found nearly identical param solutions 
-        (hence stable). Higher means more discrepancy across runs.
+            • A single float in [0,1] (roughly). 
+            • A value near 0 means all runs found nearly identical param solutions 
+                (hence stable). Higher means more discrepancy across runs.
         """
 
-        "If we have fewer than 2 runs, variance is trivially zero"
+        "If fewer than 2 runs, variance is trivially zero"
         if len(param_runs) < 2:
             return 0.0
 
         param_names = param_info['keys']
-        param_bounds = param_info['bounds']  # same order as param_names
+        param_bounds = param_info['bounds']  # Same order as param_names.
 
         "1) For each participant, for each role, for each param, gather a list of values across runs"
-        "We'll store them in something like:"
-        #    values_dict[(player_uuid, role, param_name)] = [val_run1, val_run2, ... val_runR]
+        "Store them in something like: values_dict[(player_uuid, role, param_name)] = [val_run1, val_run2, ... val_runR]"
         from collections import defaultdict
         values_dict = defaultdict(list)
 
@@ -1183,29 +1160,31 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
 
         for run_idx in range(n_runs):
             run_data = param_runs[run_idx]
-            # run_data => {player_uuid: { 'chooser': {pkey: val}, 'predictor': {pkey: val} }, ...}
+            "Run_data => {player_uuid: { 'chooser': {pkey: val}, 'predictor': {pkey: val} }, ...}"
             for player_uuid, role_dict in run_data.items():
                 for role_name, param_map in role_dict.items():
-                    # param_map => { param_key: param_val, ...}
+                    "Param_map => { param_key: param_val, ...}"
                     if not param_map:
                         continue
                     "For each param in param_names:"
                     for pkey, pval in param_map.items():
-                        "We'll only process it if pkey is in param_names"
+                        "Only process it if pkey is in param_names"
                         if pkey in param_names:
-                            "store it"
+                            "Store it"
                             values_dict[(player_uuid, role_name, pkey)].append(pval)
 
-        "2) For each param triple (player, role, param), compute variance in normalized scale"
-        "Then we average across all (player, role, param)."
-        "We'll skip any triple that has < 2 data points (maybe that triple wasn't used)."
+        """
+        2) For each param triple (player, role, param), compute variance in normalized scale
+        Then average across all (player, role, param). Skip any triple that has < 2 data points 
+        (maybe that triple wasn't used).
+        """
         all_variances = []
         for (ply, rle, pkey), val_list in values_dict.items():
             if len(val_list) < 2:
-                "can't compute variance with <2 points"
+                "Can't compute variance with <2 points"
                 continue
 
-            "find the index in param_names"
+            "Find the index in param_names"
             try:
                 p_index = param_names.index(pkey)
             except ValueError:
@@ -1214,14 +1193,14 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             bound_low, bound_high = param_bounds[p_index]
             param_range = (bound_high - bound_low)
             if param_range <= 0:
-                "just skip or treat as zero"
+                "Skip invalid ranges"
                 continue
 
-            "normalize each value"
-            norm_vals = [(v - bound_low) / param_range for v in val_list]
+            "Normalize each value"
+            norm_vals = [(param_value - bound_low) / param_range for param_value in val_list]
 
-            "compute variance"
-            var_ = np.var(norm_vals, ddof=1)  # ddof=1 => sample variance
+            "Compute variance"
+            var_ = np.var(norm_vals, ddof=1)  # Ddof=1 => sample variance.
             all_variances.append(var_)
 
         if not all_variances:
@@ -1232,7 +1211,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
 
     def _compute_normalised_param_sd(pvec, param_bds):
         """
-        pvec : list of per-iteration dicts
+        Pvec : list of per-iteration dicts
             [ iteration0, iteration1, … ]
             Each item -> {player_uuid: {'chooser': {param: val, …},
                                         'predictor': {param: val, …}}, …}
@@ -1240,8 +1219,8 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         param_bds : dict {param_name: (low, high)}
 
         Returns a *scalar*:
-            median_over_params(   SD_over_iters&players(param) / (high-low)   )
-        If a param is missing bounds, it is skipped.
+            • median_over_params(   SD_over_iters&players(param) / (high-low)   )
+                If a param is missing bounds, it is skipped.
         """
         if not pvec:
             return np.nan
@@ -1249,23 +1228,23 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         "Flatten -> {param: [values]}"
         bag = {}
         for iter_dict in pvec:
-            for pl_dict in iter_dict.values():         # players
-                for role_dict in pl_dict.values():     # chooser / predictor
+            for pl_dict in iter_dict.values():         # Players.
+                for role_dict in pl_dict.values():     # Chooser / predictor.
                     if not isinstance(role_dict, dict):
                         continue
-                    for k, v in role_dict.items():
-                        bag.setdefault(k, []).append(float(v))
+                    for param_key, param_value in role_dict.items():
+                        bag.setdefault(param_key, []).append(float(param_value))
 
         norm_sds = []
-        for param, vals in bag.items():
-            bd = param_bds.get(param)
-            if not bd:
+        for param, param_values in bag.items():
+            param_bounds = param_bds.get(param)
+            if not param_bounds:
                 continue
-            rng = bd[1] - bd[0]
-            if rng <= 0 or len(vals) < 2:
+            param_range = param_bounds[1] - param_bounds[0]
+            if param_range <= 0 or len(param_values) < 2:
                 continue
-            sd = np.std(vals, ddof=1)
-            norm_sds.append(sd / rng)
+            param_sd = np.std(param_values, ddof=1)
+            norm_sds.append(param_sd / param_range)
 
         if not norm_sds:
             return np.nan
@@ -1408,11 +1387,11 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
 
     def build_ic_dataframe_for_ranking(ic_dict: Dict[str, Any]) -> pd.DataFrame:
         """
-        Helper to get a DataFrame from current ic_results_dict so we can compute ranks easily.
+        Helper to get a DataFrame from current ic_results_dict to compute ranks easily.
         """
         rows = []
         for mk, info in ic_dict.items():
-            "skip if 'loss' is None"
+            "Skip if 'loss' is None"
             if info['loss'] is None:
                 continue
             rows.append({
@@ -1422,13 +1401,13 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                 "BIC": info['BIC']
             })
         df_local = pd.DataFrame(rows)
-        "rank by BIC ascending"
+        "Rank by BIC ascending"
         df_local["BIC_rank"] = df_local["BIC"].rank(method="min", ascending=True)
         return df_local
     
-    def make_unique_guesses(bounds, *, model_key, iter_idx, restart_idx):
+    def make_unique_guesses(bounds, *, model_key, iter_idx, restart_idx): # TODO delete???
         """
-        bounds: list[(low, high)] aligned with param_info['keys'].
+        Bounds: list[(low, high)] aligned with param_info['keys'].
         Returns a list of floats with unique-but-deterministic randomness.
         """
         def _seed_from(*parts) -> int:
@@ -1438,20 +1417,20 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
           
         seed = _seed_from("IC", model_key, iter_idx, restart_idx)
         rng = random.Random(seed)
-        return [rng.uniform(lo, hi) for (lo, hi) in bounds]
+        return [rng.uniform(bound_low, bound_high) for (bound_low, bound_high) in bounds]
 
     def _warmstart_temperature(iter_idx: int, warmstart_policy: dict) -> float | None:
         """
         Returns None ⇒ 'cold' (no warm-starts).
         Simple schedules that do not depend on final horizon.
         """
-        cold_iters = int(warmstart_policy.get("cold_iters", 2))     # no warm-starts for the first K iterations
+        cold_iters = int(warmstart_policy.get("cold_iters", 2))     # No warm-starts for the first K iterations.
         temp_high  = float(warmstart_policy.get("temperature_high", 1000.0))
         temp_low   = float(warmstart_policy.get("temperature_low", 0.05))
         schedule   = str(warmstart_policy.get("schedule", "binary")).lower()
 
         if iter_idx <= cold_iters:
-            return None  # cold phase
+            return None  # Cold phase.
 
         if schedule == "binary":
             explore_iters = int(warmstart_policy.get("explore_iters", 3))
@@ -1460,10 +1439,10 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         if schedule == "exp":
             "Exponential cooling with a half-life in 'warm' phase"
             half_life = float(warmstart_policy.get("half_life", 2.0))
-            t = max(0, iter_idx - cold_iters)
-            return max(temp_low, temp_high * (0.5 ** (t / half_life)))
+            warm_phase_iter = max(0, iter_idx - cold_iters)
+            return max(temp_low, temp_high * (0.5 ** (warm_phase_iter / half_life)))
 
-        "default: binary"
+        "Default: binary"
         return temp_high
 
     def model_comparison_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -1481,10 +1460,10 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             "1) Identify the winning row (lowest BIC => rank=0)"
             best_row = df_k.loc[df_k['BIC_rank'] == 0].copy()
             if best_row.empty:
-                continue  # Shouldn't happen, but just in case
+                continue  # Should not happen, but just in case.
 
-            "Typically there's only one row with rank=0, but let's handle if there's a tie:"
-            best_row = best_row.iloc[0]  # pick the first if there's a tie
+            "Typically there's only one row with rank=0, but handle if there's a tie:"
+            best_row = best_row.iloc[0]  # Pick the first if there is a tie.
 
             "2) Identify the runner-up (rank=1 within that same k_params)"
             runner_up = df_k.loc[df_k['BIC_rank'] == 1]
@@ -1504,7 +1483,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             best_models.append(best_row)
 
         comp_df = pd.DataFrame(best_models).sort_values('k_params')
-        "optional Δ"
+        "Optional Δ"
         min_BIC_in_comp = comp_df['BIC'].min()
         comp_df['ΔBIC'] = comp_df['BIC'] - min_BIC_in_comp
         
@@ -1512,7 +1491,6 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         equation_column = comp_df.pop('equation')
         comp_df['equation'] = equation_column
 
-        # if not general_settings.get('write_mode') == 'readonly':
         comp_csv_path = prep.ensure_directory_and_join(file_paths["bic_aic"], 
                             f"IC_Analysis_Comparison_Table_Experiment{experiment_num}.csv")
         comp_df.to_csv(comp_csv_path, index=False, encoding='utf-8-sig')
@@ -1588,12 +1566,11 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
     nesting_violation_counts_per_iter = []
 
     if not isinstance(max_iters, int) or max_iters <= 0:
-        "max_iters must be a positive non-zero integer."
+        "Max_iters must be a positive non-zero integer."
         max_iters = 1
 
     if general_settings.get('write_mode') == 'readonly':
-    # if not general_settings.get('create_new_file'):
-        "No point in iterating if we already intend to extract saved files."
+        "No point in iterating if intending to extract saved files."
         max_iters = 1
 
     player_subset = False
@@ -1638,7 +1615,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
     utility_varieties = {}
 
     "Generate all valid utility configurations."
-    utility_setting_varieties = gnrl.generate_utility_settings(utility_settings=utility_settings, sort_by_k=True) #[126:] #HACK [126:]
+    utility_setting_varieties = gnrl.generate_utility_settings(utility_settings=utility_settings, sort_by_k=True)
 
     n_varieties = len(utility_setting_varieties)
 
@@ -1646,17 +1623,17 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
     models_to_sequential_losses: Dict[str, List[float]] = {}
     models_to_sequential_params: Dict[str, List[Dict[str, Dict[str, Dict[str, float]]]]] = {}
     models_to_sequential_losses_and_params: Dict[str, List[Dict[str, Dict[str, Dict[str, Dict[str, float]]]]]] = {}
-    players_to_params_this_iter = {} # Placed here to prevent an error if not create_new_file.
+    players_to_params_this_iter = {}  # Placed here to prevent an error if not create_new_file.
 
     "For storing iteration-based sums"
     sum_delta_minimum_loss_by_iter: List[float] = []
     rank_change_by_iter: List[float] = []
     rank_change_median_by_iter: List[float] = []
 
-    "We keep track of the old ranks"
+    "Keep track of the old ranks"
     old_ranks: Dict[str, float] = {}
 
-    consecutive_small_improvements = 0  # how many times in a row sum_delta_min_loss < epsilon
+    consecutive_small_improvements = 0  # Count of consecutive iterations where sum_delta_min_loss < epsilon.
 
     minimum_params_and_losses = {}
 
@@ -1689,7 +1666,6 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             param_info = make_param_info(param_bds=param_bds, 
                 utility_settings=utility_setting_variety, general_settings=general_settings, 
                 random_guesses_are_unique=True, guess_seed=None)
-                # random_guesses_are_unique=not general_settings['run_in_parallel'])
 
             k_params = len(param_info['keys'])  # Number of free parameters.
             utility_setting_key = str(gnrl.convert_utility_settings(utility_settings=utility_setting_variety, into=tuple)) 
@@ -1721,7 +1697,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                 file_paths=file_paths_this, file_name_suffix=file_name_suffix, add_suffix=True
             )
 
-            "Where we store the per-config results if it exists."
+            "Where the per-config results are stored if they exist."
             ic_results_file_path = prep.ensure_directory_and_join(
                 file_paths_this["bic_aic"], f"IC_Analysis{file_name_suffix}.json")
             "Always try to seed from any prior file"
@@ -1746,7 +1722,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                 minimum_params_and_losses[utility_setting_key].clear()
                 n_data_for_model = 0
 
-            "readonly → skip running a new iteration; just use the seeded values"
+            "Readonly → skip running a new iteration; just use the seeded values"
             if write_mode == 'readonly':
                 total_loss_model = ic_prev.get('loss', (
                     min(models_to_sequential_losses[utility_setting_key])
@@ -1775,8 +1751,8 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                 player_histories = copy.deepcopy(original_histories)
 
                 "Summation variables."
-                total_loss_model = 0.0 # Total loss for model across experiment
-                n_data_for_model = 0   # Number of data points in the experiment 
+                total_loss_model = 0.0  # Total loss for model across experiment.
+                n_data_for_model = 0   # Number of data points in the experiment.
 
                 "Overwrite lambda generated random numbers prevents pickeling errors in multiprocessing"
                 min_std_guess = 0.5
@@ -1795,13 +1771,10 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                 }
                 warmstart_policy = general_settings.get("warmstart_policy", default_warm_pol)
                 cur_T = _warmstart_temperature(iter_idx, warmstart_policy)
-                # phase = "cold" if (cur_T is None) else "warm"
                 phase = "cold" if iter_idx <= warmstart_policy.get("cold_iters", 2) else "warm"
 
                 "Force 'create_new_file' to be true if already deciding to create a new file."
                 general_settings_ = copy.deepcopy(general_settings)
-                # general_settings_['create_new_file'] = True            
-                # general_settings_['write_mode'] = 'overwrite'
 
                 general_settings_["warmstart_policy"] = {
                     **default_warm_pol,
@@ -1809,8 +1782,8 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                     "temperature": (cur_T if cur_T is not None else 0.0),
                     "phase": phase
                 }
-                "If you prefer, also pin the method here. The local code inside fit_params_by_player"
-                "will switch to 'local' when phase == 'warm' and disable_dual_annealing_when_warm=True."
+                "Pin the method here. The local code inside fit_params_by_player"
+                "Will switch to 'local' when phase == 'warm' and disable_dual_annealing_when_warm=True."
                 general_settings_["optimization_method"] = general_settings.get("optimization_method", "globloc")
 
                 if utility_idx == 0:
@@ -1876,14 +1849,14 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                     param_est_by_role = {'chooser': None, 'predictor': None}
 
                     for dyad_key, dyad_games in player_dyads.items():
-                        "compute loss for this dyad"
+                        "Compute loss for this dyad"
                         loss_report = create_loss_report(dyad_games=dyad_games, general_settings=general_settings).get(player_uuid, {})
                         for player_role in ('chooser', 'predictor'):
                             loss_dict = loss_report.get(player_role, {})
                             loss_plr_role_dyad = loss_dict.get('raw_neglogprob_sum' if loss_funct_type == 'log' else 'raw_ssr', 0.0)
                             role_loss_total[player_role] += loss_plr_role_dyad
 
-                            "n_data: keep your current logic; if n_data is per-role per-dyad, this is correct"
+                            "N_data: preserve current per-role/per-dyad aggregation logic"
                             n_data_for_model += loss_dict.get('n_data', 0)
 
                             "Grab params once (any dyad) if present"
@@ -1895,7 +1868,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                                             player_uuid, {}).get(player_role, {}).get('params')
 
                     "Extract the parameters that minimize the raw losses, not the penalized losses."
-                    "NOTE: If successful, this overwrites the logic directly above."
+                    "NOTE: If successful, this overwrites the logic directly above." # TODO Consider what to do here.
                     if len(dyad_games) > 0:
                         if "reports" in dyad_games[0]:
                             for player_role in ('chooser', 'predictor'):
@@ -1906,7 +1879,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                                             param_est_by_role[player_role] = min_raw_neglog_sum["params"]
                                             role_loss_total[player_role] = min_raw_neglog_sum["loss"]
 
-                    "Store what we saw this iteration"
+                    "Store what was found this iteration"
                     players_to_params_this_iter[player_uuid] = {
                         'chooser':   param_est_by_role['chooser']   or {},
                         'predictor': param_est_by_role['predictor'] or {}
@@ -1932,10 +1905,10 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                         total_loss_model += min_for_model[player_uuid]['loss'][role]
 
                 "Debugging"
-                "total_loss_model should equal sum over players of minvec[uuid]['loss']['chooser'/'predictor']"
+                "Total_loss_model should equal sum over players of minvec[uuid]['loss']['chooser'/'predictor']"
                 chk = 0.0
-                for uuid, d in minimum_params_and_losses[utility_setting_key].items():
-                    chk += float(d['loss'].get('chooser', 0.0)) + float(d['loss'].get('predictor', 0.0))
+                for player_uuid_for_check, player_loss_data in minimum_params_and_losses[utility_setting_key].items():
+                    chk += float(player_loss_data['loss'].get('chooser', 0.0)) + float(player_loss_data['loss'].get('predictor', 0.0))
                 assert abs(total_loss_model - chk) <= 1e-9, "models_to_sequential_losses inconsistent with minvec aggregation."
                 "Debugging"
 
@@ -1950,14 +1923,11 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                 models_to_sequential_losses[utility_setting_key].append(total_loss_model)
 
             "Find miminum model loss up until now and the delta from the last time step"
-            # if models_to_sequential_losses[utility_setting_key]:
             minimum_model_loss = min(models_to_sequential_losses[utility_setting_key])
-            # else:
-            #     minimum_model_loss = 0.0 #TODO compute this from retrieved files.
 
             prev = prior_minimum_model_loss
             cur  = minimum_model_loss
-            "We allow the first 'inf' → value transition"
+            "Allows the first 'inf' → value transition."
             if prev != float('inf'):
                 assert cur <= prev + 1e-12, f"Minimum loss increased! prev={prev:.6f}, cur={cur:.6f}"
 
@@ -2086,14 +2056,13 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         sum_delta_minimum_loss_by_iter.append(sum_delta_minimum_loss_this_iter)
 
         rounded_sds = [round(sum_delta, 6) for sum_delta in sum_delta_minimum_loss_by_iter]
-        # print(f"Iter {iter_idx}: Sum Δ Min Losses: {rounded_sds}")
         sum_delta_min_loss_statement = f"Iter {iter_idx}: Sum Δ Min Losses: {rounded_sds}"
         ic_terminal_printouts.append(sum_delta_min_loss_statement)
         print(sum_delta_min_loss_statement)
 
         "2) Build DF to compute rank changes"
         df_for_rank = build_ic_dataframe_for_ranking(ic_results_dict)
-        "e.g. df_for_rank: [model_key, loss, AIC, BIC, BIC_rank]"
+        "E.g. df_for_rank: [model_key, loss, AIC, BIC, BIC_rank]"
         rank_diffs = []
         new_ranks = {}
         for idx, row in df_for_rank.iterrows():
@@ -2101,11 +2070,11 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             nrank = row["BIC_rank"]
             new_ranks[mk] = nrank
 
-            "If we had old_ranks, compute difference"
-            old_r = old_ranks.get(mk, nrank)  # if not present, no difference
+            "Computes rank difference when old_ranks are available."
+            old_r = old_ranks.get(mk, nrank)  # If not present, no difference.
             rank_diffs.append(abs(nrank - old_r))
 
-        "sum of rank changes across all models"
+        "Sum of rank changes across all models"
         sum_rank_diff = sum(rank_diffs)
         median_rank_diff = np.median(rank_diffs) if rank_diffs else 0.0
         rank_change_by_iter.append(sum_rank_diff)
@@ -2145,7 +2114,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         all_ic_results = {
             'ic_results': ic_results_dict,
             'utility_varieties': utility_varieties,
-            'robustness_analysis_data': robustness_analysis_data,  # I want to store the analysis 
+            'robustness_analysis_data': robustness_analysis_data,
             'n_iterations_completed': iter_idx
         }
 
@@ -2163,7 +2132,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
 
         "Build a DataFrame summarizing all results."
         "Start by building column lists for each key in utility_settings + {n,k,loss,AIC,BIC}."
-        df_dict = {key: [] for key in utility_settings}  # each setting as a column
+        df_dict = {key: [] for key in utility_settings}  # Each setting as a column.
 
         extra_cols = ['idx', 'n_data', 'k_params', 'pvar', 'param_norm_sd', 'loss', 'AIC', 'BIC', 'equation']
         for extra_col in extra_cols:
@@ -2197,8 +2166,6 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             df_dict['equation'].append(
                 build_utility_equation(utility_settings=utility_setting_variety)
             )
-
-
 
         df = ic_results_df(df_dict=df_dict)
 
@@ -2244,8 +2211,8 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         sum_delta_minimum_loss_by_iter = []
         rank_change_by_iter            = []
         rank_change_median_by_iter     = []
-        prev_min_by_model = {}      # track previous min loss per model
-        prev_ranks        = {}      # track previous BIC ranks
+        prev_min_by_model = {}      # Track previous min loss per model.
+        prev_ranks        = {}      # Track previous BIC ranks.
 
         for iter in range(max_iters_done):
             "(A) Δ-min-loss"
@@ -2253,7 +2220,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             for mk, ic in ic_results_dict.items():
                 lvec = ic.get('lvec', [])
                 if iter >= len(lvec):
-                    continue            # model hadn’t reached that iter
+                    continue            # Model had not reached that iter.
                 cur_min = min(lvec[:iter+1])
                 prev_min = prev_min_by_model.get(mk, cur_min)
                 sum_delta_this_it += abs(cur_min - prev_min)
@@ -2272,9 +2239,9 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                 bic      = k_params*np.log(n_data) + 2*cur_min if n_data else np.nan
                 rows.append((mk, bic))
 
-            "rank them"
+            "Rank them"
             rows = [row for row in rows if not np.isnan(row[1])]
-            rows.sort(key=lambda x: x[1])
+            rows.sort(key=lambda rank_row: rank_row[1])
             cur_ranks = {mk: row for row, (mk, _) in enumerate(rows)}
 
             diffs = [abs(cur_ranks[mk] - prev_ranks.get(mk, cur_ranks[mk]))
@@ -2283,7 +2250,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             rank_change_median_by_iter.append(np.median(diffs) if diffs else 0.0)
             prev_ranks = cur_ranks
 
-        "3) overwrite the counters so they reflect reality"
+        "3) Overwrite the counters so they reflect reality"
         iter_idx = max_iters_done
 
     ic_correlations(df=df)
@@ -2321,8 +2288,8 @@ def plot_ic_robustness_analysis(general_settings: Dict[str, Any], file_paths: Di
     )
 
     if os.path.exists(all_ic_results_file_path):
-        with open(all_ic_results_file_path, "r", encoding="utf-8") as f:
-            all_ic_results = json.load(f)
+        with open(all_ic_results_file_path, "r", encoding="utf-8") as file:
+            all_ic_results = json.load(file)
 
     rab_data = all_ic_results.get("robustness_analysis_data", {})
     n_iters = all_ic_results.get("n_iterations_completed", 1)
@@ -2336,14 +2303,13 @@ def plot_ic_robustness_analysis(general_settings: Dict[str, Any], file_paths: Di
         rows=1, cols=2,
         subplot_titles=[
             "Sum of Δ Min Loss Per Iteration",
-            # Sum of Rank Changes Per Iteration
+            "Sum of Rank Changes Per Iteration",
         ]
     )
 
     "X array from 1..n_iters"
     x_iter = list(range(1, len(sum_delta_loss)+1))
     line_width = 8
-    # x_iter = 9
     "(A) sum_delta_minimum_loss_by_iter"
     trace_sum_loss = go.Scatter(
         x=x_iter[1:],
@@ -2367,8 +2333,8 @@ def plot_ic_robustness_analysis(general_settings: Dict[str, Any], file_paths: Di
     )
     fig.add_trace(trace_rank, row=1, col=2)
 
-    "If you want median rank changes as well, you can add them in the same second panel"
-    rank_med = False #HACK
+    "Optional median rank-change overlay for the second panel"
+    rank_med = False
     if rank_med:
         trace_median = go.Scatter(
             x=x_iter2,
@@ -2435,49 +2401,48 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
     (include_dropdown=True), users can toggle coloring by each relevant Boolean utility
     option, revealing two traces (True/False) with distinct legend entries.
 
-    • fig_lay: Dict[str, Any]
-      Layout preferences (template, font, axis styles, etc.). Mimics your typical
-      approach for consistent aesthetics.
+    Arguments:
+        • fig_lay: Dict[str, Any]
+            Layout preferences (template, font, axis styles, etc.) used for consistent
+            aesthetics across figures.
 
-    • file_paths: Dict[str, str]
-      File paths. Must include:
-        └─ file_paths["bic_aic"]
-      This function automatically loads a CSV named:
-        All_Utility_Forms_IC_Analysis_Experiment{experiment_num}.csv
-      from that directory, where experiment_num is retrieved from general_settings.
+        • file_paths: Dict[str, str]
+            File paths. Must include:
+                └─ file_paths["bic_aic"]
+            This function automatically loads a CSV named:
+                All_Utility_Forms_IC_Analysis_Experiment{experiment_num}.csv
+            from that directory, where experiment_num is retrieved from general_settings.
 
-    • general_settings: Dict[str, Any]
-      Must contain 'experiment_num' to identify which CSV file to load. The CSV file
-      is expected to have columns: ΔBIC, k_params, equation, n_data, and zero or more
-      Boolean columns for specific utility options.
+        • general_settings: Dict[str, Any]
+            Must contain 'experiment_num' to identify which CSV file to load. The CSV file
+            is expected to have columns: ΔBIC, k_params, equation, n_data, and zero or more
+            Boolean columns for specific utility options.
 
-    • utility_settings: Dict[str, bool]
-      A dictionary of possible Boolean flags (e.g. 'reference_dependent_utility').
-      This is used to build readable labels for the dropdown if include_dropdown=True.
+        • utility_settings: Dict[str, bool]
+            A dictionary of possible Boolean flags (e.g. 'reference_dependent_utility').
+            This is used to build readable labels for the dropdown if include_dropdown=True.
 
-    • include_dropdown: bool
-      If True, adds an interactive dropdown menu that toggles between:
-        1) A single color-scale trace for 𝑘 parameters (the default).
-        2) Pairs of True/False traces for each recognized Boolean column.
-      If False, only the single color-scale trace is shown, and all Boolean traces
-      remain invisible.
+        • include_dropdown: bool
+            If True, adds an interactive dropdown menu that toggles between:
+                1) A single color-scale trace for 𝑘 parameters (the default).
+                2) Pairs of True/False traces for each recognized Boolean column.
+            If False, only the single color-scale trace is shown, and all Boolean traces
+            remain invisible.
 
     Returns:
-    -------
-    • fig: go.Figure
-      The Plotly figure object. The function writes an HTML file named 'ic_scores_scatter.html'
-      to the file_paths["bic_aic"] directory. The x-axis is the model rank (1 = best),
-      and the y-axis is ΔBIC relative to the best model (lower is better).
+        • fig: go.Figure
+            The Plotly figure object. The function writes an HTML file named 'ic_scores_scatter.html'
+            to the file_paths["bic_aic"] directory. The x-axis is the model rank (1 = best),
+            and the y-axis is ΔBIC relative to the best model (lower is better).
 
     Notes:
-    ------
-    1) Dots are sized ~1.8x larger than your default and include a subtle outline.
-    2) When coloring by 𝑘, a colorbar labeled “𝑘” is displayed on the right. Boolean columns,
-       if toggled, appear as separate True/False scatter traces with a horizontal legend
-       placed below the chart. Each Boolean option name is converted into a more readable
-       label (e.g., “Ref-Dependent Utility” instead of “reference_dependent_utility”).
-    3) The figure title includes 𝑛 (the maximum n_data from the CSV) and references ΔBIC.
-    4) Hover text shows each model’s rank, ΔBIC, number of parameters, and its utility equation.
+        1) Dots are sized ~1.8x larger than the project default and include a subtle outline.
+        2) When coloring by 𝑘, a colorbar labeled “𝑘” is displayed on the right. Boolean columns,
+            if toggled, appear as separate True/False scatter traces with a horizontal legend
+            placed below the chart. Each Boolean option name is converted into a more readable
+            label (e.g., “Ref-Dependent Utility” instead of “reference_dependent_utility”).
+        3) The figure title includes 𝑛 (the maximum n_data from the CSV) and references ΔBIC.
+        4) Hover text shows each model’s rank, ΔBIC, number of parameters, and its utility equation.
     """
 
     "1) Determine which CSV to load"
@@ -2499,9 +2464,9 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
     "3) Sort by ΔBIC ascending and compute model rank"
     df.sort_values(by="ΔBIC", ascending=True, inplace=True)
     df.reset_index(drop=True, inplace=True)
-    df["model_rank"] = df.index + 1  # rank from 1..N
+    df["model_rank"] = df.index + 1  # Rank from 1..N.
 
-    "We'll assume all rows share the same n_data or we pick the max"
+    "Assume all rows share the same n_data or use the max"
     n_data = int(df["n_data"].max())
 
     "4) Identify boolean columns"
@@ -2510,7 +2475,7 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
         if df[col].dtype == bool or df[col].dtype == "bool":
             bool_cols.append(col)
 
-    "5) Create a user-friendly label map for these columns"
+    "5) Create a readable label map for these columns"
     "(Customize as needed)"
     bool_label_map = {
         'conditional_welfare_mode':       "Conditional Welfare Mode",
@@ -2541,11 +2506,11 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
         y=df["ΔBIC"],
         mode="markers",
         name="Models by 𝑘",
-        visible=True,  # default
-        showlegend=False,  # no legend for the continuous color scale
+        visible=True,  # Default.
+        showlegend=False,  # No legend for the continuous color scale.
         hovertemplate=(
-            # Rank: %{x}; 𝑘 Params: %{customdata[0]}; ΔBIC: %{y:.3f}<br>
-            # Equation: %{customdata[1]}<extra></extra>
+            "Rank: %{x}; 𝑘 Params: %{customdata[0]}; ΔBIC: %{y:.3f}<br>"
+            "Equation: %{customdata[1]}<extra></extra>"
         ),
         customdata=df[["k_params", "equation"]],
         marker=dict(
@@ -2554,22 +2519,21 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
             colorscale="Viridis",
             cmin=k_min,
             cmax=k_max,
-            showscale=True,  # Show colorbar
+            showscale=True,  # Show colorbar.
             colorbar=dict(
-                title="𝑘",  # fancy k
+                title="𝑘",  # Fancy k.
                 x=1.02
             ),
             line=dict(width=1.5, color="hsla(0, 50%, 0%, 0.5)")
         )
     )
 
-    data_traces = [trace_kparams]  # We'll add Boolean-based traces below
+    data_traces = [trace_kparams]
 
     "7) For each boolean col, create 2 separate scatter traces: True & False"
-    "These traces are invisible by default; if the user toggles them in the dropdown,"
-    "we'll set them visible and hide the k_params trace."
-    hue_true  = "hsla(0, 80%, 40%, 7.0)"     # red
-    hue_false = "hsla(180, 80%, 40%, 7.0)"   # cyan
+    "These traces are invisible by default; dropdown selections show them and hide the k_params trace."
+    hue_true  = "hsla(0, 80%, 40%, 7.0)"     # Red.
+    hue_false = "hsla(180, 80%, 40%, 7.0)"   # Cyan.
     bool_trace_map = {}
     current_trace_index = 1
 
@@ -2588,8 +2552,8 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
             legendgroup=bcol,
             showlegend=True,
             hovertemplate=(
-                # Rank: %{x}; 𝑘 Params: %{customdata[0]}; ΔBIC: %{y:.3f}<br>
-                # Equation: %{customdata[1]}<extra></extra>
+                "Rank: %{x}; 𝑘 Params: %{customdata[0]}; ΔBIC: %{y:.3f}<br>"
+                "Equation: %{customdata[1]}<extra></extra>"
             ),
             customdata=df_true[["k_params", "equation"]],
             marker=dict(
@@ -2607,8 +2571,8 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
             legendgroup=bcol,
             showlegend=True,
             hovertemplate=(
-                # Rank: %{x}; 𝑘 Params: %{customdata[0]}; ΔBIC: %{y:.3f}<br>
-                # Equation: %{customdata[1]}<extra></extra>
+                "Rank: %{x}; 𝑘 Params: %{customdata[0]}; ΔBIC: %{y:.3f}<br>"
+                "Equation: %{customdata[1]}<extra></extra>"
             ),
             customdata=df_false[["k_params", "equation"]],
             marker=dict(
@@ -2627,7 +2591,6 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
     fig = go.Figure(data=data_traces)
 
     "8) Overall layout and styling"
-    "Use fancy letters for 𝑛 and Δ"
     fig.update_layout(
         template=fig_lay.get("template", "plotly_dark"),
         title=f"IC Scores (ΔBIC) for All Utility Functional Forms; 𝑛 = {n_data} Data Points",
@@ -2655,7 +2618,7 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
         for idx in range(1, len(data_traces)):
             fig.data[idx].visible = False
 
-        "The single trace for k_params is visible => we rely on the color scale"
+        "The single trace for k_params is visible, so the color scale carries the encoding."
         out_path = os.path.join(file_paths["bic_aic"], "ic_scores_scatter.html")
         fig.write_html(out_path)
         print(f"Saved scatter plot to '{out_path}' [No Dropdown Mode].")
@@ -2668,8 +2631,8 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
 
     "Option A: \"Color by k_params\""
     kparams_vis = all_invisible()
-    kparams_vis[0] = True  # the first trace is the continuous color-scale
-    "For booleans, we do not show them => false"
+    kparams_vis[0] = True  # The first trace is the continuous color-scale.
+    "Boolean traces start hidden."
 
     buttons = []
     "First button => color by k_params"
@@ -2677,7 +2640,7 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
         label="Color by 𝑘",
         method="update",
         args=[
-            {"visible": kparams_vis},  # sets the visible array
+            {"visible": kparams_vis},  # Sets the visible array.
             {"title": f"IC Scores (ΔBIC) for All Utility Functional Forms; 𝑛 = {n_data} Data Points (Colored by 𝑘)"}
         ]
     ))
@@ -2765,17 +2728,16 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
     Returns:
         • (edge_level_df, summary_by_flip, payoff_paths_summary)
 
-    Notes
-    -----
-    • ΔScore orientation is always Score(True) - Score(False) for the 'flip_name'.
-      Negative => turning the feature ON improves fit.
-    • We explicitly tag each row with 'edge_type' in {'sibling','parent_child','non_network_same_k'}.
-    • The payoff-paths panel is sibling-only and reports:
-        - Single vs Differences
-        - Single vs Ratios
-        - Differences vs Ratios
-        - RefDiff vs Diff, RefRatio vs Ratio (if present)
-        - Apply-exponents-directly vs Apply-after (conditional on exponents and on not-single)
+    Notes:
+        • ΔScore orientation is always Score(True) - Score(False) for the 'flip_name'.
+            Negative => turning the feature ON improves fit.
+        • Explicitly tags each row with 'edge_type' in {'sibling','parent_child','non_network_same_k'}.
+        • The payoff-paths panel is sibling-only and reports:
+            - Single vs Differences
+            - Single vs Ratios
+            - Differences vs Ratios
+            - RefDiff vs Diff, RefRatio vs Ratio (if present)
+            - Apply-exponents-directly vs Apply-after (conditional on exponents and on not-single)
     """
     experiment_num = general_settings.get('experiment_num', 0)
 
@@ -2786,23 +2748,23 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
     )
     df_models = pd.read_csv(ic_csv, encoding="utf-8", engine="python")
 
-    "Canonical set & order of features we will use everywhere"
-    feature_cols = [c for c in utility_settings_universe.keys() if c in df_models.columns]
+    "Canonical feature set and order used throughout this function."
+    feature_cols = [feature_col for feature_col in utility_settings_universe.keys() if feature_col in df_models.columns]
     keep_cols = ["k_params", score_col] + feature_cols
 
-    missing_cols = [c for c in keep_cols if c not in df_models.columns]
+    missing_cols = [column_name for column_name in keep_cols if column_name not in df_models.columns]
     if missing_cols:
         raise ValueError(f"IC CSV is missing required columns: {missing_cols}")
 
     "Coerce booleans"
-    for c in feature_cols:
-        if df_models[c].dtype != bool:
-            df_models[c] = df_models[c].astype(bool)
+    for feature_col in feature_cols:
+        if df_models[feature_col].dtype != bool:
+            df_models[feature_col] = df_models[feature_col].astype(bool)
 
     "Build a canonical signature for each row in IC table"
     def row_signature(row) -> tuple:
-        "tuple of booleans in the SAME order as feature_cols"
-        return tuple(bool(row[c]) for c in feature_cols)
+        "Tuple of booleans in the SAME order as feature_cols"
+        return tuple(bool(row[feature_col]) for feature_col in feature_cols)
 
     df_models = df_models.reset_index(drop=False).rename(columns={"index": "model_id"})
     df_models = df_models[["model_id"] + keep_cols].copy()
@@ -2820,7 +2782,7 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
 
     if dup_sigs:
         "Not necessarily fatal, but warn prominently."
-        "We keep the first occurrence; duplicates would inflate ambiguity."
+        "Keep the first occurrence; duplicates would inflate ambiguity."
         print(f"[WARN] Duplicate utility signatures in IC table for {len(dup_sigs)} signature(s). "
               f"Proceeding with the first occurrence for each.")
 
@@ -2833,22 +2795,22 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
 
     parent_of  = graph['adjacency_lists']['parent_of']
     sibling_of = graph['adjacency_lists']['sibling_of']
-    settings_list = graph['settings']  # list[dict[str,bool]]
+    settings_list = graph['settings']  # List[dict[str,bool]].
 
     "Convert a settings dict from the graph into the same canonical signature"
-    def settings_signature(sdict: dict) -> tuple:
+    def settings_signature(settings_dict: dict) -> tuple:
         "Some graph settings may be ints; normalize to bool; default missing -> False"
-        return tuple(bool(sdict.get(c, False)) for c in feature_cols)
+        return tuple(bool(settings_dict.get(feature_col, False)) for feature_col in feature_cols)
 
     "Build mapping from graph index -> model_id in IC table"
     index_to_model_id: list[int] = []
     missing_indices: list[int] = []
 
-    for i, sdict in enumerate(settings_list):
-        sig = settings_signature(sdict)
+    for idx, settings_dict in enumerate(settings_list):
+        sig = settings_signature(settings_dict)
         mid = sig_to_model_id.get(sig, None)
         if mid is None:
-            missing_indices.append(i)
+            missing_indices.append(idx)
             index_to_model_id.append(None)
         else:
             index_to_model_id.append(mid)
@@ -2856,14 +2818,13 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
     if missing_indices:
         "Provide concrete, actionable info"
         examples = []
-        for i in missing_indices[:10]:
-            sig = settings_signature(settings_list[i])
+        for idx in missing_indices[:10]:
+            sig = settings_signature(settings_list[idx])
             examples.append(
-                f"graph_idx={i}, signature={sig}, settings="
-                f"{ {k: bool(settings_list[i].get(k, False)) for k in feature_cols} }"
+                f"graph_idx={idx}, signature={sig}, settings="
+                f"{ {feature_col: bool(settings_list[idx].get(feature_col, False)) for feature_col in feature_cols} }"
             )
         msg = ("The following models from the nesting graph were not found in the IC table "
-               # (signature mismatch). This typically means the IC CSV and the nesting generator 
                "were built over different universes or column orderings:\n  - " + "\n  - ".join(examples))
         raise RuntimeError(msg)
 
@@ -2886,36 +2847,48 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
     }
 
     "Helper: identify the single effective flip between two settings"
-    def effective_flip(a: dict, b: dict, allowed: set[str]) -> str | None:
-        flipped = [k for k in allowed if bool(a.get(k, False)) != bool(b.get(k, False))]
+    def effective_flip(settings_a: dict, settings_b: dict, allowed: set[str]) -> str | None:
+        flipped = [feature_col for feature_col in allowed if bool(settings_a.get(feature_col, False)) != bool(settings_b.get(feature_col, False))]
         if len(flipped) == 1:
             return flipped[0]
         return None
 
     "---- Build edge tuples over GRAPH INDICES with their flip labels ----"
     sib_edges: list[tuple[int,int,str]] = []
-    for i, nbrs in enumerate(sibling_of):
-        # if settings_list[i]['payoff_ratios_not_differences']:
-        "continue"
-        # if settings_list[i]['min_max_rawlsian_leontief']:
-        "continue"
-        # if settings_list[i]['conditional_welfare_mode']:
-        "continue"
-        for j in nbrs:
-            if j <= i:
-                continue  # proper de-dup
-            flip = effective_flip(settings_list[i], settings_list[j], SIBLING_FLIPS)
+    for idx, sibling_indices in enumerate(sibling_of):
+        for jdx in sibling_indices:
+            if jdx <= idx:
+                continue  # Proper de-dup.
+            # TODO Figure out whether payoff-format edge filters should be restored here.
+            # Historical commented-out guards appeared to skip edges involving these utility settings.
+            # if settings_list[idx]["single_payoffs_not_differences"]:
+            #     continue
+            # if settings_list[idx]["payoff_ratios_not_differences"]:
+            #     continue
+            # if settings_list[jdx]["single_payoffs_not_differences"]:
+            #     continue
+            # if settings_list[jdx]["payoff_ratios_not_differences"]:
+            #     continue
+            flip = effective_flip(settings_list[idx], settings_list[jdx], SIBLING_FLIPS)
             if flip:
-                sib_edges.append((i, j, flip))
+                sib_edges.append((idx, jdx, flip))
 
     pc_edges: list[tuple[int,int,str]] = []
-    for p, children in enumerate(parent_of):
-        # if settings_list[p]['payoff_ratios_not_differences']:
-        "continue"
-        for c in children:
-            flip = effective_flip(settings_list[p], settings_list[c], PARENT_CHILD_FLIPS)
+    for parent_idx, children in enumerate(parent_of):
+        for child_idx in children:
+            # TODO Figure out whether payoff-format edge filters should be restored here.
+            # Historical commented-out guards appeared to skip edges involving these utility settings.
+            # if settings_list[parent_idx]["single_payoffs_not_differences"]:
+            #     continue
+            # if settings_list[parent_idx]["payoff_ratios_not_differences"]:
+            #     continue
+            # if settings_list[child_idx]["single_payoffs_not_differences"]:
+            #     continue
+            # if settings_list[child_idx]["payoff_ratios_not_differences"]:
+            #     continue
+            flip = effective_flip(settings_list[parent_idx], settings_list[child_idx], PARENT_CHILD_FLIPS)
             if flip:              
-                pc_edges.append((p, c, flip))
+                pc_edges.append((parent_idx, child_idx, flip))
 
     "Debugging code"
     check_interested_settings = False
@@ -2930,7 +2903,7 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
                 print(sib_2_equation)
                 print()
 
-    "Quick sanity counts (should match your terminal counts)"
+    "Quick sanity counts that should match terminal counts."
     print("Sibling edges (graph):", len(sib_edges))
     print("Parent-child edges (graph):", len(pc_edges))
 
@@ -2954,20 +2927,20 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
     "---- Convert graph indices → true model_ids via the signature map ----"
     rows = []
     if "sibling" in use_edge_types:
-        for i, j, flip in sib_edges:
+        for idx, jdx, flip in sib_edges:
             rows.append({
                 "edge_type": "sibling",
                 "flip_name": flip,
-                "a_model_id": index_to_model_id[i],
-                "b_model_id": index_to_model_id[j]
+                "a_model_id": index_to_model_id[idx],
+                "b_model_id": index_to_model_id[jdx]
             })
     if "parent_child" in use_edge_types:
-        for p, c, flip in pc_edges:
+        for parent_idx, child_idx, flip in pc_edges:
             rows.append({
                 "edge_type": "parent_child",
                 "flip_name": flip,
-                "a_model_id": index_to_model_id[p],
-                "b_model_id": index_to_model_id[c]
+                "a_model_id": index_to_model_id[parent_idx],
+                "b_model_id": index_to_model_id[child_idx]
             })
 
     df_edges = pd.DataFrame(rows)
@@ -2980,7 +2953,7 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
 
     "Keep only rows where *exactly one* feature differs (safety; should be true for nest edges)"
     def _diff_feature(row) -> str | None:
-        diffs = [f for f in feature_cols if bool(row[f"a_{f}"]) != bool(row[f"b_{f}"])]
+        diffs = [feature for feature in feature_cols if bool(row[f"a_{feature}"]) != bool(row[f"b_{feature}"])]
         return diffs[0] if len(diffs) == 1 else None
 
     both["differing_feature"] = both.apply(_diff_feature, axis=1)
@@ -2994,9 +2967,9 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
 
     "---------- Orient ΔScore as Score(True) - Score(False) for that feature ----------"
     def _orient(row):
-        f = row["differing_feature"]
-        a_true = bool(row[f"a_{f}"])
-        b_true = bool(row[f"b_{f}"])
+        feature = row["differing_feature"]
+        a_true = bool(row[f"a_{feature}"])
+        b_true = bool(row[f"b_{feature}"])
         if a_true and not b_true:
             m_true_id,  score_true  = row["a_model_id"], row[f"a_{score_col}"]
             m_false_id, score_false = row["b_model_id"], row[f"b_{score_col}"]
@@ -3020,7 +2993,7 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
     edge_level_cols = [
         "edge_type","flip_name","differing_feature","delta","m_true","m_false",
         "a_model_id","b_model_id","a_k_params","b_k_params"
-    ] + [f"a_{c}" for c in feature_cols] + [f"b_{c}" for c in feature_cols]
+    ] + [f"a_{feature_col}" for feature_col in feature_cols] + [f"b_{feature_col}" for feature_col in feature_cols]
     edge_level_df = both[edge_level_cols].copy()
 
     "---------- Optional: “non‑network” toggles (e.g., Conditional Welfare; Rawls/Leontief) ----------"
@@ -3028,7 +3001,7 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
     if include_non_network_toggles:
         seen = set(edge_level_df["differing_feature"].unique())
         candidates = ["conditional_welfare_mode", "min_max_rawlsian_leontief"]
-        none_flips = [f for f in candidates if f in feature_cols and f not in seen]
+        none_flips = [feature for feature in candidates if feature in feature_cols and feature not in seen]
 
         "Per-toggle rule: Conditional Welfare can cross k (BIC already penalizes complexity); Min–Max stays same‑k."
         require_same_k_for = {
@@ -3037,35 +3010,33 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
         }
 
         tmp = df_models.copy()
-        for f in none_flips:
-            "signature excluding f"
-            other_cols = [c for c in feature_cols if c != f]
-            tmp["signature_excl_f"] = tmp[other_cols].apply(lambda r: tuple(bool(v) for v in r.tolist()), axis=1)
+        for feature in none_flips:
+            "Signature excluding feature"
+            other_cols = [feature_col for feature_col in feature_cols if feature_col != feature]
+            tmp["signature_excl_f"] = tmp[other_cols].apply(lambda row_values: tuple(bool(row_value) for row_value in row_values.tolist()), axis=1)
 
-            group_keys = ["signature_excl_f"] + (["k_params"] if require_same_k_for.get(f, True) else [])
-            for _, g in tmp.groupby(group_keys, dropna=False):
-                g0 = g[g[f] == False]
-                g1 = g[g[f] == True]
-                if g0.empty or g1.empty:
+            group_keys = ["signature_excl_f"] + (["k_params"] if require_same_k_for.get(feature, True) else [])
+            for _, group_df in tmp.groupby(group_keys, dropna=False):
+                false_feature_rows = group_df[group_df[feature] == False]
+                true_feature_rows = group_df[group_df[feature] == True]
+                if false_feature_rows.empty or true_feature_rows.empty:
                     continue
-                for _, r0 in g0.iterrows():
-                    for _, r1 in g1.iterrows():
+                for _, false_feature_row in false_feature_rows.iterrows():
+                    for _, true_feature_row in true_feature_rows.iterrows():
                         non_network_rows.append({
-                            "edge_type": "non_network" if not require_same_k_for.get(f, True) else "non_network_same_k",
-                            "flip_name": f,
-                            "differing_feature": f,
-                            "delta": float(r1[score_col]) - float(r0[score_col]),  # Score(True) - Score(False)
-                            "m_true": int(r1["model_id"]),
-                            "m_false": int(r0["model_id"]),
-                            "a_model_id": int(r0["model_id"]),
-                            "b_model_id": int(r1["model_id"]),
-                            "a_k_params": int(r0["k_params"]),
-                            "b_k_params": int(r1["k_params"]),
-                            **{f"a_{c}": bool(r0[c]) for c in feature_cols},
-                            **{f"b_{c}": bool(r1[c]) for c in feature_cols},
+                            "edge_type": "non_network" if not require_same_k_for.get(feature, True) else "non_network_same_k",
+                            "flip_name": feature,
+                            "differing_feature": feature,
+                            "delta": float(true_feature_row[score_col]) - float(false_feature_row[score_col]),  # Score(True) - Score(False).
+                            "m_true": int(true_feature_row["model_id"]),
+                            "m_false": int(false_feature_row["model_id"]),
+                            "a_model_id": int(false_feature_row["model_id"]),
+                            "b_model_id": int(true_feature_row["model_id"]),
+                            "a_k_params": int(false_feature_row["k_params"]),
+                            "b_k_params": int(true_feature_row["k_params"]),
+                            **{f"a_{feature_col}": bool(false_feature_row[feature_col]) for feature_col in feature_cols},
+                            **{f"b_{feature_col}": bool(true_feature_row[feature_col]) for feature_col in feature_cols},
                         })
-
-
 
     if non_network_rows:
         edge_level_df = pd.concat([edge_level_df, pd.DataFrame(non_network_rows)], ignore_index=True)
@@ -3073,11 +3044,11 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
     "---------- Summary by flip & edge type ----------"
     def _summarize(df):
         recs = []
-        for (et, f), g in df.groupby(["edge_type","flip_name"], dropna=False):
-            deltas = g["delta"].dropna().to_numpy()
+        for (edge_type, feature), group_df in df.groupby(["edge_type","flip_name"], dropna=False):
+            deltas = group_df["delta"].dropna().to_numpy()
             recs.append({
-                "edge_type": et,
-                "flip_name": f,
+                "edge_type": edge_type,
+                "flip_name": feature,
                 "n_edges": int(deltas.size),
                 "mean_delta": float(np.mean(deltas)) if deltas.size else np.nan,
                 "median_delta": float(np.median(deltas)) if deltas.size else np.nan
@@ -3087,18 +3058,17 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
     summary_by_flip = _summarize(edge_level_df).sort_values(
         ["edge_type", "mean_delta"], ascending=[True, True]
     )
-    # summary_by_flip.sort_values(by="mean_delta", ascending=True)
 
-    "---------- Payoff‑paths sibling‑only panel ----------"
+    "---------- Payoff-paths sibling-only panel ----------"
     sib = edge_level_df[edge_level_df["edge_type"]=="sibling"].copy()
 
     def _quick_panel(name, mask):
-        g = sib[mask]
+        panel_df = sib[mask]
         return {
             "comparison": name,
-            "n_edges": int(len(g)),
-            "mean_Δ": float(g["delta"].mean()) if len(g) else np.nan,
-            "median_Δ": float(g["delta"].median()) if len(g) else np.nan
+            "n_edges": int(len(panel_df)),
+            "mean_Δ": float(panel_df["delta"].mean()) if len(panel_df) else np.nan,
+            "median_Δ": float(panel_df["delta"].median()) if len(panel_df) else np.nan
         }
 
     m_single_vs_diff = (sib["differing_feature"] == "single_payoffs_not_differences")
@@ -3280,14 +3250,14 @@ def extract_rankings_of_canonical_utility_functions(file_paths: FilePaths, rank_
 
     rows = []
     for label, spec in CANONICAL_SPECS.items():
-        missing = [k for k in spec.keys() if k not in df.columns]
+        missing = [column_name for column_name in spec.keys() if column_name not in df.columns]
         if missing:
             rows.append({"label": label, "error": f"Missing columns: {missing}"})
             continue
         cur = df.copy()
-        for k, v in spec.items():
-            if k in cur.columns:
-                cur = cur[cur[k] == v]
+        for column_name, expected_value in spec.items():
+            if column_name in cur.columns:
+                cur = cur[cur[column_name] == expected_value]
         n_matches = len(cur)
         if n_matches == 0:
             rows.append({"label": label, "n_matches": 0, "note": "No exact match in IC table."})
@@ -3327,14 +3297,14 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
         4) Write a wide CSV with requested columns in file_paths['bic_aic'].
 
     Arguments:
-        • general_settings: Your global settings dict. The following keys are read:
+        • general_settings: Global settings dict. The following keys are read:
             - experiment_num
             - softmax_temperature
             - (others are forwarded to `agent` and loss functions as-is)
-        • file_paths: Your file path mapping (must include 'bic_aic' and 'file_names' → 'information_criterion').
+        • file_paths: File path mapping (must include 'bic_aic' and 'file_names' → 'information_criterion').
         • param_bds: The global ParameterBounds with all keys (means and _std).
-        • ordered_flag_keys: The canonical order of your 13 utility settings
-            (e.g., pass `list(utility_settings.keys())` from your current model).
+        • ordered_flag_keys: The canonical order of the 13 utility settings
+            (e.g., pass `list(utility_settings.keys())` from the current model).
         • player_role_to_fit: 'predictor' (default) or 'chooser'.
         • fit_for_n_players: int | None; Number of participants to evaluate (alphabetical order). None → all.
         • random_seed: Seed for reproducibility.
@@ -3407,7 +3377,7 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
         "2) Apply changed-setting-specific embedding rules."
         if changed_utility_setting == "use_exponential_parameters":
             "Parent gained exponents. If child already has γ1, tie; otherwise set all to 1."
-            child_gamma_keys = [k for k in child_parameter_dict.keys() if k.startswith('γ')]
+            child_gamma_keys = [param_key for param_key in child_parameter_dict.keys() if param_key.startswith('γ')]
             if child_gamma_keys:
                 "Child already had γ's (rare, e.g., when moving single->multi as a side effect); tie all to γ1"
                 child_gamma1 = child_parameter_dict.get('γ1', 1.0)
@@ -3467,8 +3437,8 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
             if 'Vᵢᵢ' in parent_param_keys:
                 parent_parameters['Vᵢᵢ'] = 1.0
 
-        # elif changed_utility_setting == "conditional_welfare_mode":
-        # Make 'ahead' and 'behind' branches identical → tie Λ to V.
+        # elif changed_utility_setting == "conditional_welfare_mode": # TODO figure out if this should be removed
+        # "Make 'ahead' and 'behind' branches identical → tie Λ to V."
         #     if 'Ʌᵢᵢ' in parent_param_keys:
         #         parent_parameters['Ʌᵢᵢ'] = float(parent_parameters.get('Vᵢᵢ', child_parameter_dict.get('Vᵢᵢ', 0.0)))
         #     if 'Ʌᵢⱼ' in parent_param_keys:
@@ -3501,7 +3471,7 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
                                         general_settings: dict[str, Any]) -> float:
         """
         Sums NLL across all dyads/games for a single (player, role).
-        Uses the same storage locations as your pipeline.
+        Uses the same storage locations as the pipeline.
 
         Returns:
             • float; sum of 'loss_final_sum' across the player's dyads for the specified role.
@@ -3510,7 +3480,7 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
 
         for _, dyad_games in dyad_games_for_player.items():
             "The NLL breakdown is written by loss_function_bayes + create_loss_report"
-            "See your pipeline call sites for this sequence. :contentReference[oaicite:0]{index=0} :contentReference[oaicite:1]{index=1}"
+            "Follow the project sequence: agent(), loss_function_bayes(), create_loss_report()."
             role_report = dyad_games[0].get('loss_report', {}).get(player_uuid, {}).get(player_role, {})
             total_negative_log_likelihood += float(role_report.get('loss_final_sum', 0.0))
 
@@ -3535,8 +3505,7 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
             • create_loss_report(...)             → aggregates & stores per-player/role sums
 
         References:
-            - Example usage pattern around agent() → loss → create_loss_report in your code base. 
-                :contentReference[oaicite:2]{index=2} :contentReference[oaicite:3]{index=3} :contentReference[oaicite:4]{index=4}
+            • Example usage pattern around agent() → loss → create_loss_report in the codebase.
 
         Returns:
             • float; sum of 'loss_final_sum'.
@@ -3563,10 +3532,10 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
                 player_role=player_role,
                 general_settings=general_settings,
                 choice_temperature=choice_temperature
-            )  # :contentReference[oaicite:5]{index=5}
+            )
 
-            "Compute loss and attach loss_report to first game (your convention)."
-            updated_dyad_games = loss_function_bayes(dyad_games=updated_dyad_games, general_settings=general_settings)  # :contentReference[oaicite:6]{index=6}
+            "Compute loss and attach loss_report to the first game."
+            updated_dyad_games = loss_function_bayes(dyad_games=updated_dyad_games, general_settings=general_settings)
             updated_dyad_games[0]['loss_report'] = create_loss_report(dyad_games=updated_dyad_games, general_settings=general_settings)
 
             "Replace the dyad with the updated one so aggregation uses consistent objects"
@@ -3584,7 +3553,7 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
                                             general_settings: dict[str, Any]) -> list[dict[str, Any]]:
         """
         Walks the IC table and, for each model (as child), lists all immediate parents (Δk > 0)
-        using `gnrl.parents_children_of` so we respect your minimal-dependent-fix rules.
+        using `gnrl.parents_children_of` so the minimal-dependent-fix rules are respected.
 
         Returns:
             • list of dicts with:
@@ -3606,7 +3575,7 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
 
         all_pairs: list[dict[str, Any]] = []
 
-        "Iterate children in ascending k so we \"work our way up\""
+        "Iterates children in ascending k so checks move from simpler to richer models."
         if 'k_params' in ic_dataframe.columns:
             ic_dataframe_sorted = ic_dataframe.sort_values(['k_params', 'BIC', 'loss'], ascending=[True, True, True])
         else:
@@ -3653,7 +3622,6 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
 
     general_settings = copy.deepcopy(general_settings)
     general_settings['confidence_weighted'] = False
-    # general_settings['penalty_weight'] = 0.0
     
     "Build child→parent pairs"
     child_parent_pairs = _enumerate_child_parent_pairs_from_ic(
@@ -3669,7 +3637,7 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
     experiment_num = int(general_settings.get('experiment_num', 3))
     participant_uuids: list[str] = prep.all_player_uuids(file_paths=file_paths, experiment_num=experiment_num, only_humans=True)
     if isinstance(fit_for_n_players, int) and 0 < fit_for_n_players <= len(participant_uuids):
-        participant_uuids = participant_uuids[:fit_for_n_players]  # alphabetical order preserved
+        participant_uuids = participant_uuids[:fit_for_n_players]  # Alphabetical order preserved.
 
     choice_temperature = general_settings.get('softmax_temperature', 1.0)
 
@@ -3677,7 +3645,7 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
     def row_to_tuple(row: pd.Series) -> tuple[bool, ...]:
         return tuple(bool(row[key]) for key in ordered_flag_keys)
     ic_dataframe['utility_tuple'] = ic_dataframe.apply(row_to_tuple, axis=1)
-    signature_to_index: dict[tuple[bool, ...], int] = {tup: idx for idx, tup in ic_dataframe['utility_tuple'].items()}
+    signature_to_index: dict[tuple[bool, ...], int] = {tup: idx for idx, tup in ic_dataframe['utility_tuple'].items()} # TODO delete???
 
     rng = random.Random(random_seed)
     results_rows: list[dict[str, Any]] = []
@@ -3713,10 +3681,10 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
 
         "Ensure *_std keys exist for grid/MCMC updates (predictor priors need sigmas)."
         if general_settings.get('update_method') in ('grid', 'MCMC'):
-            bounds_lookup = {k: b for k, b in zip(parent_param_info['keys'], parent_param_info['bounds'])}
-            min_std_guess = 0.5  # same convention used elsewhere
+            bounds_lookup = {param_key: param_bounds for param_key, param_bounds in zip(parent_param_info['keys'], parent_param_info['bounds'])}
+            min_std_guess = 0.5  # Same convention used elsewhere.
 
-            for base_key in [k for k in parent_param_info['keys'] if not k.endswith('_std')]:
+            for base_key in [param_key for param_key in parent_param_info['keys'] if not param_key.endswith('_std')]:
                 std_key = base_key + '_std'
                 lo, hi = bounds_lookup[std_key]
 
@@ -3755,12 +3723,12 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
         equation_child = build_utility_equation(utility_settings=child_settings)
         equation_parent = build_utility_equation(utility_settings=parent_settings)
 
-        "k's by *your* counting"
+        "K_params by project counting"
         k_child = gnrl.count_free_parameters(utility_settings=child_settings, general_settings=general_settings)
         k_parent = gnrl.count_free_parameters(utility_settings=parent_settings, general_settings=general_settings)
 
         "Flatten parameter columns for the CSV (fill Nones where absent)"
-        all_param_keys = list(param_bds.keys())  # superset of all possible keys
+        all_param_keys = list(param_bds.keys())  # Superset of all possible keys.
         row: dict[str, Any] = {
             "child_idx": int(child_index),
             "parent_idx": int(parent_index),
@@ -3786,8 +3754,8 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
             row[f"parent_{flag_key}"] = bool(parent_val)
 
         "Parameter dictionaries (JSON-ish strings) and also one column per parameter (child/parent)"
-        row["params_child"] = {k: child_parameter_dict.get(k, None) for k in all_param_keys}
-        row["params_parent"] = {k: embedded_parent_means.get(k, None) for k in all_param_keys}
+        row["params_child"] = {param_key: child_parameter_dict.get(param_key, None) for param_key in all_param_keys}
+        row["params_parent"] = {param_key: embedded_parent_means.get(param_key, None) for param_key in all_param_keys}
         for parameter_key in all_param_keys:
             row[f"{parameter_key}_child"] = child_parameter_dict.get(parameter_key, None)
             row[f"{parameter_key}_parent"] = embedded_parent_means.get(parameter_key, None)
@@ -3819,7 +3787,7 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
     probabilities of its embedded special parent on a small synthetic set of games.
 
     Procedure:
-        1) Build child→parent pairs from the IC table (so we keep your canonical indices).
+        1) Build child→parent pairs from the IC table, preserving canonical indices.
         2) Draw a child mean-parameter dictionary uniformly within `param_bds` (means only).
         3) Embed child means into the parent (gnrl rules) to reproduce the child.
         4) Compute p(A) for n_trials randomized games using choice(...), for child and parent.
@@ -3858,31 +3826,31 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
     def _choice_probs(games: list[dict], u_settings: dict[str, bool],
                       params: dict[str, float], temperature: float = 1.5) -> list[float]:
         out = []
-        for g in games:
-            r = choice(current_game=g,
+        for game in games:
+            choice_result = choice(current_game=game,
                        agent_params=params,
                        utility_settings=u_settings,
                        softmax_temperature=temperature,
                        normalize_conditional_welfare_params=False,
                        select=False)
-            out.append(float(r["model_choose_A"]))
+            out.append(float(choice_result["model_choose_A"]))
         return out
 
-    def _means_only_keys(u: dict[str, bool]) -> list[str]:
-        "Only means (no *_std, no cov), consistent with your choice() pipeline"
-        return [k for k in gnrl.parameter_keys_for_utility_settings(
-            u, general_settings={"update_method": "naive"}
-        ) if not (k.endswith("_std") or k.endswith("_cov"))]
+    def _means_only_keys(utility_settings_dict: dict[str, bool]) -> list[str]:
+        "Only means (no *_std, no cov), consistent with the choice() pipeline"
+        return [param_key for param_key in gnrl.parameter_keys_for_utility_settings(
+            utility_settings_dict, general_settings={"update_method": "naive"}
+        ) if not (param_key.endswith("_std") or param_key.endswith("_cov"))]
 
     def _sample_means(param_keys: list[str], rng: random.Random) -> dict[str, float]:
-        out: dict[str, float] = {}
-        for key in param_keys:
-            lo, hi = param_bds[key]
-            val = rng.uniform(float(lo), float(hi))
-            if (hi - lo) > 1:
-                val = min(max(round(val, 1), lo), hi)
-            out[key] = float(val)
-        return out
+        sampled_means: dict[str, float] = {}
+        for param_key in param_keys:
+            lower_bound, upper_bound = param_bds[param_key]
+            sampled_value = rng.uniform(float(lower_bound), float(upper_bound))
+            if (upper_bound - lower_bound) > 1:
+                sampled_value = min(max(round(sampled_value, 1), lower_bound), upper_bound)
+            sampled_means[param_key] = float(sampled_value)
+        return sampled_means
 
     def _show_math_work(equation: str, params: dict[str, float], utility_settings: dict[str, bool] | tuple[bool], 
                         game_idx: int = 0, decimals: int = 2, comparison_tol: float = 5e-3) -> str:
@@ -3891,16 +3859,16 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
         evaluate its right-hand side (RHS), and verify it matches utility() after rounding.
 
         Returns the fully substituted equation plus a trailing status tag:
-        [OK]               — evaluated and matched (within tolerance after rounding),
-        [FAIL: ≠ x.xx]     — evaluated but differs from utility() (rounded),
-        [EVAL ERROR: ...]  — evaluation failed (syntax/name/type errors etc.).
+            • [OK]               — evaluated and matched (within tolerance after rounding),
+            • [FAIL: ≠ x.xx]     — evaluated but differs from utility() (rounded),
+            • [EVAL ERROR: ...]  — evaluation failed (syntax/name/type errors etc.).
 
         Notes for maintainers:
             • This function does NOT modify build_utility_equation; it only normalizes
-            the rendered string so that Python's eval can handle unicode, unicode
-            operators, implicit multiplication, and non-integer exponents on negative bases.
+                the rendered string so that Python's eval can handle unicode, unicode
+                operators, implicit multiplication, and non-integer exponents on negative bases.
             • Any parameter symbols still present after substitution are replaced with
-            the default values used by utility() so eval never sees a stray symbol.
+                the default values used by utility() so eval never sees a stray symbol.
         """
         "--- 1) Compute the ground-truth utility from code (source of truth) -----"
         payoff_key_map_eval = {
@@ -3911,22 +3879,22 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
         }
         utility_settings_dict = gnrl.convert_utility_settings(utility_settings, into=dict)
         payoffs_eval = {
-            payoff_key_map_eval[k]: v
-            for k, v in games[game_idx].items()
-            if "payoff" in k
+            payoff_key_map_eval[payoff_key]: payoff_value
+            for payoff_key, payoff_value in games[game_idx].items()
+            if "payoff" in payoff_key
         }
         true_value = float(utility(payoffs=payoffs_eval, params=params, utility_settings=utility_settings_dict, normalize_conditional_welfare_params=False))
         true_value_rounded = round(true_value, decimals)
 
         "--- 2) Substitute payoffs and parameters into the pretty string ----------"
         gamma_pretty = {"γ1": "γ₁", "γ2": "γ₂", "γ3": "γ₃"}
-        params_with_pretty_gammas = {gamma_pretty.get(k, k): v for k, v in params.items()}
+        params_with_pretty_gammas = {gamma_pretty.get(param_key, param_key): param_value for param_key, param_value in params.items()}
 
         "Known aliases that sometimes appear in strings or terminals"
         alias_to_pretty = {
             "Vii": "Vᵢᵢ", "Λii": "Ʌᵢᵢ", "Vij": "Vᵢⱼ", "Λij": "Ʌᵢⱼ",
             "Ƹij": "Ƹᵢⱼ", "Ʒij": "Ʒᵢⱼ",
-            # safeguard: if these ever appear, map them to the canonical key
+            # Safeguard: if these ever appear, map them to the canonical key
             "γ1": "γ₁", "γ2": "γ₂", "γ3": "γ₃",
         }
         for alias_key, pretty_key in alias_to_pretty.items():
@@ -3934,7 +3902,7 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
                 params_with_pretty_gammas[pretty_key] = params[alias_key]
 
         payoff_symbol_map = {"As": "πᵢᴬ", "Ao": "πⱼᴬ", "Bs": "πᵢᴮ", "Bo": "πⱼᴮ"}
-        payoffs_pretty_map = {payoff_symbol_map[k]: v for k, v in payoffs_eval.items()}
+        payoffs_pretty_map = {payoff_symbol_map[payoff_key]: payoff_value for payoff_key, payoff_value in payoffs_eval.items()}
 
         filled_equation = equation.replace("Uᵢ(A)", f"{true_value_rounded:.{decimals}f}")
         "Substitute payoffs first, then parameters (reduces accidental overlap)"
@@ -3975,13 +3943,32 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
         return f"{filled_equation}{status_tag}"
 
     def _components_for_utility(payoffs: dict, params: dict[str, float], utility_settings: dict[str, bool]) -> dict[str, float]:
-        """"""
+        """
+        Return the individual additive terms of the utility function for a given payoff and parameter vector.
+
+        Calls `utility(..., separate_terms=True)` and remaps the returned keys 
+        to the short labels used throughout the IC analysis display code:
+        `'self_interest'` → `'self'`, `'altruism'` → `'altr'`, `'social_comp'` → `'socc'`.
+
+        Arguments:
+            • payoffs: dict
+                Payoff dictionary passed directly to `utility()`, keyed by player role.
+            • params: dict[str, float]
+                Parameter vector (e.g., `{'Vᵢᵢ': 1.0, 'Vᵢⱼ': 0.5}`).
+            • utility_settings: dict[str, bool]
+                The 13-boolean toggle dict that selects which utility terms are active.
+
+        Returns:
+            • dict[str, float] — component values rounded to 6 decimal places, with keys
+              `'self'`, `'altr'`, and `'socc'` (plus any additional terms the utility
+              function emits when `separate_terms=True`).
+        """
         util_components: dict = utility(payoffs=payoffs, params=params, utility_settings=utility_settings, separate_terms=True, normalize_conditional_welfare_params=False)
         for old_key, new_key in [('self_interest', 'self'), ('altruism', 'altr'), ('social_comp', 'socc')]:
             util_components[new_key] = util_components.pop(old_key)
         return {key: round(val, 6) for key, val in util_components.items()}
         
-    def align_parent_child_equations(parent_eq: str, child_eq: str, pad: int = 1) -> tuple[str,str]:
+    def align_parent_child_equations(parent_eq: str, child_eq: str, pad: int = 1) -> tuple[str,str]:  # TODO Figure out whether this should be deleted.
         """
         Token-aligns two equation strings so corresponding terms start at the same columns.
         Splits on spaces, pads each column to the max width across the two rows.
@@ -3990,12 +3977,12 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
         child_rhs  = child_eq.split("=", 1)[1].strip()
         p_tokens = parent_rhs.split()
         c_tokens = child_rhs.split()
-        width = [max(len(p_tokens[i]) if i < len(p_tokens) else 0,
-                    len(c_tokens[i]) if i < len(c_tokens) else 0)
-                for i in range(max(len(p_tokens), len(c_tokens)))]
+        width = [max(len(p_tokens[idx]) if idx < len(p_tokens) else 0,
+                    len(c_tokens[idx]) if idx < len(c_tokens) else 0)
+                for idx in range(max(len(p_tokens), len(c_tokens)))]
         def _pad(tokens):
-            return "".join((tokens[i] if i < len(tokens) else "").ljust(width[i] + pad)
-                        for i in range(len(width)))
+            return "".join((tokens[idx] if idx < len(tokens) else "").ljust(width[idx] + pad)
+                        for idx in range(len(width)))
         aligned_parent = f"{parent_eq.split('=')[0]}= " + _pad(p_tokens)
         aligned_child  = f"{child_eq.split('=')[0]}= " + _pad(c_tokens)
         return aligned_parent, aligned_child
@@ -4013,11 +4000,11 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
             "payoff_B_chooser":   "Bs",
             "payoff_B_predictor": "Bo",
         }
-        payoffs = {payoff_key_map_eval[k] if "payoff" in k else k: v for k, v in payoffs.items()}
+        payoffs = {payoff_key_map_eval[payoff_key] if "payoff" in payoff_key else payoff_key: payoff_value for payoff_key, payoff_value in payoffs.items()}
 
         "1) Build replacements"
         gamma_pretty = {"γ1": "γ₁", "γ2": "γ₂", "γ3": "γ₃"}
-        params_pretty = {gamma_pretty.get(k, k): v for k, v in params.items()}
+        params_pretty = {gamma_pretty.get(param_key, param_key): param_value for param_key, param_value in params.items()}
         "Map aliases that might appear"
         alias_to_pretty = {
             "Vii": "Vᵢᵢ", "Λii": "Ʌᵢᵢ", "Vij": "Vᵢⱼ", "Λij": "Ʌᵢⱼ",
@@ -4030,11 +4017,11 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
 
         "Apply overrides *before* substitution (so numeric values in the string reflect the override)"
         if param_overrides:
-            for k_raw, v in param_overrides.items():
-                k = gamma_pretty.get(k_raw, k_raw)  # allow γ1 vs γ₁ in overrides
-                params_pretty[k] = v
+            for raw_param_key, param_value in param_overrides.items():
+                param_key = gamma_pretty.get(raw_param_key, raw_param_key)  # Allow γ1 vs γ₁ in overrides.
+                params_pretty[param_key] = param_value
 
-        "γ fallbacks inherit γ₁ (like utility())"
+        "Gamma fallbacks inherit γ₁ (like utility())"
         gamma1_value = None
         for k_try in ("γ₁", "γ1"):
             if k_try in params_pretty:
@@ -4042,7 +4029,7 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
         if gamma1_value is None: gamma1_value = 1.0
 
         payoff_symbol_map = {"As": "πᵢᴬ", "Ao": "πⱼᴬ", "Bs": "πᵢᴮ", "Bo": "πⱼᴮ"}
-        payoffs_pretty_map = {payoff_symbol_map[k]: v for k, v in payoffs.items()}
+        payoffs_pretty_map = {payoff_symbol_map[payoff_key]: payoff_value for payoff_key, payoff_value in payoffs.items()}
 
         "2) Extract RHS"
         if "=" not in equation_string:
@@ -4075,7 +4062,7 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
         return value, status
 
     "--- Build pairs from adjacency lists -------------------------------------"
-    "Use your canonical universe (+ equation strings) as IC does"
+    "Use the canonical universe and equation strings, matching IC analysis."
     adj = model_nesting_adjacency_matrices(
         general_settings=general_settings,
         utility_settings=utility_settings,
@@ -4085,7 +4072,7 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
         print_=False
     )
     settings_list: list[dict[str, bool]] = adj["settings"]
-    parents_of: list[list[int]] = adj["adjacency_lists"]["parent_of"]  # child idx -> parent indices
+    parents_of: list[list[int]] = adj["adjacency_lists"]["parent_of"]  # Child idx -> parent indices.
 
     "Child→parent candidate pairs from adjacency; then confirm with classifier"
     candidate_pairs: list[tuple[int, int, str]] = []
@@ -4130,7 +4117,7 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
                 build_utility_equation=build_utility_equation
             )
         except NotImplementedError:
-            "If you keep structural guards in the mapper for some families, skip cleanly."
+            "Skip cleanly when structural guards remain in the mapper for some families."
             continue
 
         parent_means = {
@@ -4176,8 +4163,8 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
                                         utility_settings=utility_settings, payoffs=games[max_abs_delta_idx], decimals_local=3)
 
         "3) Boolean comparisons (tolerant equality)"
-        def same(a: float | None, b: float | None, tol: float = 1e-2) -> bool:
-            return (a is not None) and (b is not None) and (abs(a - b) <= tol)
+        def same(first_value: float | None, second_value: float | None, tol: float = 1e-2) -> bool:
+            return (first_value is not None) and (second_value is not None) and (abs(first_value - second_value) <= tol)
 
         match_code_child_vs_parent = same(U_code_child,  U_code_parent)
         match_equa_child_vs_parent = same(U_equa_child,  U_equa_parent)
@@ -4213,9 +4200,9 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
 
         comp_child  = _components_for_utility(payoffs_for_one, child_means,  child_settings)
         comp_parent = _components_for_utility(payoffs_for_one, parent_means, parent_settings)
-        comp_delta  = {k: round(comp_parent[k]-comp_child[k], 6) for k in comp_child.keys() if abs(comp_parent[k]-comp_child[k]) > 1e-9}
+        comp_delta  = {component_key: round(comp_parent[component_key]-comp_child[component_key], 6) for component_key in comp_child.keys() if abs(comp_parent[component_key]-comp_child[component_key]) > 1e-9}
 
-        "equation_parent_aligned, equation_child_aligned = align_parent_child_equations(parent_eq=equation_parent, child_eq=equation_child)"
+        "Equation alignment can be restored with align_parent_child_equations if needed."
         equation_parent_aligned, equation_child_aligned = equation_parent, equation_child
 
         results.append({
@@ -4309,8 +4296,8 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
         • many payoff structures (random or full 5^4 grid over {1..5}^4).
 
     In addition to the *total* utility, the routine compares *components*:
-        self-interest, altruism, social comparison — for both code and string —
-        so discrepancies can be localized immediately.
+        self-interest, altruism, social comparison — for both code 
+        and string — so discrepancies can be localized immediately.
 
     Arguments:
         • utility_function : Callable
@@ -4370,25 +4357,24 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
     ordered_flag_keys: list[str] = list(utility_settings.keys())
 
     "---------- (1) Utility setting generation ------------------------------------"
-    "Generate all valid utility settings using your generator."
-    "If your project's signature differs, adjust the call below."
+    "Generate all valid utility settings using the project generator."
     all_settings_raw = gnrl.generate_utility_settings(utility_settings=utility_settings)
     "Normalize into dict form"
     all_settings: list[dict[str, bool]] = [
-        gnrl.convert_utility_settings(u, into=dict) for u in all_settings_raw
+        gnrl.convert_utility_settings(raw_utility_settings, into=dict) for raw_utility_settings in all_settings_raw
     ]
     "Keep only valid ones if generator does not guarantee validity"
     if hasattr(gnrl, "is_valid_utility_settings"):
-        all_settings = [u for u in all_settings if gnrl.is_valid_utility_settings(u)]
+        all_settings = [candidate_utility_settings for candidate_utility_settings in all_settings if gnrl.is_valid_utility_settings(candidate_utility_settings)]
 
     "---------- (2) Payoff generation ---------------------------------------------"
     def _all_payoff_tuples():
         for As, Ao, Bs, Bo in it.product(range(1, 6), repeat=4):
             yield {"As": As, "Ao": Ao, "Bs": Bs, "Bo": Bo}
 
-    def _random_payoff_tuples(n: int, seed: int | None):
+    def _random_payoff_tuples(n_payoffs: int, seed: int | None):
         rng_local = random.Random() if seed is None else random.Random(seed)
-        for _ in range(n):
+        for _ in range(n_payoffs):
             yield {
                 "As": rng_local.randint(1, 5),
                 "Ao": rng_local.randint(1, 5),
@@ -4404,7 +4390,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
 
     def _sample_means_for(utility_settings: dict[str, bool]) -> dict[str, float]:
         """
-        Means-only sampling following your conventions. Uses make_param_info to get proper keys,
+        Means-only sampling following the project conventions. Uses make_param_info to get proper keys,
         but then samples uniformly within global bounds so the sweep explores the space.
         """
         param_info = make_param_info(
@@ -4413,22 +4399,23 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
             general_settings={"update_method": "naive"},
             guess_seed=None
         )
-        keys = [k for k in param_info["keys"] if not k.endswith("_std") and not k.endswith("_cov")]
+        keys = [param_key for param_key in param_info["keys"] if not param_key.endswith("_std") and not param_key.endswith("_cov")]
         means: dict[str, float] = {}
-        for key in keys:
-            lo, hi = param_bds[key]
-            val = rng_params.uniform(float(lo), float(hi))
-            "small rounding on wide intervals keeps equations readable without losing variety"
-            if (hi - lo) > 1:
-                val = min(max(round(val, 2), lo), hi)
-            means[key] = float(val)
+        for param_key in keys:
+            lower_bound, upper_bound = param_bds[param_key]
+            sampled_value = rng_params.uniform(float(lower_bound), float(upper_bound))
+            "Small rounding on wide intervals keeps equations readable without losing variety"
+            if (upper_bound - lower_bound) > 1:
+                sampled_value = min(max(round(sampled_value, 2), lower_bound), upper_bound)
+            means[param_key] = float(sampled_value)
         return means
 
     "---------- (4) Pretty-equation evaluation (numeric) --------------------------"
-    "This numerically evaluates the RHS of utility_function_str(...) after substituting"
-    "payoffs and parameters. It mirrors the robust normalizations you used previously,"
-    "including: unicode operators, '^' → pow_signed with parenthesis-aware base capture,"
-    "implicit multiplication insertions, and γ₂/γ₃ fallback to γ₁."
+    """
+    Numerically evaluate utility_function_str(...) after substituting payoffs and parameters.
+    Normalization handles unicode operators, '^' to pow_signed conversion, implicit
+    multiplication, and γ₂/γ₃ fallback to γ₁.
+    """
     "--- INSERT C1: direct evaluator for the stubborn ratio+refdep+negSC family ----"
     def _direct_eval_ratio_refdep_negsc(
         utility_settings: dict[str, bool],
@@ -4456,10 +4443,10 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
             - Reference constant '3' is NOT exponentiated
         """
         "Read params (accept either γ1/γ₂/γ₃ or γ₁/γ₂/γ₃ spellings)"
-        def _get(p: dict, *names: str, default: float) -> float:
-            for n in names:
-                if n in p:
-                    return float(p[n])
+        def _get(param_dict: dict, *names: str, default: float) -> float:
+            for name in names:
+                if name in param_dict:
+                    return float(param_dict[name])
             return float(default)
 
         Vii = _get(params, "Vᵢᵢ", "Vii", default=1.0)
@@ -4478,10 +4465,10 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
         ref_const = 3.0
 
         "Sign-preserving power for centered ratios (matches code semantics)"
-        def _signed_pow(x: float, g: float) -> float:
-            if x == 0.0:
+        def _signed_pow(base_value: float, gamma_exponent: float) -> float:
+            if base_value == 0.0:
                 return 0.0
-            return (abs(x) ** g) * (1.0 if x >= 0.0 else -1.0)
+            return (abs(base_value) ** gamma_exponent) * (1.0 if base_value >= 0.0 else -1.0)
 
         "Bases"
         si_base = Ai / (Ai + ref_const) - 0.5
@@ -4515,7 +4502,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
                 scan_index -= 1
             start_index = scan_index + 1
             end_index = caret_index
-            "include function name if present (e.g., max(...))"
+            "Include function name if present (e.g., max(...))"
             name_end = start_index
             name_start = name_end - 1
             while name_start >= 0 and expr[name_start].isalpha():
@@ -4524,7 +4511,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
             if name_start < name_end and expr[name_end] == "(":
                 start_index = name_start
             return start_index, end_index
-        "bare token"
+        "Bare token"
         token_end = scan_index + 1
         token_start = scan_index
         while token_start >= 0 and _is_token_char(expr[token_start]):
@@ -4547,7 +4534,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
                     depth -= 1
                 scan_index += 1
             return caret_index + 1, scan_index
-        "bare token exponent"
+        "Bare token exponent"
         token_start = scan_index
         while scan_index < n_chars and _is_token_char(expr[scan_index]):
             scan_index += 1
@@ -4572,7 +4559,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
             .replace("×", "*").replace("·", "*").replace("⋅", "*")
         )
         normalized = normalized.replace("[", "(").replace("]", ")")
-        "implicit multiplication"
+        "Implicit multiplication"
         normalized = re.sub(r"(?<![A-Za-z0-9_])(\-?\d+(?:\.\d+)?)\s*\(", r"\1*(", normalized)
         normalized = normalized.replace(")(", ")*(")
         normalized = re.sub(r"\)\s*(\-?\d+(?:\.\d+)?)", r")*\1", normalized)
@@ -4599,7 +4586,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
         """
         "1) Build replacements"
         gamma_pretty = {"γ1": "γ₁", "γ2": "γ₂", "γ3": "γ₃"}
-        params_pretty = {gamma_pretty.get(k, k): v for k, v in params.items()}
+        params_pretty = {gamma_pretty.get(param_key, param_key): param_value for param_key, param_value in params.items()}
         "Map aliases that might appear"
         alias_to_pretty = {
             "Vii": "Vᵢᵢ", "Λii": "Ʌᵢᵢ", "Vij": "Vᵢⱼ", "Λij": "Ʌᵢⱼ",
@@ -4612,11 +4599,11 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
 
         "Apply overrides *before* substitution (so numeric values in the string reflect the override)"
         if param_overrides:
-            for k_raw, v in param_overrides.items():
-                k = gamma_pretty.get(k_raw, k_raw)  # allow γ1 vs γ₁ in overrides
-                params_pretty[k] = v
+            for raw_param_key, param_value in param_overrides.items():
+                param_key = gamma_pretty.get(raw_param_key, raw_param_key)  # Allow γ1 vs γ₁ in overrides.
+                params_pretty[param_key] = param_value
 
-        "γ fallbacks inherit γ₁ (like utility())"
+        "Gamma fallbacks inherit γ₁ (like utility())"
         gamma1_value = None
         for k_try in ("γ₁", "γ1"):
             if k_try in params_pretty:
@@ -4624,22 +4611,9 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
         if gamma1_value is None: gamma1_value = 1.0
 
         
-        # if utility_settings.get('conditional_welfare_mode'):
-        #     print("-", params_pretty)
-        "\"Normalize the weights from [-1, 1] to [0, 1]\""
-        #     if "Vᵢᵢ" in params_pretty:
-        #         params_pretty["Vᵢᵢ"] = round((params_pretty["Vᵢᵢ"] + 1) / 2, 4)
-        #     if "Vᵢⱼ" in params_pretty:
-        #         params_pretty["Vᵢⱼ"] = round((params_pretty["Vᵢⱼ"] + 1) / 2, 4)
-        #     if "Λᵢᵢ" in params_pretty:
-        #         params_pretty["Λᵢᵢ"] = round((params_pretty["Λᵢᵢ"] + 1) / 2, 4)
-        #     if "Λᵢⱼ" in params_pretty:
-        #         params_pretty["Λᵢⱼ"] = round((params_pretty["Λᵢⱼ"] + 1) / 2, 4)
-
-        #     print("+", params_pretty)
-
+        # TODO Figure out whether conditional-welfare weight normalization belongs in equation evaluation.
         payoff_symbol_map = {"As": "πᵢᴬ", "Ao": "πⱼᴬ", "Bs": "πᵢᴮ", "Bo": "πⱼᴮ"}
-        payoffs_pretty_map = {payoff_symbol_map[k]: v for k, v in payoffs.items()}
+        payoffs_pretty_map = {payoff_symbol_map[payoff_key]: payoff_value for payoff_key, payoff_value in payoffs.items()}
 
         "2) Extract RHS"
         if "=" not in equation_string:
@@ -4666,35 +4640,35 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
                 rhs_filled = rhs_filled.replace(sym, str(val))
 
         "--- INSERT C2: stubborn-case direct evaluator short-circuit ---------------"
-        s = utility_settings  # alias
+        utility_settings_for_eval = utility_settings
         is_stubborn = (
-            (not s.get("conditional_welfare_mode", False))
-            and (not s.get("min_max_rawlsian_leontief", False))
-            and s.get("use_exponential_parameters", False)
-            and s.get("payoff_ratios_not_differences", False)
-            and s.get("reference_dependent_utility", False)
-            and (not s.get("use_negativity_parameters", False))
-            and s.get("negativity_social_comparison", False)
-            and s.get("include_social_comparison", False) is not False
-            and s.get("include_altruism_term", False) is not False
-            and (not s.get("single_payoffs_not_differences", False))
-            and (not s.get("apply_exponents_to_payoffs", False))
+            (not utility_settings_for_eval.get("conditional_welfare_mode", False))
+            and (not utility_settings_for_eval.get("min_max_rawlsian_leontief", False))
+            and utility_settings_for_eval.get("use_exponential_parameters", False)
+            and utility_settings_for_eval.get("payoff_ratios_not_differences", False)
+            and utility_settings_for_eval.get("reference_dependent_utility", False)
+            and (not utility_settings_for_eval.get("use_negativity_parameters", False))
+            and utility_settings_for_eval.get("negativity_social_comparison", False)
+            and utility_settings_for_eval.get("include_social_comparison", False) is not False
+            and utility_settings_for_eval.get("include_altruism_term", False) is not False
+            and (not utility_settings_for_eval.get("single_payoffs_not_differences", False))
+            and (not utility_settings_for_eval.get("apply_exponents_to_payoffs", False))
         )
         if is_stubborn:
             try:
-                "honor overrides (used to isolate components in verification)"
+                "Honor overrides (used to isolate components in verification)"
                 params_for_direct = dict(params)
                 if param_overrides:
                     params_for_direct.update(param_overrides)
                 direct_val = _direct_eval_ratio_refdep_negsc(
-                    utility_settings=s,
+                    utility_settings=utility_settings_for_eval,
                     params=params_for_direct,
                     payoffs=payoffs,
                     decimals_local=decimals_local,
                 )
-                return direct_val, ""  # short-circuit: trust direct evaluation
+                return direct_val, ""  # Short-circuit: trust direct evaluation.
             except Exception as _err_direct:
-                "fall through to the generic string-eval path if something unexpected happens"
+                "Fall through to the generic string-eval path if something unexpected happens"
                 pass
 
         "4) Normalize to Python and eval"
@@ -4723,12 +4697,12 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
         total, st_total = _evaluate_equation_numeric(equation_string, params, payoffs, utility_settings, None, decimals_local)
         statuses["total"] = st_total
 
-        "isolate self by zeroing altruism & SC weights"
+        "Isolate self by zeroing altruism & SC weights"
         self_only_over = {"Vᵢⱼ": 0.0, "Ʌᵢⱼ": 0.0, "Ƹᵢⱼ": 0.0, "Ʒᵢⱼ": 0.0}
         self_only, st_self = _evaluate_equation_numeric(equation_string, params, payoffs, utility_settings, self_only_over, decimals_local)
         statuses["self"] = st_self
 
-        "turn off SC to isolate (self + altruism)"
+        "Turn off SC to isolate (self + altruism)"
         no_sc_over = {"Ƹᵢⱼ": 0.0, "Ʒᵢⱼ": 0.0}
         no_sc, st_nosc = _evaluate_equation_numeric(equation_string, params, payoffs, utility_settings, no_sc_over, decimals_local)
         statuses["no_sc"] = st_nosc
@@ -4762,7 +4736,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
                     "payoff_A_self": payoffs["As"], "payoff_A_other": payoffs["Ao"],
                     "payoff_B_self": payoffs["Bs"], "payoff_B_other": payoffs["Bo"],
                     "U_function": f"Uᵢ({option})",
-                    # code-side values are still available:
+                    "Code-side values are still available"
                     "utility_code": None, "utility_str": None, "utility_Δ": None, "match": False,
                     "status": f"BUILD ERROR: {type(err).__name__}: {err}",
                 }
@@ -4806,7 +4780,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
                 decimals_local=decimals,
             )
 
-            "Decide match status on totals (we also store per-term deltas)"
+            "Decides match status on totals and stores per-term deltas."
             if str_total is None:
                 match_flag = False
                 delta_total = None
@@ -4820,18 +4794,14 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
             row = {
                 "utility_idx": utility_index,
                 "payoff_idx": payoff_index,
-                # 13 booleans as separate columns
                 **{flag_key: bool(utility_settings.get(flag_key, False)) for flag_key in ordered_flag_keys},
-                # payoffs
                 "payoff_A_self": payoffs["As"], "payoff_A_other": payoffs["Ao"],
                 "payoff_B_self": payoffs["Bs"], "payoff_B_other": payoffs["Bo"],
 
-                # totals
                 "utility_code": round(code_total, decimals),
                 "utility_str":  (None if str_total is None else round(str_total, decimals)),
                 "utility_Δ":    (None if delta_total is None else round(delta_total, decimals)),
                 "match":        bool(match_flag),
-                # components (rounded for readability; raw logic used totals for matching)
                 "code_self": round(code_self, decimals),
                 "code_altr": round(code_altr, decimals),
                 "code_socc": round(code_socc, decimals),
@@ -4843,7 +4813,6 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
                 "Δ_socc":    (None if (str_socc is None) else round(code_socc - str_socc, decimals)),
                 "status": status_text or eval_status.get("self","") or eval_status.get("no_sc",""),
                 "U_function": utility_function_str(utility_settings),
-                # "equation": utility_function_str(utility_settings)
             }
             rows.append(row)
 
@@ -4864,7 +4833,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
             .agg(
                 all_match=("match", "all"),
                 n_rows=("match", "size"),
-                max_abs_Δ=("utility_Δ", lambda s: float(s.abs().max(skipna=True) if len(s) else 0.0)),
+                max_abs_Δ=("utility_Δ", lambda utility_delta_series: float(utility_delta_series.abs().max(skipna=True) if len(utility_delta_series) else 0.0)),
                 U_function=("U_function", "first"),
                 **{flag_key: (flag_key, "first") for flag_key in ordered_flag_keys}
             )
@@ -4890,7 +4859,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
             for flag_key in ordered_flag_keys:
                 grp = df.groupby(flag_key)["match"].agg(total="count", ok="sum")
                 grp["mismatch_rate"] = 1.0 - (grp["ok"] / grp["total"])
-                "store both levels"
+                "Store both levels"
                 for flag_value, rec in grp.iterrows():
                     flag_reports.append({
                         "flag": flag_key, "value": bool(flag_value),
@@ -4907,7 +4876,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
         "Top offenders (first 10 mismatches)"
         if n_mismatch:
             offenders = df.loc[~df["match"]].head(10)
-            cols = ["utility_idx", "payoff_idx", "utility_Δ"] + ordered_flag_keys[:5]  # compact preview
+            cols = ["utility_idx", "payoff_idx", "utility_Δ"] + ordered_flag_keys[:5]  # Compact preview.
             print("[Verify] First mismatches (preview):")
             print(offenders[cols].to_string(index=False))
 
@@ -5045,7 +5014,7 @@ def model_nesting_adjacency_matrices(general_settings: GeneralSettings, utility_
             relation_row_to_col, relation_col_to_row, setting_flipped = relations
 
             "1s mean that the utility function indexed by the row is a parent,"
-            " sibling, or child of the utility function indexed by the column."
+            "sibling, or child of the utility function indexed by the column."
             if setting_flipped in ("min_max_rawlsian_leontief", "conditional_welfare_mode"):
                 "Flipping these settings does not differentiate child from parent"
                 continue
@@ -5194,9 +5163,9 @@ def best_fitting_model_parameters(utility_settings: UtilitySettings, general_set
                                       utility_settings: UtilitySettings, print_: bool = False) -> Dict[str, Any] | None:
         """
         Reads a single per-player fit JSON and extracts:
-        - player_uuid
-        - per-role params (means/exponents/etc.)
-        - per-role final losses
+            - player_uuid
+            - per-role params 
+            - per-role final losses
 
         Returns:
             {
@@ -5370,20 +5339,20 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
     Returns:
         • dict[str, Any]; Example:
             {
-              "metadata": {
-                "U_funct": "Uᵢ(A) = ...",
-                "utility_settings": {...},     # child settings
-                "loss_total": 274.462100798,   # iteration-level total (IC) or sum of role-losses when available
-                "source": "IC" or "player_fits",
-                "model_key": "1111101..."
-              },
-              "data": {
-                 "player_uuid": {
-                   "params":  {"chooser": {...}, "predictor": {...}},
-                   "loss":    {"chooser": <float|None>, "predictor": <float|None>}
-                 },
-                 ...
-              }
+                "metadata": {
+                    "U_funct": "Uᵢ(A) = ...",
+                    "utility_settings": {...},     # Child settings.
+                    "loss_total": 274.462100798,   # Iteration-level total (IC) or sum of role-losses when available.
+                    "source": "IC" or "player_fits",
+                    "model_key": "1111101..."
+                },
+                "data": {
+                        "player_uuid": {
+                        "params":  {"chooser": {...}, "predictor": {...}},
+                        "loss":    {"chooser": <float|None>, "predictor": <float|None>}
+                    },
+                    ...
+                }
             }
     """
     def _fallback_random_parent_guess_from_bounds(param_info: dict, rng: np.random.Generator | None = None) -> dict[str, float]:
@@ -5392,7 +5361,6 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
         preserving the ordering in param_info['keys'] and param_info['bounds'].
         """
         fallback_params = {}
-        # try:
         "Construct an initial parameter dictionary"
         if callable(param_info["guesses"]):
             initial_guesses = param_info["guesses"]()
@@ -5402,15 +5370,7 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
         for param_key, param_guess in zip(param_info['keys'], initial_guesses):
             fallback_params[param_key] = float(param_guess)
 
-        # except:
-            # for param_key, (bd_lo, bd_hi) in zip(param_info['keys'], param_info['bounds']):
-            "# small epsilon off the boundary, matching your other clamps"
-            #     tiny = 1e-12
-            #     if rng is None:
-            #         guess_val = random.uniform(bd_lo + tiny, bd_hi - tiny)
-            #     else:
-            #         guess_val = rng.uniform(bd_lo + tiny, bd_hi - tiny)
-            #     fallback_params[param_key] = float(guess_val)
+        # TODO Figure out whether bounded random fallback is still needed here.
 
         return fallback_params
 
@@ -5461,7 +5421,7 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
             for plr_role in player_roles:
                 a_loss = losses.get(plr_role, 0.0)
                 if isinstance(a_loss, (int, float)):
-                    loss_total += losses.get(plr_role, 0.0) #TypeError: unsupported operand type(s) for +=: 'float' and 'NoneType'
+                    loss_total += losses.get(plr_role, 0.0)
 
         "Append to the list data and metadata for the child and its parameters."
         child_payload = {
@@ -5506,7 +5466,7 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
 
     "Sort with best fitting children first in the list."
     best_fitting_child_params = sorted(best_fitting_child_params, 
-        key = lambda x: x.get('metadata', {}).get('loss_total', 0.0))
+        key = lambda child_fit_data: child_fit_data.get('metadata', {}).get('loss_total', 0.0))
     
     "Probabilistically select a child based on the total losses and a temperature parameter."
     selected_child = select_child_params_for_parent(children=best_fitting_child_params, temperature=temperature)
@@ -5518,7 +5478,7 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
     setting_keys_child = set(selected_child_settings.keys())
     missing_keys = setting_keys_all - setting_keys_child
     n_missing_keys = len(list(missing_keys))
-    max_missing_keys = 2 #Should be lower.
+    max_missing_keys = 2  # TODO Revisit this threshold; it may be too permissive.
     if n_missing_keys < 0:
         raise ValueError(f"Child model has extra keys: {setting_keys_child}.")
     elif n_missing_keys > 0:
@@ -5531,7 +5491,7 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
                     val = True if 'single_' in setting_key else False
                     selected_child_settings[setting_key] = val
 
-    "Sanity Check: Confirm that we truly selected a child of the parent."
+    "Sanity Check: Confirm that the selected model is a child of the parent."
     relation_1_to_2, relation_2_to_1, flipped_setting = gnrl.classify_pair_relation(model_1=utility_settings_parent, 
                                                             model_2=selected_child_settings, general_settings=general_settings, utility_settings=utility_settings)
 
@@ -5562,8 +5522,6 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
                 general_settings=general_settings,
                 param_bds=param_bds,
             )
-            # warmstart[plr_uuid][plr_role] = parent_params
-
 
             parent_param_info = make_param_info(
                 param_bds=param_bds, utility_settings=utility_settings_parent,
@@ -5578,7 +5536,6 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
                 "keys":    parent_param_info['keys'],
                 "bounds":  parent_param_info['bounds'],
                 "guesses": ordered,
-                # (optionally keep the plain mapping too)
                 **parent_params
             }
 
@@ -5592,8 +5549,8 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
             "selected_child_settings": selected_child_settings,
             "flipped_setting": flipped_setting
         },
-        "selected_child": selected_child,      # retains per-player/role child fit info
-        "parent_warmstart": warmstart          # per-player/role dict of mapped parent params
+        "selected_child": selected_child,      # Retains per-player/role child fit info.
+        "parent_warmstart": warmstart          # Per-player/role dict of mapped parent params.
     }
 
 
@@ -5760,7 +5717,7 @@ def population_parameter_distribution_histograms(general_settings: dict[str, Any
 
     if general_settings.get('temperature_is_param'):
         param_keys += ["τ"]
-        # param_keys += ["temp"]
+        # TODO Figure out whether "temp" should be included alongside "τ".
     for param_key in param_keys:
         if param_key in ("τ", "temp"):
             fancy_key = "τ"
@@ -5771,11 +5728,11 @@ def population_parameter_distribution_histograms(general_settings: dict[str, Any
             fancy_key = f"σ({param_key.replace('_cov', '').replace('_', ',')})"
         else:
             fancy_key = f"μ({param_key})"
-        # print(list(df.columns)), exit()
+
         hist_data[fancy_key] = df[param_key].dropna().values.tolist()
 
-    group_labels = list(sorted(hist_data.keys(), key=lambda x: (
-        x.replace("σ(", "").replace("μ(", "").replace(")", ""), "σ(" in x)))
+    group_labels = list(sorted(hist_data.keys(), key=lambda group_label: (
+        group_label.replace("σ(", "").replace("μ(", "").replace(")", ""), "σ(" in group_label)))
     hist_colors = [f"hsla({int((idx*360/(len(group_labels)+1))%360)}, 100%, 50%, 0.7)" 
                    for idx in range(len(group_labels))]
     hist_sizes = [0.2]*len(group_labels)
@@ -5794,20 +5751,18 @@ def population_parameter_distribution_histograms(general_settings: dict[str, Any
     mean_params = [p for p in group_labels if "σ(" not 
                    in p and "," not in p and 'τ' not in p]
     mean_weight_params = [p for p in mean_params if 'γ' not in p]
-    # if player_role == 'chooser':
-    #     mean_params = mean_params[:-1]
     std_params = [p for p in group_labels if "σ(" in p and "," not in p]
     cov_params = [p for p in group_labels if "," in p]
 
     "Identify problematic parameters (e.g., ones clustering into a single bin based on small std deviation)"
-    epsilon = 1e-2  # Define a threshold for tiny standard deviation
+    epsilon = 1e-2  # Define a threshold for tiny standard deviation.
     problematic_params = []
     for param, data in hist_data.items():
         if len(data) > 1 and pd.Series(data).std() < epsilon:
             problematic_params.append(param)
 
     "Initial visibility: Hide problematic parameters"
-    initial_visibility = [p not in problematic_params for p in group_labels] * 2
+    initial_visibility = [param not in problematic_params for param in group_labels] * 2
 
     "Set initial visibility at the trace level"
     for trace, visible in zip(fig.data, initial_visibility):
@@ -5816,30 +5771,30 @@ def population_parameter_distribution_histograms(general_settings: dict[str, Any
     "Dropdown options"
     buttons = [
         dict(label="All", method="update", 
-             args=[{"visible": [p not in problematic_params 
-                                for p in group_labels] * 2}]),
+             args=[{"visible": [param not in problematic_params 
+                                for param in group_labels] * 2}]),
         dict(label="μ(...)", method="update",
-             args=[{"visible": [p in mean_params and p not in 
-                                problematic_params for p in group_labels] * 2}]),
+             args=[{"visible": [param in mean_params and param not in 
+                                problematic_params for param in group_labels] * 2}]),
         dict(label="μ(𝑤)", method="update",
-             args=[{"visible": [p in mean_weight_params and p not in 
-                                problematic_params for p in group_labels] * 2}]),                                
+             args=[{"visible": [param in mean_weight_params and param not in 
+                                problematic_params for param in group_labels] * 2}]),                                
         dict(label="σ(...)", method="update",
-             args=[{"visible": [p in std_params and p not in 
-                                problematic_params for p in group_labels] * 2}]),
+             args=[{"visible": [param in std_params and param not in 
+                                problematic_params for param in group_labels] * 2}]),
     ]
     if general_settings.get('include_covariance'):
         buttons.append(
             dict(label="Cov(x,y)", method="update",
-                args=[{"visible": [p in cov_params and p not in 
-                                   problematic_params for p in group_labels] * 2}])
+                args=[{"visible": [param in cov_params and param not in 
+                                   problematic_params for param in group_labels] * 2}])
         )
 
     "Add individual parameter selections"
     for idx, group_label in enumerate(group_labels):
         visible = [False] * (2 * len(group_labels))
-        visible[idx] = True  # pdf curve for that param
-        visible[idx + len(group_labels)] = True  # rug for that param
+        visible[idx] = True  # PDF curve for that param.
+        visible[idx + len(group_labels)] = True  # Rug for that param.
         buttons.append(dict(label=group_label, method="update", 
                             args=[{"visible": visible}]))
 
@@ -5860,15 +5815,15 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
                                 use_initial_params: bool | None = None, create_new_file: bool | None = None, ratio_mode: str = "skip_negative", as_subplots: bool = False, print_: bool = True) -> dict:
     """
     Computes:
-      1) Subpopulation stats (sadistic, masochistic, guilt>envy, altruism>self-interest),
-      2) Two ratio analyses and histograms:
-         (a) self-interest vs. altruism (Vᵢᵢ vs. Vᵢⱼ),
-         (b) guilt vs. envy (Ʒᵢⱼ vs. Ƹᵢⱼ).
+        1) Subpopulation stats (sadistic, masochistic, guilt>envy, altruism>self-interest),
+        2) Two ratio analyses and histograms:
+            (a) self-interest vs. altruism (Vᵢᵢ vs. Vᵢⱼ),
+            (b) guilt vs. envy (Ʒᵢⱼ vs. Ƹᵢⱼ).
 
     If as_subplots=False, produces two separate histograms for the given player_role.
     If as_subplots=True, it produces four histograms (both ratio types × both roles) as subplots in a single figure.
     """
-    "--- Helper function to load param DF given role (so we can do it for both roles in subplot mode) ---"
+    "--- Helper function to load param DF by role for subplot mode. ---"
     def load_and_prepare_df_for_role(the_role: str) -> pd.DataFrame:
         df_temp = population_parameter_distribution_df(
             general_settings=general_settings,
@@ -5886,13 +5841,13 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
         df_temp = df_temp.dropna(subset=required_cols).copy()
         return df_temp
 
-    "--- Helper ratio function as in your original ---"
+    "--- Helper ratio function matching the original analysis logic ---"
     def compute_ratio_array(series_x, series_y, param_category: str = 'self', normalize: bool = True) -> pd.Series:
         ratio_list = []
         for (x, y) in zip(series_x, series_y):
             if ratio_mode == "skip_negative":
-                "keep only if x>0,y>0 => ratio=x/(x+y) for self"
-                "or x<0,y<0 => ratio=x/(x+y) for guilt (since guilt<0, envy<0)"
+                "Keep only if x>0,y>0 => ratio=x/(x+y) for self"
+                "Or x<0,y<0 => ratio=x/(x+y) for guilt (since guilt<0, envy<0)"
                 if (param_category == 'self'  and x > 0 and y > 0) or \
                    (param_category == 'guilt' and x > 0 and y > 0):
                     denom = (x + y) if normalize else y
@@ -5922,9 +5877,8 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
         x_title_self = "Ratio = |𝑉ᵢᵢ| / (|𝑉ᵢᵢ| + |𝑉ᵢⱼ|)"
         x_title_guilt = "Ratio = |Ʒᵢⱼ| / (|Ʒᵢⱼ| + |Ƹᵢⱼ|)"
 
-    "We store the final results in some dictionary. If as_subplots=True, we gather results for both roles."
-    "## SUBPLOTS CHANGES ###"
-    "We'll keep the code for the single-role flow in an if-block:"
+    "Store final results; if as_subplots=True, gather results for both roles."
+    "Keep the single-role flow in a separate if-block."
     if not as_subplots:
         "================ ORIGINAL SINGLE-ROLE LOGIC ================"
 
@@ -5971,7 +5925,7 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
         self_ratio_mean_raw = self_ratio_series_raw.mean() if n_self_valid > 0 else float('nan')
         guilt_ratio_mean_raw = guilt_ratio_series_raw.mean() if n_guilt_valid > 0 else float('nan')
 
-        "role string"
+        "Role string"
         if player_role == 'chooser':
             role_str = 'Chooser'
         else:
@@ -6003,7 +5957,7 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
         x_tickvals = list(np.round(np.linspace(x_min, x_max, x_n_bins), 3))
         x_ticktext = [''] + [f"{val:.1f}" for val in x_tickvals[1:]]        
         x_axis = {
-            'title': x_title_self,  # Will overwrite for guilt fig
+            'title': x_title_self,  # Will overwrite for guilt fig.
             'tickfont': dict(size=24),
             'title_font': dict(size=30),
             'tickvals': x_tickvals, 
@@ -6110,16 +6064,15 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
 
     else:
         "================ SUBPLOT MODE: produce 4 histograms for both roles ================"
-        "## SUBPLOTS CHANGES ###"
 
-        "We'll compute the entire logic for each role, then make a 2x2 subplot figure."
+        "Compute the full logic for each role, then make a 2x2 subplot figure."
         roles = ['chooser', 'predictor']
         big_results = {}
 
-        "We create a 2-row, 2-col figure"
+        "Create a 2-row, 2-col figure"
         fig_sub = make_subplots(
             rows=2, cols=2,
-            horizontal_spacing=0.07,  # Adjust horizontal spacing
+            horizontal_spacing=0.07,  # Adjust horizontal spacing.
             vertical_spacing=0.2,
             shared_yaxes=True,
             subplot_titles=(
@@ -6130,14 +6083,13 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
             )
         )
 
-        "Because the single code references local variables, we unify them here:"
+        "Unify local variables before looping across roles."
         use_initial_params_local = use_initial_params
         create_new_file_local = create_new_file
 
-        "We'll loop over roles in [predictor, chooser]"
-        # row=1 => predictor, row=2 => chooser
-        # col=1 => self ratio, col=2 => guilt ratio
-        for i, role in enumerate(roles, start=1):
+        "Loop over roles in [predictor, chooser]."
+        "Row=1 => predictor, row=2 => chooser; col=1 => self ratio, col=2 => guilt ratio."
+        for idx, role in enumerate(roles, start=1):
             row_i = 2 if role=='predictor' else 1
 
             "Load & prepare data"
@@ -6145,7 +6097,7 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
             n_data = len(df)
             if n_data == 0:
                 print(f"[Warning] No data remain after dropping NaNs for {role}.")
-                "We'll skip but continue"
+                "Skip this role but continue with the remaining roles."
                 big_results[role] = {}
                 continue
 
@@ -6246,8 +6198,8 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
                 print(print_str_self)
                 print(print_str_guilt)
 
-        "Some layout details. We can adapt the x-axis labeling if you like:"
-        y_max = 19.04 if ratio_mode == 'absolute' else 9.02 #Hardcoded
+        "Layout details, including x-axis labeling."
+        y_max = 19.04 if ratio_mode == 'absolute' else 9.02  # Hardcoded.
         x_min, x_max = 0.0, 1.0
         x_tickvals = list(np.round(np.linspace(x_min, x_max, 6), 3))
         x_ticktext = [''] + [f"{v:.1f}" for v in x_tickvals[1:]]
@@ -6285,7 +6237,6 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
                 f"Ratios_Subplots_{ratio_mode}.html"
             )
             fig_sub.write_html(out_path)
-            # print(f"Saved subplot figure => {out_path}")
         else:
             fig_sub.show()
 
@@ -6378,7 +6329,7 @@ def param_correlation_matrix_report(general_settings: Dict[str, Any], file_paths
         print("\n--- Raw P-Values ---")
         print(pval_df)
 
-        "If you only care about the diagonal in cross-role, correct just those p-values:"
+        "For cross-role results, correct the diagonal p-values only."
         diagonal_indices = np.arange(min(len(chooser_cols), len(predictor_cols)))
         diagonal_pvals = pval_df.values[diagonal_indices, diagonal_indices]
 
@@ -6480,17 +6431,17 @@ def inequality_aversion_sanity_check(file_paths: FilePaths, param_strong: float,
     Overview
     --------
     This function side-steps the full analysis pipeline and asks a very specific question:
-    *Given the observed binary dictator choices, does a simple bot with stronger ENVY (α >> β) fit better,
-    or a simple bot with stronger GUILT (β >> α)?*
+    *Given the observed binary dictator choices, does a simple bot with stronger ENVY (α >> β) 
+    fit better, or a simple bot with stronger GUILT (β >> α)?*
 
-    Concretely, we define two linear, curvature-free utility functions that only include:
+    Concretely, this defines two linear, curvature-free utility functions that only include:
        • a self-interest weight Vᵢᵢ on the chooser's payoff (A vs B),
        • an altruism weight Vᵢⱼ on the other person's payoff,
        • an envy (disadvantageous inequality) penalty α on max(πⱼ - πᵢ, 0),
        • a guilt (advantageous inequality)  penalty β on max(πᵢ - πⱼ, 0).
 
-    We then compute U(A) and U(B) for each trial and convert these to a choice probability with softmax.
-    We score each bot against the observed choices using:
+    Computes U(A) and U(B) for each trial and converts these to a choice probability with softmax.
+    Scores each bot against the observed choices using:
        • hit rate (accuracy) and
        • negative log likelihood (NLL) loss.
 
@@ -6519,11 +6470,11 @@ def inequality_aversion_sanity_check(file_paths: FilePaths, param_strong: float,
         • dict
             Scores for each bot under keys 'envious' and 'guilty'. Each contains:
                 {
-                'correct': int,
-                'incorrect': int,
-                'total': int,
-                'loss': float,          # negative log-likelihood
-                'hit_rate': float       # correct / total
+                    'correct': int,
+                    'incorrect': int,
+                    'total': int,
+                    'loss': float,          # Negative log-likelihood.
+                    'hit_rate': float       # Correct / total.
                 }
 
     Notes:
@@ -6613,8 +6564,6 @@ def inequality_aversion_sanity_check(file_paths: FilePaths, param_strong: float,
 
     if print_:
         print(
-            # \n====================== Envy versus Guilt Competition Sanity Check ======================
-            # \nUtility:  Uᵢ(A) = Vᵢᵢ(πᵢᴬ) + Vᵢⱼ(πⱼᴬ) - Ƹᵢⱼ × max(πⱼᴬ - πᵢᴬ, 0) - Ʒᵢⱼ × max(πᵢᴬ - πⱼᴬ, 0)
             f"\nEnvious: Uᵢ(A) = {self}(πᵢᴬ) + {altr}(πⱼᴬ) - {param_strong} × max(πⱼᴬ - πᵢᴬ, 0) - {param_weak} × max(πᵢᴬ - πⱼᴬ, 0); τ = {temperature}"
             f"\nGuilty:  Uᵢ(A) = {self}(πᵢᴬ) + {altr}(πⱼᴬ) - {param_weak} × max(πⱼᴬ - πᵢᴬ, 0) - {param_strong} × max(πᵢᴬ - πⱼᴬ, 0); τ = {temperature}"
             f"\nEnvious: {scores['envious']['correct']:04d} / {scores['envious']['total']:04d} = {scores['envious']['hit_rate']:.3f}; Loss = {scores['envious']['loss']:04.3f}"
@@ -6635,25 +6584,25 @@ def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: F
     Visualize the envious-vs-guilty bot fitting "competition" across (self-interest, altruism) weights.
 
     Purpose:
-    For each grid point (Vᵢᵢ, Vᵢⱼ), we:
-      1) Fit the two simple bots defined in `inequality_aversion_sanity_check`:
-            Envious bot: envy=param_strong, guilt=param_weak
-            Guilty bot:  envy=param_weak,  guilt=param_strong
-      2) Record their negative log-likelihood (NLL) losses and hit rates.
-      3) Plot a heatmap of a *ratio* of the two losses to make comparison interpretable at a glance.
+    For each grid point (Vᵢᵢ, Vᵢⱼ), this function:
+        1) Fit the two simple bots defined in `inequality_aversion_sanity_check`:
+                Envious bot: envy=param_strong, guilt=param_weak
+                Guilty bot:  envy=param_weak,  guilt=param_strong
+        2) Record their negative log-likelihood (NLL) losses and hit rates.
+        3) Plot a heatmap of a *ratio* of the two losses to make comparison interpretable at a glance.
 
     Ratio definition:
-    By default, we plot:
-        ratio = Envious_NLL / (Envious_NLL + Guilty_NLL)
-    so that **higher values mean the 'guilty' bot fits better**.
+        By default, this plots:
+            ratio = Envious_NLL / (Envious_NLL + Guilty_NLL)
+        so that **higher values mean the 'guilty' bot fits better**.
 
-    If you set `ratio_numerator="guilty"`, we plot:
-        ratio = Guilty_NLL / (Envious_NLL + Guilty_NLL)
-    where **higher values mean the 'envious' bot fits better**.
+        If `ratio_numerator="guilty"`, this plots:
+            ratio = Guilty_NLL / (Envious_NLL + Guilty_NLL)
+        where **higher values mean the 'envious' bot fits better**.
 
     Arguments:
         • fig_lay : FigLay
-            Your standard Plotly layout dictionary (template, colorscales, title_x/y, font sizes, etc.).
+            Standard Plotly layout dictionary (template, colorscales, title_x/y, font sizes, etc.).
         • file_paths : FilePaths
             Paths used by `inequality_aversion_sanity_check` to load the trial histories.
         • param_strong, param_weak : float
@@ -6688,18 +6637,18 @@ def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: F
     """
 
     "Prepare grids"
-    x_vals = list(param_self_values)    # Vᵢᵢ (self-interest)
-    y_vals = list(param_altr_values)    # Vᵢⱼ (altruism)
+    x_vals = list(param_self_values)    # Vᵢᵢ (self-interest).
+    y_vals = list(param_altr_values)    # Vᵢⱼ (altruism).
 
-    Z_ratio = np.zeros((len(y_vals), len(x_vals)))  # heat z-values
+    Z_ratio = np.zeros((len(y_vals), len(x_vals)))  # Heat z-values.
     Z_envious_loss = np.zeros_like(Z_ratio)
     Z_guilty_loss  = np.zeros_like(Z_ratio)
     Z_envious_hit  = np.zeros_like(Z_ratio)
     Z_guilty_hit   = np.zeros_like(Z_ratio)
 
     "Sweep the grid"
-    for yi, v_other in enumerate(y_vals):
-        for xi, v_self in enumerate(x_vals):
+    for y_idx, v_other in enumerate(y_vals):
+        for x_idx, v_self in enumerate(x_vals):
             scores = inequality_aversion_sanity_check(
                 file_paths=file_paths,
                 param_strong=param_strong,
@@ -6724,14 +6673,14 @@ def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: F
                 higher_means = "Higher → envious-bot fits better"
                 ratio_label  = "G / (E + G)"
 
-            Z_ratio[yi, xi]       = ratio_val
-            Z_envious_loss[yi, xi] = ev_loss
-            Z_guilty_loss[yi, xi]  = gu_loss
-            Z_envious_hit[yi, xi]  = ev_hit
-            Z_guilty_hit[yi, xi]   = gu_hit
+            Z_ratio[y_idx, x_idx]       = ratio_val
+            Z_envious_loss[y_idx, x_idx] = ev_loss
+            Z_guilty_loss[y_idx, x_idx]  = gu_loss
+            Z_envious_hit[y_idx, x_idx]  = ev_hit
+            Z_guilty_hit[y_idx, x_idx]   = gu_hit
 
     "Build hover data"
-    "customdata shape: (rows, cols, fields)"
+    "Customdata shape: (rows, cols, fields)"
     customdata = np.stack(
         [
             Z_envious_loss, Z_guilty_loss,
@@ -6748,7 +6697,7 @@ def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: F
         text_matrix = np.round(Z_ratio, text_decimals).astype(str)
         text_template = "%{text}"
 
-    "Colorscale & template from your layout bag"
+    "Colorscale & template from figure layout settings"
     colorscales = fig_lay.get("colorscales", ["Plasma"])
     colorscale  = colorscales[1] if len(colorscales) > 1 else colorscales[0]
     template    = fig_lay.get("template", "plotly_dark")
@@ -6767,14 +6716,14 @@ def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: F
         ),
         customdata=customdata,
         hovertemplate=(
-            # Vᵢᵢ (self): %{x:.2f}<br>
-            # Vᵢⱼ (altruism): %{y:.2f}<br>
-            # Envious NLL: %{customdata[0]:.3f}<br>
-            # Guilty NLL: %{customdata[1]:.3f}<br>
-            # Envious hit: %{customdata[2]:.3f}<br>
-            # Guilty hit: %{customdata[3]:.3f}<br>
+            "Vᵢᵢ (self): %{x:.2f}<br>"
+            "Vᵢⱼ (altruism): %{y:.2f}<br>"
+            "Envious NLL: %{customdata[0]:.3f}<br>"
+            "Guilty NLL: %{customdata[1]:.3f}<br>"
+            "Envious hit: %{customdata[2]:.3f}<br>"
+            "Guilty hit: %{customdata[3]:.3f}<br>"
             f"NLL Ratio ({ratio_label}): " + "%{customdata[4]:.3f}<br>"
-            # <extra></extra>
+            "<extra></extra>"
         ),
         text=text_matrix,
         texttemplate=text_template,
@@ -6786,7 +6735,7 @@ def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: F
     "Title & axes"
     who_is_strong = f"Envy={param_strong:g}, Guilt={param_weak:g} (envious bot)  |  Envy={param_weak:g}, Guilt={param_strong:g} (guilty bot)"
     title_txt = (
-        # Envy vs. Guilt Bot Competition Over (Self, Altruism) Weights<br>
+        "Envy vs. Guilt Bot Competition Over (Self, Altruism) Weights<br>"
         f"<span style='font-size:0.85em'>{who_is_strong}  •  τ={temperature:g}</span>"
     )
 

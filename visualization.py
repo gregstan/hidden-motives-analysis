@@ -41,7 +41,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
     Returns:
         • None — the figure is exported as an HTML file to file_paths['visuals'].
     """
-    "1) Filter the dyad games for relevant rounds (like your snippet)."
+    "1) Filter the dyad games for relevant rounds."
     experiment_num = general_settings.get('experiment_num', 3)
     player_uuids = prep.all_player_uuids(file_paths=file_paths, experiment_num=experiment_num, only_humans=False ) #HACK DELETE!!!
     if experiment_num == 0:
@@ -66,7 +66,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
     "Load the player's data file"
     plr_file_path = os.path.join(
         file_paths["player_fits"], f"experiment_{experiment_num}",
-        player_uuid + ".json"  # or your suffix logic
+        player_uuid + ".json"  # or suffix logic
     )
 
     if not os.path.exists(plr_file_path):
@@ -92,15 +92,15 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
             break
 
     if not found_counterpart:
-        "fallback if you want an index-based approach"
+        "Fallback if user wants an index-based approach"
         raise Exception(f"Counterpart {counterpart_uuid} not in {dyad_keys}")
 
     if dyad_key is None:
         dyad_key = prep._dyad_key(dyad_key=f"({player_uuid}, {counterpart_uuid})")
 
     dyad_games = player_dyads[dyad_key]
-    "Filter games by the role we want"
-    filtered_games = [g for g in dyad_games if g.get(player_role, None) == player_uuid]
+    "Filter games by the desired role"
+    filtered_games = [game for game in dyad_games if game.get(player_role, None) == player_uuid]
     if not filtered_games:
         raise Exception("Failed to extract filtered dyad games for role='{}'.".format(player_role))
 
@@ -116,8 +116,8 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
             1, n_rounds + 1)] + ["" for rval in range(1, (n_rounds + 1) * 2)])
     )
 
-    "# Optional: set the subplot titles."
-    "# We'll just label columns as Round 1..N for the top row."
+    "# Optional: set the subplot titles." # TODO Consider if this should go here
+    "# Just label columns as Round 1..N for the top row."
     # for cdx in range(1, n_rounds+1):
     #     fig.add_annotation(
     #         text=f"Round {cdx}",
@@ -136,7 +136,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
             if probability > max_prior_prob:
                 max_prior_prob = probability
 
-    "3) For each round => we create 3 subplots"
+    "3) For each round => create 3 subplots"
     for col_idx, game in enumerate(filtered_games, start=1):
         if col_idx > n_rounds:
             break
@@ -154,8 +154,6 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
             payoff_diff_self = payoff_Bs - payoff_As
             payoff_diff_other = payoff_Bo - payoff_Ao
 
-        # print((payoff_As, payoff_Ao), (payoff_Bs, payoff_Bo))
-        
         dot_trace = go.Scatter(
             x=(payoff_diff_self,),
             y=(payoff_diff_other,),
@@ -170,26 +168,23 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
         )
         fig.add_trace(dot_trace, row=1, col=col_idx)
 
-        "(B) Middle row => \"Likelihood\" heatmap"
-        "We'll reconstruct the Nx x Ny array from your approach:"
-        "1) Build the param grid from meta_data/tickvals"
-        "2) For each point, compute p(choose A) or 1 - p(choose A)"
-        "For demonstration, let's see if there's \"likelihood\" array or we do your approach."
+        """
+        (B) Middle row => \"Likelihood\" heatmap"
+        Reconstructs the Nx x Ny array:
+            1) Build the param grid from meta_data/tickvals
+            2) For each point, compute p(choose A) or 1 - p(choose A)
+        """
 
-        "We'll replicate logic from your \"3D\" code but produce a 2D array."
+        "Replicates logic from \"3D\" code but produces a 2D array."
         grid_predictor = game.get("parameter_estimates", {}).get(
             "grid", {}).get(player_uuid, {}).get("predictor", None)
-        # pp.pprint(grid_predictor), exit()
+
         if not grid_predictor:
-            "If no grid data, we'll skip"
+            "If no grid data, skip"
             continue
 
         meta_data = grid_predictor.get("meta_data", {})
         tickvals = meta_data.get("tickvals", {})
-
-        if 'sVs' in tickvals:
-            tickvals["Vᵢᵢ"] = tickvals.pop("sVs")  #HACK DELETE!!
-            tickvals["Vᵢⱼ"] = tickvals.pop("sVo")  #HACK DELETE!!
 
         if "Vᵢᵢ" not in tickvals or "Vᵢⱼ" not in tickvals:
             continue  # skip if incomplete
@@ -201,8 +196,6 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
 
         "Build a 2D array for likelihood"
         likelihood_2d = np.zeros((Nx, Ny), dtype=float)
-        "We can do your choice(...) approach if you want the \"true\" function, or"
-        "re-construct from param_vectors. Typically you do:"
         for ix, v_ii in enumerate(Vii_vals):
             for jx, v_ij in enumerate(Vij_vals):
                 agent_params = {
@@ -210,14 +203,14 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
                     "Vᵢⱼ": v_ij
                 }
                 "Compute p(choose A)"
-                "(We might need other param defaults or exponents.)"
-                "We'll just do a fallback exponent or read from ..."
+                "(Might need other param defaults or exponents.)"
+                "Just do a fallback exponent or read from ..."
                 p_choose_A = choice(
                     current_game=game,
                     agent_params=agent_params,
                     utility_settings=utility_settings,  # or pass the relevant toggles
                     softmax_temperature=grid_predictor.get('params', {}).get('temp', 1.5) * 0.75, #HACK This makes the figure more visible
-                    # softmax_temperature=1.2, #HACK This makes the figure more visible
+                    # softmax_temperature=1.2, #HACK This makes the figure more visible TODO figure out what to do about these lines.
                     select=False
                 )["model_choose_A"]
 
@@ -226,7 +219,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
                 else:
                     likelihood_2d[ix, jx] = 1.0 - p_choose_A
         
-        "Make the Heatmap (transposing if you want x-> Nx, y-> Ny)"
+        "Make the Heatmap (transposing if x-> Nx, y-> Ny is preferred)"
         likelihood_hm = go.Heatmap(
             x=Vii_vals,
             y=Vij_vals,
@@ -238,7 +231,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
         fig.add_trace(likelihood_hm, row=2, col=col_idx)
 
         "(C) Bottom row => prior/posterior"
-        "We'll parse param_vectors => build a 2D pmf => fill holes => sum => normalize"
+        "Parse param_vectors => build a 2D pmf => fill holes => sum => normalize"
         param_vectors = grid_predictor.get("param_vectors", {})
         prior_2d = np.full((Nx, Ny), np.nan)
         for idx_tuple, prob in param_vectors.items():
@@ -246,7 +239,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
             ix, jx = idx_tuple[0], idx_tuple[1]
             if 0 <= ix < Nx and 0 <= jx < Ny:
                 prior_2d[ix, jx] = prob
-        "fill holes"
+        "Fill holes"
         if general_settings.get('sample_ratio') < 1:
             prior_2d = gnrl.fill_holes_nd(prior_2d, (Nx, Ny), method="cubic")
         sprob = np.nansum(prior_2d)
@@ -492,7 +485,7 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
                         subplot_titles=["Prior Probability Distribution", "Likelihood Probability Distribution"],
                         specs=[[{'type': 'surface'}, {'type': 'surface'}]])
     
-    "Update layout using your settings."
+    "Update layout using fig_lay."
     fig.update_layout(
         template=fig_lay["template"] if fig_lay else None,
         hoverlabel=dict(font_size=14),

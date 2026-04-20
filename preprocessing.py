@@ -39,6 +39,25 @@ def combine_csv_files(file_paths: FilePaths, output_filename: str = "combined_da
 
 
 def get_file_by_index_or_name(directory_path: str, file_name_idx: int | None = None, file_name: str | None = None) -> str | None:
+    """
+    Retrieve a filename from a directory either by integer position or by exact name.
+
+    Exactly one of `file_name_idx` or `file_name` should be provided.  If neither is
+    provided, or if the index is out of range, or the name is not found, the function
+    prints a diagnostic message and returns None.
+
+    Arguments:
+        • directory_path: str
+            Path to the directory to search.
+        • file_name_idx: int | None
+            Zero-based index into the list of files returned by `get_files_in_directory`.
+            Negative indices are not supported and will be treated as out-of-range.
+        • file_name: str | None
+            Exact filename (not full path) to look up in the directory listing.
+
+    Returns:
+        • str | None — the matching filename, or None if no match is found.
+    """
     files = get_files_in_directory(directory_path)
 
     if file_name_idx is not None:
@@ -60,7 +79,18 @@ def get_file_by_index_or_name(directory_path: str, file_name_idx: int | None = N
 
 
 def dataframe(file_path: str, file_name: str) -> pd.DataFrame | None:
-    """Extracts results dataframe."""
+    """
+    Load a CSV file from disk and return it as a DataFrame.
+
+    Arguments:
+        • file_path: str
+            Directory containing the CSV file.
+        • file_name: str
+            Name of the CSV file (including extension).
+
+    Returns:
+        • pd.DataFrame | None — the loaded DataFrame, or None if the file does not exist.
+    """
 
     full_path = os.path.join(file_path, file_name)
 
@@ -90,7 +120,22 @@ def get_files_in_directory(directory_path: str) -> list[str]:
 
 def _dyad_key(dyad_key: DyadKey, return_tuple: bool = False, reverse: bool = False) -> DyadKey:
     """
-    Standardizes dyad keys.
+    Standardize a dyad key into a canonical sorted string or tuple.
+
+    Accepts either a `"(uuid1, uuid2)"` string or a list/tuple of two UUIDs, sorts the
+    pair alphabetically (or reverse-alphabetically if `reverse=True`), and returns either
+    a formatted `"(uuid1, uuid2)"` string or a raw two-element tuple.
+
+    Arguments:
+        • dyad_key: DyadKey
+            The raw dyad identifier — either a parenthesized string or a list/tuple.
+        • return_tuple: bool
+            If True, return a `(uuid1, uuid2)` tuple instead of a formatted string.
+        • reverse: bool
+            If True, sort UUIDs in descending order.
+
+    Returns:
+        • DyadKey — canonicalized dyad key as a string (default) or tuple.
     """
     if isinstance(dyad_key, (tuple, list)):
         dyad_key = list(dyad_key)
@@ -104,7 +149,26 @@ def _dyad_key(dyad_key: DyadKey, return_tuple: bool = False, reverse: bool = Fal
 
 def _dyad_file_path(dyad_key: DyadKey, file_paths: FilePaths, experiment_num: int = 3, analysis_mode: str = 'bayesian', analysis_unit: str = 'player') -> str:
     """
-    Generates a file name for a dyad.
+    Build the full file path for a dyad's stored output JSON.
+
+    Extracts the first 8 characters of each player UUID to form a compact suffix, then
+    constructs the filename from the standard naming template in `file_paths['file_names']`
+    and appends the dyad-specific suffix.
+
+    Arguments:
+        • dyad_key: DyadKey
+            Dyad identifier in any format accepted by `_dyad_key`.
+        • file_paths: FilePaths
+            Project file-path dict; must contain `'dyad_data'` and `'file_names'` entries.
+        • experiment_num: int
+            Experiment number (1, 2, or 3); used to select the correct filename template.
+        • analysis_mode: str
+            `'bayesian'` or `'mle'`; determines which filename template key is used.
+        • analysis_unit: str
+            Reserved for future use; currently unused in path construction.
+
+    Returns:
+        • str — absolute path to the dyad JSON file.
     """
     player_uuid_1, player_uuid_2 = _dyad_key(dyad_key=dyad_key, return_tuple=True)
     short_dkey = f"{player_uuid_1[:8]}-{player_uuid_2[:8]}"
@@ -373,7 +437,22 @@ def players_to_dyads(experiment_num: int, file_paths: FilePaths, create_new_file
 
 def serialize_param_vectors(dyad_games: DyadGames, general_settings: dict[str, Any]) -> DyadGames:
     """
-    Prepairs fitted dyad game data to be stored in a JSON by making the parameter vectors serializable (supported format).
+    Convert parameter grid data inside a dyad game list into a JSON-serializable form.
+
+    When `update_method` is `'grid'`, parameter vectors are stored as tuple keys and
+    numpy arrays, neither of which is directly JSON-serializable.  This function
+    converts tuple keys to their string representations and converts numpy arrays to
+    plain Python lists, rounding values to 9 decimal places.
+
+    Arguments:
+        • dyad_games: DyadGames
+            List of per-round game dicts for a single dyad; modified in place.
+        • general_settings: dict[str, Any]
+            Must contain `'update_method'`; if it is not `'grid'`, the function returns
+            immediately without modification.
+
+    Returns:
+        • DyadGames — the same list with grid data converted to serializable types.
     """
     if general_settings.get('update_method') != 'grid':
         return dyad_games
@@ -393,7 +472,6 @@ def serialize_param_vectors(dyad_games: DyadGames, general_settings: dict[str, A
                                                 else [round(val, 9) for val in list(ticks_array)] for key, ticks_array in meta_data['tickvals'].items()}
                 param_vectors = grid_data.get('param_vectors', None)   
                 if param_vectors is not None:
-                    # grid_data['param_vectors'] = {str(vect_key): value for vect_key, value in param_vectors.items()}  
                     grid_data['param_vectors'] = {str(tuple(x.item() for x in vect_key)): value for vect_key, value in param_vectors.items()}   
 
     return dyad_games
@@ -402,12 +480,12 @@ def serialize_param_vectors(dyad_games: DyadGames, general_settings: dict[str, A
 def create_unified_dataframe(general_settings: GeneralSettings, file_paths: FilePaths, param_info: ParamInfo, experiment_nums: list[int], print_: bool = True) -> pd.DataFrame | None:
     """
     Create a pandas DataFrame from the given 'histories' JSON structure.
-    Each row = one meeting. We store columns for both the chooser's and predictor's
+    Each row = one meeting. Stores columns for both the chooser's and predictor's
     parameter estimates, with suffixes like 'c_' for chooser, 'p_' for predictor.
 
     Arguments:
         • all_histories: list[tuple[str, dict]]; Contains the following:
-            - histories_data: dict with 'histories' key => the structure from your JSON.
+            - histories_data: dict with 'histories' key => the structure from JSON.
             - experiment_num: str, e.g. 'γ1','γ2','γ3'.
 
     Returns:
@@ -734,9 +812,20 @@ def preprocessing2(df: pd.DataFrame, column_names: ColumnNames, file_paths: File
     df['round'] = df['round'].fillna(-1).astype(int)
 
     "Create 'choice' column"
-    def choice_col(As: int, Ao: int, Bs: int, Bo: int, 
+    def choice_col(As: int, Ao: int, Bs: int, Bo: int,
                    Cs: int, Co: int, Rs: int, Ro: int) -> str:
-        """"""
+        """
+        Determine which option (A or B) the chooser selected by comparing offered payoffs to chosen and rejected payoffs.
+
+        Arguments:
+            • As, Ao: int — self and other payoffs for option A.
+            • Bs, Bo: int — self and other payoffs for option B.
+            • Cs, Co: int — self and other payoffs of the chosen option.
+            • Rs, Ro: int — self and other payoffs of the rejected option.
+
+        Returns:
+            • str — `'A'` if option A was chosen, `'B'` if option B was chosen, `'N'` if indeterminate.
+        """
         if As == Cs and Ao == Co and Bs == Rs and Bo == Ro:
             return 'A'
         elif As == Rs and Ao == Ro and Bs == Cs and Bo == Co:
@@ -1085,7 +1174,7 @@ def player_histories(df: pd.DataFrame, experiment_num: int, file_paths: FilePath
 
             histories[pair_key].append(round_data)
 
-    "Once done, we have histories for each pair and player_info."
+    "Once done, this has histories for each pair and player_info."
 
     "Sort each pair's history by round_number just in case"
     for pair in histories:

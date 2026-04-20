@@ -100,8 +100,6 @@ def simulated_bot_uuids(n_games: int, params_predictor: dict[str, float], params
 
         chooser_uuid = f"robot_chooser_Vii=({round(Vᵢᵢ_chooser, 2)},{round(Vᵢᵢ_std_chooser, 2)})_Vij="
         chooser_uuid += f"({round(Vᵢⱼ_chooser, 2)},{round(Vᵢⱼ_std_chooser, 2)})_t={round(τ_chooser, 2)}_n={n_games}"
-        # chooser_uuid += f"~{int(Vᵢᵢ_predictor)}{int(Vᵢⱼ_predictor)}{round(Vᵢⱼ_std_predictor, 2)}{round(τ_predictor, 2)}" #HACK
-
         "--- Toggle: set False to revert to old behavior quickly ---"
         UNIQUE_PLAYERS_PER_DYAD = True
 
@@ -116,7 +114,6 @@ def simulated_bot_uuids(n_games: int, params_predictor: dict[str, float], params
 
         predictor_uuid = f"robot_predictor_Vii=({round(Vᵢᵢ_predictor, 2)},{round(Vᵢᵢ_std_predictor, 2)})_Vij="
         predictor_uuid += f"({round(Vᵢⱼ_predictor, 3)},{round(Vᵢⱼ_std_predictor, 2)})_t={round(τ_predictor, 2)}_n={n_games}"
-        # predictor_uuid += f"~{int(Vᵢᵢ_chooser)}{int(Vᵢⱼ_chooser)}{round(Vᵢⱼ_std_chooser, 2)}{round(τ_chooser, 2)}" #HACK
         predictor_uuid += f"~{int(Vᵢᵢ_chooser)}{int(Vᵢⱼ_chooser)}{round(Vᵢⱼ_std_chooser, 2)}{round(τ_chooser, 2)}_{global_chooser_id}" #HACK
         
     else:    
@@ -146,7 +143,7 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
     Create a single synthetic chooser–predictor dyad with recorded choices and predictions.
 
     Purpose:
-        This generator is used for simulation studies where we want ground-truth chooser behavior
+        This generator is used for simulation studies with ground-truth chooser behavior
         and a predictor who forms beliefs about that chooser. Each "game" is a single binary choice
         between option A and B; the chooser’s response is drawn/selected by `choice(...)` using
         `params_chooser`, while the predictor forms a prediction using `params_predictor`. The result
@@ -189,18 +186,18 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
 
     Notes:
         • The chooser’s and predictor’s responses are generated with `choice(..., select=True)`.
-            If your `choice` implementation samples stochastically, fix RNG seeds upstream for reproducibility.
+            If `choice` implementation samples stochastically, fix RNG seeds upstream for reproducibility.
     """
     if not isinstance(n_games, int):
         raise TypeError(f"n_games must be an integer not {type(n_games)} - {n_games}.")
     if not n_games > 0:
         raise ValueError(f"n_games must be greater than 0, not {n_games}.")
 
-    def _inject_temp_alias(d: dict[str, float]) -> dict[str, float]:
-        d = dict(d)  # shallow copy
-        if "temp" not in d and "τ" in d:
-            d["temp"] = float(d["τ"])
-        return d
+    def _inject_temp_alias(dict_: dict[str, float]) -> dict[str, float]:
+        dict_ = dict(dict_)  # shallow copy
+        if "temp" not in dict_ and "τ" in dict_:
+            dict_["temp"] = float(dict_["τ"])
+        return dict_
 
     utility_settings_: UtilitySettings = {
         'conditional_welfare_mode':       False,
@@ -509,7 +506,7 @@ def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], 
                                                                         utility_settings=utility_settings_, general_settings=general_settings_,
                                                                         payoff_structures=payoff_structures, param_bds=param_bds, dynamic_predictor=dynamic_predictor)
                                     
-                                    "update player_histories with {DyadKey: DyadGames} dictionary."
+                                    "Update player_histories with {DyadKey: DyadGames} dictionary."
                                     player_histories.update(player_dyad)
 
     avatar_shapes = [
@@ -534,7 +531,6 @@ def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], 
         "teardrop",
         "two-triangle",
         "star-six",
-        # stop-sign
     ]
 
     player_info = {}
@@ -577,7 +573,6 @@ def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], 
             print(f"Saved simulated histories to {histories_file_path}.")
  
         histories_info = player_histories['player_info']
-        # print(len(list(histories_info.keys()))), exit()
 
         run_analysis_bayes(histories_data=player_histories, file_paths=file_paths_, param_info=param_info_, 
                            utility_settings=utility_settings_, general_settings=general_settings_)
@@ -732,12 +727,12 @@ def load_simulated_fits_from_json(json_path: str) -> pd.DataFrame:
     for dyad_key, games_list in dyad_dict.items():
         for game in games_list:
 
-            "basic info"
+            "Basic info"
             round_idx = game.get("round", None)
             chooser_str   = game["chooser"]
             predictor_str = game["predictor"]
 
-            "parse their \"true\" parameter values"
+            "Parse their \"true\" parameter values"
             tp_pred = game.get("true_params_predictor", None)
             tp_ch   = game.get("true_params_chooser",   None)
             if tp_pred is None or tp_ch is None:
@@ -749,7 +744,7 @@ def load_simulated_fits_from_json(json_path: str) -> pd.DataFrame:
 
             "2) FITTED predictor params "
             param_est: dict = game.get("parameter_estimates", {})
-            "pick *any* method block present (grid/naive/particle) in case you change general_settings"
+            "Pick *any* method block present (grid/naive/particle) in case you change general_settings"
             for _method_key in ("grid", "particle", "naive", "update", "globloc", "bayes", "general"):
                 if _method_key in param_est:
                     fitted_block = param_est[_method_key]
@@ -775,20 +770,20 @@ def load_simulated_fits_from_json(json_path: str) -> pd.DataFrame:
                 "round": round_idx,
             }
 
-            "add TRUE columns (predictor & chooser)"
-            for k, v in predictor_true.items():
-                row[f"{k}_true_predictor"] = v
-            for k, v in chooser_true.items():
-                row[f"{k}_true_chooser"] = v
+            "Add TRUE columns (predictor & chooser)"
+            for param_key, param_value in predictor_true.items():
+                row[f"{param_key}_true_predictor"] = param_value
+            for param_key, param_value in chooser_true.items():
+                row[f"{param_key}_true_chooser"] = param_value
 
-            "add FITTED predictor columns"
-            for k, v in predictor_fitted_params.items():
-                row[f"{k}_fitted_predictor"] = v
+            "Add FITTED predictor columns"
+            for param_key, param_value in predictor_fitted_params.items():
+                row[f"{param_key}_fitted_predictor"] = param_value
 
-            "optional: add fitted chooser (not used here)"
+            "Optional: add fitted chooser (not used here)"
             if chooser_fitted_params:
-                for k, v in chooser_fitted_params.items():
-                    row[f"{k}_fitted_chooser"] = v
+                for param_key, param_value in chooser_fitted_params.items():
+                    row[f"{param_key}_fitted_chooser"] = param_value
 
             if "temp" in chooser_true and "τ" not in chooser_true:       
                 chooser_true["τ"] = chooser_true.pop("temp")
@@ -799,8 +794,6 @@ def load_simulated_fits_from_json(json_path: str) -> pd.DataFrame:
             sim_pred = param_est.get('sim_pred')
             if sim_pred is not None:
                 sim_pred_predictor_params = sim_pred.get(predictor_str, {}).get('predictor', {}).get('params', {})
-                # if 'temp' in sim_pred_predictor_params:
-                #     sim_pred_predictor_params["τ"] = sim_pred_predictor_params.pop("temp")
                 for param_key, param_val in sim_pred_predictor_params.items():
                     row[f"{param_key}_sim_pred_predictor"] = param_val
  
@@ -852,27 +845,37 @@ def compute_param_recovery_correlations(df: pd.DataFrame, dir_path: str, out_csv
         • pd.DataFrame;
             Tidy correlation table with one row per (round_label, param).
     """
-    def fisher_z_confidence_interval(r, n, alpha=0.05):
+    def fisher_z_confidence_interval(pearson_correlation, sample_size, significance_level=0.05):
         """
-        Returns (ci_lower, ci_upper) for correlation r with sample size n,
-        using the Fisher Z transform and normal approximation.
-        If n < 4, returns (NaN, NaN).
+        Return a confidence interval for a Pearson correlation using the Fisher Z transformation.
+
+        Arguments:
+            • pearson_correlation: float
+                Observed Pearson r; must satisfy |r| < 1.0.
+            • sample_size: int
+                Number of observation pairs used to compute the correlation.
+            • significance_level: float
+                Two-tailed significance level; default 0.05 gives a 95% CI.
+
+        Returns:
+            • tuple[float, float] — (lower_bound, upper_bound) on the correlation scale,
+              or (NaN, NaN) if `sample_size < 4` or `|pearson_correlation| >= 1.0`.
         """
-        if n < 4 or abs(r) >= 1.0:
+        if sample_size < 4 or abs(pearson_correlation) >= 1.0:
             return (np.nan, np.nan)
 
         "Fisher z"
-        z = 0.5 * np.log((1 + r) / (1 - r))
-        "standard error"
-        se = 1.0 / math.sqrt(n - 3)
-        z_crit = 1.96  # approx for 95% CI
+        fisher_z_transform = 0.5 * np.log((1 + pearson_correlation) / (1 - pearson_correlation))
+        "Standard error"
+        fisher_z_standard_error = 1.0 / math.sqrt(sample_size - 3)
+        z_critical_value = 1.96  # approx for 95% CI
 
-        z_lower = z - z_crit * se
-        z_upper = z + z_crit * se
-        "transform back"
-        r_lower = (math.exp(2*z_lower) - 1) / (math.exp(2*z_lower) + 1)
-        r_upper = (math.exp(2*z_upper) - 1) / (math.exp(2*z_upper) + 1)
-        return (r_lower, r_upper)
+        z_lower_bound = fisher_z_transform - z_critical_value * fisher_z_standard_error
+        z_upper_bound = fisher_z_transform + z_critical_value * fisher_z_standard_error
+        "Transform back"
+        correlation_lower_bound = (math.exp(2*z_lower_bound) - 1) / (math.exp(2*z_lower_bound) + 1)
+        correlation_upper_bound = (math.exp(2*z_upper_bound) - 1) / (math.exp(2*z_upper_bound) + 1)
+        return (correlation_lower_bound, correlation_upper_bound)
 
     out_path = os.path.join(dir_path, out_csv_name)
     if (not create_new_file) and os.path.exists(out_path):
@@ -881,7 +884,7 @@ def compute_param_recovery_correlations(df: pd.DataFrame, dir_path: str, out_csv
             del corr_df["Unnamed: 0"]
         return corr_df
 
-    "pick rows for first/final"
+    "Pick rows for first/final"
     if round_mode == "first":
         idx = df.groupby("dyad_key")["round"].idxmin()
         df_use = df.loc[idx]
@@ -894,7 +897,7 @@ def compute_param_recovery_correlations(df: pd.DataFrame, dir_path: str, out_csv
         df_use = df.copy()
         rounds = sorted(df["round"].dropna().unique().tolist())
 
-    "auto-detect parameters if needed"
+    "Auto-detect parameters if needed"
     if params is None:
         params = []
         suffix_true = f"_true_{true_role}"
@@ -906,35 +909,35 @@ def compute_param_recovery_correlations(df: pd.DataFrame, dir_path: str, out_csv
                     params.append(base)
         params = sorted(set(params))
 
-    def _one_round(subdf: pd.DataFrame, label: str) -> pd.DataFrame:
-        recs = []
-        for p in params:
-            tcol = f"{p}_true_{true_role}"
-            fcol = f"{p}{fitted_suffix}"
-            s2 = subdf.dropna(subset=[tcol, fcol])
-            n = len(s2)
-            if n < 3:
-                r = np.nan
-                lo = hi = np.nan
+    def _one_round(round_subset_dataframe: pd.DataFrame, label: str) -> pd.DataFrame:
+        correlation_records = []
+        for parameter_name in params:
+            true_value_column_name = f"{parameter_name}_true_{true_role}"
+            fitted_value_column_name = f"{parameter_name}{fitted_suffix}"
+            valid_rows = round_subset_dataframe.dropna(subset=[true_value_column_name, fitted_value_column_name])
+            n_valid_pairs = len(valid_rows)
+            if n_valid_pairs < 3:
+                pearson_correlation = np.nan
+                confidence_interval_lower = confidence_interval_upper = np.nan
             else:
-                r = s2[[tcol, fcol]].corr().iloc[0, 1]
-                lo, hi = fisher_z_confidence_interval(r, n)
-            recs.append({
+                pearson_correlation = valid_rows[[true_value_column_name, fitted_value_column_name]].corr().iloc[0, 1]
+                confidence_interval_lower, confidence_interval_upper = fisher_z_confidence_interval(pearson_correlation, n_valid_pairs)
+            correlation_records.append({
                 "round": label,
-                "n_data": n,
-                "param": p,
-                "corr": r,
-                "ci_lower": lo,
-                "ci_upper": hi
+                "n_data": n_valid_pairs,
+                "param": parameter_name,
+                "corr": pearson_correlation,
+                "ci_lower": confidence_interval_lower,
+                "ci_upper": confidence_interval_upper
             })
-        return pd.DataFrame(recs)
+        return pd.DataFrame(correlation_records)
 
     frames = []
     if round_mode in ("first", "final"):
         frames.append(_one_round(df_use, rounds[0]))
     else:
-        for r in rounds:
-            frames.append(_one_round(df_use[df_use["round"] == r], r))
+        for round_idx in rounds:
+            frames.append(_one_round(df_use[df_use["round"] == round_idx], round_idx))
 
     corr_df = pd.concat(frames, ignore_index=True)
     os.makedirs(dir_path, exist_ok=True)
@@ -1036,20 +1039,22 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
         "2) If as_scatterplot => multi param dropdown"
         if as_scatterplot:
             fig = go.Figure()
-            "We'll have one param => 2 traces: (1) scatter, (2) best-fit line"
-            "But with multi param dropdown, we effectively have 2*N traces total."
+            """
+            One param => 2 traces: (1) scatter, (2) best-fit line but with 
+            multi param dropdown, there are effectively 2*N traces total.
+            """
 
-            "We'll store an annotation template for correlation"
-            "We'll forcibly update it in the 'buttons' toggling."
+            "Store an annotation template for correlation"
             annotation_base = dict(
                 x=0.02, y=0.95, xref='paper', yref='paper',
                 showarrow=False, align="left",
                 font=dict(size=18)
             )
 
-            "We'll store all \"visible\" arrays for each param, each param has 2 traces"
-            "=> total = 2 * len(params)."
-            "We want exactly 2 visible for the chosen param, else 2 invisible for others."
+            """
+            Store all \"visible\" arrays for each param, each param has 2 traces => total = 2 * len(params).
+            Better to have exactly 2 visible for the chosen param, else 2 invisible for others.
+            """
             param_buttons = []
             param_traces_startidx = {}  # param -> first trace index
 
@@ -1058,19 +1063,18 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                 param_traces_startidx[param] = i_trace
 
                 try:
-                    "gather data"
+                    "Gather data"
                     xcol = f"{param}_true_predictor"
                     ycol = f"{param}{fitted_suffix}"
                     subp = df_sub.dropna(subset=[xcol, ycol])
                 except KeyError:
                     param = param.replace('Vii', 'Vᵢᵢ')
                     param = param.replace('Vij', 'Vᵢⱼ')
-                    "gather data"
+                    "Gather data"
                     xcol = f"{param}_true_predictor"
                     ycol = f"{param}{fitted_suffix}"
                     subp = df_sub.dropna(subset=[xcol, ycol])
-                # print(subp), exit()
-                "correlation"
+                "Correlation"
                 corr = np.nan
                 r2 = np.nan
                 n_ = len(subp)
@@ -1078,7 +1082,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                     corr = subp[[xcol,ycol]].corr().iloc[0,1]
                     r2 = corr**2
 
-                "scatter"
+                "Scatter"
                 scatter_trace = go.Scatter(
                     x=subp[xcol],
                     y=subp[ycol],
@@ -1094,15 +1098,15 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                 fig.add_trace(scatter_trace)
                 i_trace += 1
 
-                "best-fit line"
+                "Best-fit line"
                 line_trace = None
                 if n_ >= 2:
-                    "do a linear fit"
+                    "Do a linear fit"
                     xvals = subp[xcol].values
                     yvals = subp[ycol].values
                     slope, intercept = np.polyfit(xvals, yvals, 1)
 
-                    # for plotting, we want to cover the range of xvals
+                    "For plotting, covers the range of xvals."
                     x_min, x_max = xvals.min(), xvals.max()
                     x_line = np.linspace(x_min, x_max, 50)
                     y_line = slope*x_line + intercept
@@ -1116,7 +1120,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                         hoverinfo='skip'
                     )
                 else:
-                    "no data or not enough"
+                    "No data or not enough"
                     line_trace = go.Scatter(
                         x=[],
                         y=[],
@@ -1127,15 +1131,15 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                 fig.add_trace(line_trace)
                 i_trace += 1
 
-                "annotation text for correlation"
+                "Annotation text for correlation"
                 if not math.isnan(corr) and not math.isnan(r2):
                     cor_txt = f"r = {corr:.3f}, R² = {r2:.3f}, n={n_}"
                 else:
                     cor_txt = f"r = n/a, R²=n/a, n={n_}"
 
-                "We'll store that text in the layout for param0. We'll override it via update menus for param>0"
+                "Store that text in the layout for param0. Override it via update menus for param>0"
                 if param_idx == 0:
-                    "put it in layout"
+                    "Put it in layout"
                     fig.update_layout(
                         annotations=[dict(
                             text=cor_txt,
@@ -1143,17 +1147,21 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                         )]
                     )
 
-                "We'll create a param_buttons entry that sets the 2 traces for param visible"
-                "and sets all others invisible, plus updates the annotation text, plus updates title"
-                "We'll fill that after we gather them all."
+                """
+                Create a param_buttons entry that sets the 2 traces for param visible
+                And sets all others invisible, plus updates the annotation text, plus updates title
+                Fill that after gathering them all.              
+                """
 
-            "Create update menu"
-            "We have 2 traces per param => total 2*len(params)."
-            "For param i => indices 2i, 2i+1"
+            """
+            Create update menu
+            There are 2 traces per param => total 2*len(params).
+            For param i => indices 2i, 2i+1           
+            """
             n_traces = 2*len(params)
             for param_idx, param in enumerate(params):
                 try:
-                    "figure out correlation for annotation"
+                    "Figure out correlation for annotation"
                     xcol = f"{param}_true_predictor"
                     ycol = f"{param}{fitted_suffix}"
                     subp = df_sub.dropna(subset=[xcol,ycol])
@@ -1172,7 +1180,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                 else:
                     c_text = f"r=n/a, R²=n/a, n={n_}"
 
-                "build a \"visible\" array"
+                "Build a \"visible\" array"
                 vis = [False]*n_traces
                 vis[2*param_idx] = True
                 vis[2*param_idx+1] = True
@@ -1210,10 +1218,9 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
             return fig
 
         else:
-            # as_scatterplot=False => do violin-boxplot with a single param
+            # as_scatterplot=False => do violin-boxplot with a single param.
             param = boxplot_param
             xcol_true  = f"{param}_true_predictor"
-            # ycol_fitted= f"{param}{fitted_suffix}"
             ycol_fitted= f"{param}_fitted_predictor"
 
             try:
@@ -1222,7 +1229,6 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                 param = param.replace('Vii', 'Vᵢᵢ')
                 param = param.replace('Vij', 'Vᵢⱼ')
                 xcol_true  = f"{param}_true_predictor"
-                # ycol_fitted= f"{param}{fitted_suffix}"
                 ycol_fitted= f"{param}_fitted_predictor"
                 sub = df_sub.dropna(subset=[xcol_true, ycol_fitted]).copy()        
             n_data = len(sub)
@@ -1281,7 +1287,6 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                 fig.update_xaxes(tickvals=tickvals, ticktext=ticktext)
 
             if include_dropdown: 
-            # if True:
                 """Dropdown menu to switch between violin and boxplot:"""
                 fig.update_layout(updatemenus=[dict(buttons=list([
                     dict(args=["type", "violin"], label="Violin", method="restyle"),
@@ -1324,17 +1329,17 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
         df_combined = pd.concat(all_dfs, ignore_index=True)
         df_combined["round"] = pd.to_numeric(df_combined["round"], errors="coerce")
 
-        "2) save"
+        "2) Save"
         merged_csv_path = os.path.join(sim_dir, "simulated_fits.csv")
         df_combined.to_csv(merged_csv_path, index=False, encoding='utf-8-sig')
         print("Saved combined DataFrame to", merged_csv_path)
 
-    "3) correlation + plots: we can use the same approach as before"
-    "e.g. we do correlation between \"Vij_true_predictor\" and \"Vij_fitted_predictor\" etc."
+    "3) Correlation and plots follow the existing parameter-recovery approach."
+    "Example: correlation between \"Vij_true_predictor\" and \"Vij_fitted_predictor\"."
 
     fitted_suffix = "_sim_pred_predictor" if use_dynamic_predictor else "_fitted_predictor"
 
-    "here's the function that does round-based correlation"
+    "Here's the function that does round-based correlation"
     corr_df_out = compute_param_recovery_correlations(df=df_combined, dir_path=sim_dir, 
                     out_csv_name=correlation_csv_name, create_new_file=create_new_file,
                     true_role="chooser", round_mode="all", fitted_suffix=fitted_suffix)
@@ -1342,22 +1347,6 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
     if produce_figures:
         for round_selection in ('first', 'final'):
             for param in ("Vii", "Vij", "Vii_std", "Vij_std", "temp"):
-            # BOX/VIOLIN example
-            #     plot_correlation(
-            #         df=df_combined, round_selection=round_selection,
-            #         as_scatterplot=False, boxplot_param=param, file_paths=file_paths,
-            #         fig_lay=fig_lay, export_fig=export_fig, include_dropdown=include_dropdown,
-            #         out_path=os.path.join(sim_dir, f"corr_violin_{param}_{round_selection}.html")
-            #     )
-
-            # SCATTER example
-            # plot_correlation(
-            #     df=df_combined,
-            #     fig_lay=fig_lay, export_fig=export_fig,
-            #     round_selection=round_selection, as_scatterplot=True,
-            #     params=["Vii", "Vij", "Vii_std", "Vij_std", "temp"], file_paths=file_paths,
-            #     out_path=os.path.join(sim_dir, f"corr_scatter_{round_selection}.html")
-            # )
                 "Boxplot/violin"
                 plot_correlation(
                     df=df_combined,
@@ -1384,7 +1373,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                 fitted_suffix=fitted_suffix,
             )
 
-        "correlation by round => line"
+        "Correlation by round => line"
         plot_param_recovery_by_round(
             general_settings=general_settings,
             df_merged=df_combined, params=["Vii", "Vij", "Vii_std", "Vij_std", "temp"], fig_lay=fig_lay, 
@@ -1446,13 +1435,13 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
               "temp_edges":  list[float] bin edges used for temperature,
             }
     """
-    def bin_index(x: float, edges: list[float]) -> int:
+    def bin_index(value: float, edges: list[float]) -> int:
         """
-        Map x into a 1-based bin index given ordered edges.
+        Map value into a 1-based bin index given ordered edges.
         """
-        if pd.isna(x):
+        if pd.isna(value):
             return math.nan
-        idx = np.searchsorted(edges, x, side="right") - 1
+        idx = np.searchsorted(edges, value, side="right") - 1
         if idx<0:
             idx=0
         if idx>=len(edges)-1:
@@ -1464,10 +1453,10 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
         Compute bin edges from quantiles [0, 1/nbins, ..., 1].
         Fallback to [0,1,2,3] if data are degenerate.
         """
-        s = series.dropna()
-        if len(s) < 3:
+        non_null_series = series.dropna()
+        if len(non_null_series) < 3:
             return [0,1,2,3]  # fallback
-        qvals = s.quantile([i/nbins for i in range(nbins+1)]).values
+        qvals = non_null_series.quantile([idx/nbins for idx in range(nbins+1)]).values
         "That yields 4 values for nbins=3, i.e. 0.0, 0.33...,0.66...,1.0 quantiles"
         return qvals.tolist()
 
@@ -1495,13 +1484,13 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
         print("Unique participants with round=0:", df0[player_id_col].nunique())
         print("Total rows with round=0:", len(df0))
 
-    # if var_edges or temp_edges is None => compute from quantiles
+    # If var_edges or temp_edges is None => compute from quantiles.
     if var_edges is None:
         var_edges = assign_bin_edges(df0[var_col], nbins=3)
     if temp_edges is None:
         temp_edges = assign_bin_edges(df0[temp_col], nbins=3)
 
-    "build a small DataFrame: [player_id, prior_var, prior_temp, var_bin, temp_bin]"
+    "Build a small DataFrame: [player_id, prior_var, prior_temp, var_bin, temp_bin]"
     bin_rows = []
     for pid, rowsub in df0.groupby(player_id_col):
         row = rowsub.iloc[0]  # first row if multiple
@@ -1537,26 +1526,20 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
         yvals = gdf_sub[param_fitted_predictor].values
         return np.corrcoef(xvals,yvals)[0,1]
 
-    # corr_ser = (
-    "sub_last"
-    #     .groupby(group_cols, group_keys=False)[[param_true_chooser,param_fitted_predictor]]
-    #     .apply(group_corr_bin).reset_index(name="corr_value")
-    ")"
-
     corr_ser = (
         sub_last
         .groupby(group_cols, group_keys=False)[[param_true_chooser, param_fitted_predictor]]
         .apply(group_corr_bin)
     )
 
-    "corr_ser should now be a Series indexed by (var_bin, temp_bin)"
+    "Corr_ser should now be a Series indexed by (var_bin, temp_bin)"
     corr_df = corr_ser.reset_index()
-    "last column is the correlation value; rename it"
+    "Last column is the correlation value; rename it"
     last_col = corr_df.columns[-1]
     corr_df = corr_df.rename(columns={last_col: "corr_value"})
 
 
-    "build a 3x3 correlation matrix"
+    "Build a 3x3 correlation matrix"
     cmat = np.full((3, 3), np.nan, dtype=float)
     for _, rowi in corr_df.iterrows():
         vb = int(rowi["var_bin"])
@@ -1569,7 +1552,7 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
     temp_labels= ["LowTemp","MedTemp","HighTemp"]
     corr_df = pd.DataFrame(cmat, index=var_labels, columns=temp_labels)
     
-    "build a 3x3 count table => how many participants are in each bin (round=0)"
+    "Build a 3x3 count table => how many participants are in each bin (round=0)"
     count_mat = np.zeros((3,3), dtype=float)
     bin_df = df_bininfo.dropna(subset=["var_bin","temp_bin"])
     bin_counts = bin_df.groupby(["var_bin","temp_bin"]).size()
@@ -1597,26 +1580,64 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
                             utility_settings_by_k: dict[int, dict[str, bool]] | None = None, analysis_experiment_num: int = 0, random_seed: int | None = 12345, out_dir: str | None = None, 
                             figure_filename: str = "param_recovery_by_k.html", csv_filename: str = "param_recovery_by_k.csv", use_existing_fits: bool = False) -> tuple[pd.DataFrame, dict[int, Any]]:
     """
-    Parameter-recovery across dimensionality (k).
+    Run parameter-recovery simulations across utility dimensionalities (k) and summarize accuracy.
 
-    High-level behavior
-    -------------------
-    For each k in k_params_range:
-      1) Resolve a utility form (either from `utility_settings_by_k` or from the IC comparison CSV).
-      2) Sample `n_dyads` random predictor/chooser parameter vectors within `param_bds` relevant to that utility.
-      3) Build a single histories JSON (with embedded true params) and run your `run_analysis_bayes(...)`.
-      4) Read per-dyad fit JSONs, build a long DataFrame, and compute *first-round* correlations:
-              corr( <param>_true_predictor, <param>_fitted_predictor ).
-      5) Aggregate to:
-              - per-parameter correlations at k
-              - aggregate (macro-average over parameters present)
-      6) Store the detailed dyad list + summary under `simulated_param_recovery_by_k[k]`.
-      7) Save a tidy CSV and a simple Plotly figure (corr vs k).
+    For each k in `k_params_range`:
+        1. Resolve a utility form from `utility_settings_by_k` if provided, otherwise reads
+           the IC comparison CSV to find the best-fitting model at that k.
+        2. Sample `n_predictors` random predictor/chooser parameter vectors within `param_bds`
+           for the utility terms active at that k.
+        3. Build a simulation histories JSON with embedded true parameters and run
+           `run_analysis_bayes(...)` to recover fitted parameters.
+        4. Read the per-dyad fit JSONs, construct a long DataFrame, and compute first-round
+           correlations: corr( <param>_true_predictor, <param>_fitted_predictor ).
+        5. Aggregate per-parameter correlations into a macro-average across parameters present
+           at that k.
+        6. Store the detailed dyad list and summary under `simulated_param_recovery_by_k[k]`.
+        7. Save a tidy CSV and a Plotly figure (correlation vs. k).
 
-    Returns
-    -------
-    • corr_by_k_df : tidy DataFrame with columns [k, param, corr, n_data, agg_corr]
-    • simulated_param_recovery_by_k : the nested structure you requested
+    Arguments:
+        • general_settings: GeneralSettings
+            Master settings dict; `'fit_roles_together'` and `'warmstart_policy'` are
+            overridden internally to ensure clean simulation behavior.
+        • file_paths: FilePaths
+            Project file-path dict; used for input CSVs and output directories.
+        • fig_lay: FigLay
+            Plotly figure layout template for the output figure.
+        • param_bds: ParamBounds
+            Parameter bounds dict used to sample random true parameter vectors.
+        • n_games: int
+            Number of games per simulated dyad.
+        • n_predictors: int
+            Number of predictor agents to simulate at each k.
+        • n_choosers_per_predictor: int
+            Number of choosers each predictor is paired with.
+        • k_params_range: tuple[int, int]
+            Inclusive range (k_min, k_max) of dimensionalities to evaluate.
+        • n_altruism_steps: int
+            Number of evenly-spaced altruism values to use when sampling parameters.
+        • evenly_space_altruism: bool
+            If True, altruism values are drawn from a grid rather than uniformly at random.
+        • utility_settings_by_k: dict[int, dict[str, bool]] | None
+            Optional explicit mapping from k to utility settings; if None, the IC CSV is used.
+        • analysis_experiment_num: int
+            Experiment number passed to the analysis pipeline; 0 indicates simulation mode.
+        • random_seed: int | None
+            Seed for the random number generator controlling parameter sampling.
+        • out_dir: str | None
+            Directory for CSV and figure output; defaults to a subfolder of `player_fits`.
+        • figure_filename: str
+            Filename for the output Plotly HTML figure.
+        • csv_filename: str
+            Filename for the output correlation CSV.
+        • use_existing_fits: bool
+            If True, skip re-running the analysis and load pre-existing fit JSONs.
+
+    Returns:
+        • tuple[pd.DataFrame, dict[int, Any]]
+            - corr_by_k_df: tidy DataFrame with columns [k, param, corr, n_data, agg_corr].
+            - simulated_param_recovery_by_k: nested dict keyed by k containing per-dyad
+              details and aggregated summary statistics.
     """
     rng = random.Random(random_seed) if isinstance(random_seed, int) else random
     k_min, k_max = int(k_params_range[0]), int(k_params_range[1])
@@ -1661,21 +1682,28 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
     "---------- (A) Resolve utility_settings_by_k ----------"
     def _load_best_per_k_from_csv() -> dict[int, dict[str, bool]]:
         """
-        Reads the IC comparison CSV (generated by your IC code) and returns, for each k, the
-        boolean settings of the model with BIC_rank == 0 (winner within that k).
+        Read the IC comparison CSV and return the best-fitting utility settings for each k.
+
+        For each value of k in `Ks`, selects the row with `BIC_rank == 0` (or the row with
+        the minimum BIC if `BIC_rank` is absent) and converts the canonical boolean setting
+        columns into a `utility_settings` dict.
+
+        Returns:
+            • dict[int, dict[str, bool]] — mapping from k to the winning utility settings for
+              that dimensionality, as read from the IC comparison CSV.
         """
-        comp_csv = os.path.join(
+        ic_comparison_csv_path = os.path.join(
             file_paths["bic_aic"],
             f"IC_Analysis_Comparison_Table_Experiment3.csv"
         )
-        if not os.path.exists(comp_csv):
+        if not os.path.exists(ic_comparison_csv_path):
             raise FileNotFoundError(
-                f"Could not find comparison CSV at {comp_csv}. "
+                f"Could not find comparison CSV at {ic_comparison_csv_path}. "
                 f"Provide `utility_settings_by_k` explicitly or ensure the IC section wrote this file."
             )
-        df_comp = pd.read_csv(comp_csv, encoding="utf-8", engine="python")
+        ic_comparison_dataframe = pd.read_csv(ic_comparison_csv_path, encoding="utf-8", engine="python")
         "Identify boolean setting columns: those that exist in utility_settings universe"
-        "We assume your repo exposes the canonical set; else infer as non-numeric/non-meta:"
+        "Assumes repo exposes the canonical set; else infer as non-numeric/non-meta:"
         "Keep the exact list you use elsewhere to be safe:"
         setting_cols = [
             'conditional_welfare_mode','reference_dependent_altruism','min_max_rawlsian_leontief',
@@ -1684,32 +1712,43 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
             'use_negativity_parameters','negativity_social_comparison','fix_self_interest_parameter',
             'include_social_comparison','include_altruism_term'
         ]
-        u_by_k = {}
-        for k in Ks:
-            dfk = df_comp[df_comp["k_params"] == k]
-            if dfk.empty:
+        utility_settings_by_k = {}
+        for k_params in Ks:
+            k_subset_dataframe = ic_comparison_dataframe[ic_comparison_dataframe["k_params"] == k_params]
+            if k_subset_dataframe.empty:
                 continue
-            "winner inside this k (BIC_rank == 0). If missing, pick min BIC."
-            if "BIC_rank" in dfk.columns and (dfk["BIC_rank"] == 0).any():
-                row = dfk.loc[dfk["BIC_rank"] == 0].iloc[0]
+            "Winner inside this k (BIC_rank == 0). If missing, pick min BIC."
+            if "BIC_rank" in k_subset_dataframe.columns and (k_subset_dataframe["BIC_rank"] == 0).any():
+                best_row = k_subset_dataframe.loc[k_subset_dataframe["BIC_rank"] == 0].iloc[0]
             else:
-                row = dfk.iloc[dfk["BIC"].argmin()]
+                best_row = k_subset_dataframe.iloc[k_subset_dataframe["BIC"].argmin()]
             "Build settings dict"
-            u = {col: bool(row[col]) for col in setting_cols if col in dfk.columns}
+            utility_settings_for_k = {col: bool(best_row[col]) for col in setting_cols if col in k_subset_dataframe.columns}
 
-            u_by_k[k] = u
-        if not u_by_k:
+            utility_settings_by_k[k_params] = utility_settings_for_k
+        if not utility_settings_by_k:
             raise RuntimeError("Failed to resolve any utility settings from the comparison CSV.")
-        return u_by_k
+        return utility_settings_by_k
 
     def _load_best_with_altruism_per_k() -> dict[int, dict[str, bool]]:
-        comp_csv = os.path.join(file_paths["bic_aic"], file_paths["file_names"]["information_criterion"])
-        if not os.path.exists(comp_csv):
+        """
+        Read the IC comparison CSV and return the best altruism-containing utility settings for each k.
+
+        For each value of k in `Ks`, filters to rows where `include_altruism_term == True` and
+        selects the row with the lowest BIC as the winner.  Raises a RuntimeError if no
+        altruism-containing model exists for any requested k.
+
+        Returns:
+            • dict[int, dict[str, bool]] — mapping from k to the best altruism-containing
+              utility settings dict for that dimensionality.
+        """
+        ic_comparison_csv_path = os.path.join(file_paths["bic_aic"], file_paths["file_names"]["information_criterion"])
+        if not os.path.exists(ic_comparison_csv_path):
             raise FileNotFoundError(
-                f"Missing {comp_csv}. Provide utility_settings_by_k or write the IC comparison CSV first."
+                f"Missing {ic_comparison_csv_path}. Provide utility_settings_by_k or write the IC comparison CSV first."
             )
-        df = pd.read_csv(comp_csv, encoding="utf-8", engine="python")
-        if "include_altruism_term" not in df.columns:
+        ic_comparison_dataframe = pd.read_csv(ic_comparison_csv_path, encoding="utf-8", engine="python")
+        if "include_altruism_term" not in ic_comparison_dataframe.columns:
             raise RuntimeError("The comparison CSV lacks 'include_altruism_term' column.")
         setting_cols = [
             'conditional_welfare_mode','reference_dependent_altruism','min_max_rawlsian_leontief',
@@ -1718,15 +1757,17 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
             'use_negativity_parameters','negativity_social_comparison','fix_self_interest_parameter',
             'include_social_comparison','include_altruism_term'
         ]
-        result = {}
-        for k in Ks:
-            dfk = df[(df["k_params"] == k) & (df["include_altruism_term"] == True)]
-            if dfk.empty:
-                raise RuntimeError(f"No altruism‑containing model found for k={k} in the comparison CSV.")
-            
-            row = dfk.loc[dfk["BIC"].idxmin()]
-            result[k] = {col: bool(row[col]) for col in setting_cols if col in dfk.columns}
-        return result
+        utility_settings_by_k = {}
+        for k_params in Ks:
+            k_subset_with_altruism = ic_comparison_dataframe[
+                (ic_comparison_dataframe["k_params"] == k_params) & (ic_comparison_dataframe["include_altruism_term"] == True)
+            ]
+            if k_subset_with_altruism.empty:
+                raise RuntimeError(f"No altruism‑containing model found for k={k_params} in the comparison CSV.")
+
+            best_row = k_subset_with_altruism.loc[k_subset_with_altruism["BIC"].idxmin()]
+            utility_settings_by_k[k_params] = {col: bool(best_row[col]) for col in setting_cols if col in k_subset_with_altruism.columns}
+        return utility_settings_by_k
 
     if utility_settings_by_k is None:
         if evenly_space_altruism:
@@ -1735,13 +1776,13 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
             utility_settings_by_k = _load_best_per_k_from_csv()
 
     "Validate each k’s k_params matches requested k"
-    for k in Ks:
-        u = utility_settings_by_k.get(k)
-        if not isinstance(u, dict):
-            raise ValueError(f"Missing utility_settings for k={k}.")
-        k_est = gnrl.count_free_parameters(utility_settings=u)
-        if k_est != k:
-            raise ValueError(f"Utility settings for k={k} imply k={k_est}. Please correct or override.")
+    for k_params in Ks:
+        utility_settings_for_k = utility_settings_by_k.get(k_params)
+        if not isinstance(utility_settings_for_k, dict):
+            raise ValueError(f"Missing utility_settings for k={k_params}.")
+        k_est = gnrl.count_free_parameters(utility_settings=utility_settings_for_k)
+        if k_est != k_params:
+            raise ValueError(f"Utility settings for k={k_params} imply k={k_est}. Please correct or override.")
 
     "---------- Helpers ----------"
     def _find_key(candidates: list[str], keys: list[str]) -> str | None:
@@ -1758,11 +1799,11 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         keys = list(param_info['keys'])
         bounds = list(param_info['bounds'])
         vals = {}
-        for i, k in enumerate(keys):
-            lo, hi = bounds[i]
-            if k.endswith("_std"):
-                lo = max(lo, 1e-3)  # keep std away from zero
-            vals[k] = rng.uniform(float(lo), float(hi))
+        for idx, param_key in enumerate(keys):
+            lower_bound, upper_bound = bounds[idx]
+            if param_key.endswith("_std"):
+                lower_bound = max(lower_bound, 1e-3)  # keep std away from zero
+            vals[param_key] = rng.uniform(float(lower_bound), float(upper_bound))
         if "temp" in vals and "τ" not in vals:
             vals["τ"] = float(vals["temp"])
         if "τ" not in vals:
@@ -1779,11 +1820,11 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
     def _assemble_histories_dict(dyad_list: list[dict]) -> dict:
         """
         Convert [{DyadKey: DyadGames}, ...] => {'histories': {DyadKey: DyadGames, ...}, 'player_info': {...}}
-        Keeps your avatar aesthetics.
+        Keeps avatar aesthetics.
         """
         histories = {}
-        for d in dyad_list:
-            histories.update(d)
+        for dyad_dict in dyad_list:
+            histories.update(dyad_dict)
         avatar_shapes = [
             "arrow-head","bowtie","circle","cross","curvy-x","dent-square","dodecagon","flame","flower",
             "ghost","hexagon","hour-glass","jagged-sun","lemon","moon","pentagon","round-square","squash",
@@ -1805,10 +1846,10 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
     aggregate_records = []
     simulated_param_recovery_by_k: dict[int, Any] = {}
 
-    "We will run separate batches per k. We rely on your suffix machinery to distinguish files."
-    for k in Ks:
-        print(f"run_param_recovery_by_{k}...")
-        u_settings_k = utility_settings_by_k[k]
+    "Will run separate batches per k. Relies on suffix machinery to distinguish files."
+    for k_params in Ks:
+        print(f"run_param_recovery_by_{k_params}...")
+        u_settings_k = utility_settings_by_k[k_params]
 
         "Build param_info for this utility"
         param_info_k = make_param_info(
@@ -1819,19 +1860,19 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         keys_k   = list(param_info_k['keys'])
         bounds_k = dict(zip(keys_k, param_info_k['bounds']))
 
-        "resolve altruism key & bounds"
+        "Resolve altruism key & bounds"
         altruism_key = _find_key(["Vᵢⱼ", "Vij"], keys_k)
         if altruism_key is None:
-            raise RuntimeError(f"[k={k}] The chosen utility form lacks an identifiable altruism weight (Vᵢⱼ/Vij).")
+            raise RuntimeError(f"[k={k_params}] The chosen utility form lacks an identifiable altruism weight (Vᵢⱼ/Vij).")
         if altruism_key not in bounds_k:
-            raise RuntimeError(f"[k={k}] Missing bounds for altruism key: {altruism_key}.")
+            raise RuntimeError(f"[k={k_params}] Missing bounds for altruism key: {altruism_key}.")
         a_lo, a_hi = map(float, bounds_k[altruism_key])
 
-        "build the grid of altruism values (evenly spaced)"
+        "Build the grid of altruism values (evenly spaced)"
         if evenly_space_altruism:
             steps = max(2, int(n_altruism_steps))
             grid = list(np.linspace(a_lo, a_hi, steps))
-            "number of predictors must be a multiple of #steps; pad if needed"
+            "Number of predictors must be a multiple of #steps; pad if needed"
             reps = math.ceil(n_predictors / steps)
             altruism_targets = (grid * reps)[:n_predictors]
             rng.shuffle(altruism_targets)
@@ -1843,11 +1884,11 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         predictor_uuids_for_k = []
 
         for pred_idx in range(n_predictors):
-            "sample predictor once; build a STABLE id"
+            "Sample predictor once; build a STABLE id"
             params_pred = _sample_params_from_bounds(param_info_k)
             pred_altruism_val = float(altruism_targets[pred_idx])
             params_pred[altruism_key] = pred_altruism_val
-            stable_pid = f"k{k}_Vij={pred_altruism_val:.2f}_p{pred_idx}"
+            stable_pid = f"k{k_params}_Vij={pred_altruism_val:.2f}_p{pred_idx}"
             "FIXED predictor UUID across several dyads"
             predictor_uuid_fixed = simulated_bot_uuids(
                 n_games=n_games, params_predictor=params_pred, params_chooser=params_pred,  # chooser ignored for predictor UUID
@@ -1858,7 +1899,7 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
 
             for cho_idx in range(n_choosers_per_predictor):
                 params_ch = _sample_params_from_bounds(param_info_k)
-                "build dyad WITH fixed predictor id; let chooser_id vary"
+                "Build dyad WITH fixed predictor id; let chooser_id vary"
                 dyad = create_simulated_dyad(
                     n_games=n_games,
                     params_chooser=params_ch,
@@ -1868,17 +1909,17 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
                     default_utility_settings=False,
                     embed_true_params=True
                 )
-                "overwrite predictor UUID in the freshly created dyad to the fixed one"
+                "Overwrite predictor UUID in the freshly created dyad to the fixed one"
                 (dyad_key, games_list), = dyad.items()
-                for g in games_list:
-                    g["predictor"] = predictor_uuid_fixed
+                for game in games_list:
+                    game["predictor"] = predictor_uuid_fixed
                 fixed_key = f"({predictor_uuid_fixed}, {games_list[0]['chooser']})"
                 dyads_for_k.append({fixed_key: games_list})
 
         "Assemble one histories JSON and write to processed/"
         histories_k = _assemble_histories_dict(dyads_for_k)
 
-        "Name & suffix management (reuse your helpers)"
+        "Name & suffix management (reuse helpers)"
         file_name_suffix = prep.create_file_name_suffix(
             general_settings=general_settings, utility_settings=u_settings_k
         )
@@ -1896,16 +1937,16 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
             file_paths_k['file_names'][f'player_pairs_exper{analysis_experiment_num}']
         )
         os.makedirs(os.path.dirname(histories_file_path), exist_ok=True)
-        with open(histories_file_path, 'w', encoding='utf-8') as f:
-            json.dump(histories_k, f, ensure_ascii=False, indent=4)
-        print(f"[k={k}] Saved simulated histories to: {histories_file_path}")
+        with open(histories_file_path, 'w', encoding='utf-8') as file:
+            json.dump(histories_k, file, ensure_ascii=False, indent=4)
+        print(f"[k={k_params}] Saved simulated histories to: {histories_file_path}")
 
-        "Run your standard analysis unless we’re reusing existing JSONs"
+        "Runs standard analysis unless existing JSONs are reused."
         if not use_existing_fits:
             general_settings_k = copy.deepcopy(general_settings)
             general_settings_k['experiment_num'] = analysis_experiment_num
             general_settings_k['write_mode'] = 'overwrite'     # fresh batch per k
-            "keep all your other knobs (grid/naive/particle; temperature_is_param; etc.)"
+            "Keep all other knobs (grid/naive/particle; temperature_is_param; etc.)"
 
             run_analysis_bayes(
                 histories_data=histories_k,
@@ -1918,10 +1959,9 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
 
         "Collect fit JSONs for this k (filter by suffix in filename)"
         fit_dir = os.path.join(file_paths['player_fits'], f"experiment_{analysis_experiment_num}")
-        # json_files = [fn for fn in os.listdir(fit_dir) if fn.endswith(".json") and file_name_suffix in fn]
         json_files = [fn for fn in os.listdir(fit_dir) if fn.endswith(".json") and "_by_k_" in fn]
         if not json_files:
-            print(f"[k={k}] Warning: no fit files found with suffix '{file_name_suffix}' in {fit_dir}.")
+            print(f"[k={k_params}] Warning: no fit files found with suffix '{file_name_suffix}' in {fit_dir}.")
 
         "Build long DF for this k"
         dfs = []
@@ -1938,40 +1978,40 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         corr_df_k = compute_param_recovery_correlations(
             df=df_k,
             dir_path=out_dir,
-            out_csv_name=f"correlations_k{k}.csv",
+            out_csv_name=f"correlations_k{k_params}.csv",
             true_role="predictor",
             round_mode="first",
             params=params_to_correlate,                  # auto-detect any overlapping true/fitted predictor params
             create_new_file=True
         )
-        "aggregate across params (macro-average over present params)"
+        "Aggregate across params (macro-average over present params)"
         corr_only = corr_df_k[corr_df_k["round"] == "first"][["param","corr","n_data"]].copy()
         agg_corr = float(np.nanmean(corr_only["corr"])) if not corr_only.empty else np.nan
 
         "Save per-k rows for the final CSV"
-        for _, r in corr_only.iterrows():
+        for _, correlation_row in corr_only.iterrows():
             aggregate_records.append({
-                "k": k,
-                "param": r["param"],
-                "corr": float(r["corr"]),
-                "n_data": int(r["n_data"]),
+                "k": k_params,
+                "param": correlation_row["param"],
+                "corr": float(correlation_row["corr"]),
+                "n_data": int(correlation_row["n_data"]),
                 "agg_corr": float(agg_corr)
             })
 
         "Build the requested nested dict; include dyads + fitted snapshot"
-        "(We’ll store the first-round fitted predictor params; games list is already in histories_k)"
+        "Stores the first-round fitted predictor params; games list is already in histories_k."
         dyad_entries = []
         for fn in json_files:
             path = os.path.join(fit_dir, fn)
-            with open(path, "r", encoding="utf-8") as f:
-                dyad_dict = json.load(f)
+            with open(path, "r", encoding="utf-8") as file:
+                dyad_dict = json.load(file)
             for dkey, games in dyad_dict.items():
                 if not games:
                     continue
                 g0 = games[0]   # first round snapshot for true and fitted
                 true_pred = g0.get("true_params_predictor", {})
                 true_ch   = g0.get("true_params_chooser", {})
-                "fitted predictor params (try to find any method block)"
+                "Fitted predictor params (try to find any method block)"
                 est = g0.get("parameter_estimates", {})
                 fitted_pred = {}
                 for _m in ("grid", "particle", "naive", "update", "globloc", "bayes", "general"):
@@ -1984,7 +2024,7 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
                     "fitted_params": {"predictor": fitted_pred}
                 })
 
-        simulated_param_recovery_by_k[k] = {
+        simulated_param_recovery_by_k[k_params] = {
             "dyads": dyad_entries,
             "correlation_by_param": {row["param"]: float(row["corr"]) for _, row in corr_only.iterrows()},
             "aggregate_correlation": agg_corr
@@ -2215,20 +2255,20 @@ def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_s
 
     "Helper: robust correlation that degrades gracefully when variance is ~0."
     def _safe_corr(x_values: list[float], y_values: list[float]) -> float:
-        x = np.asarray(x_values, dtype=float)
-        y = np.asarray(y_values, dtype=float)
-        if len(x) < 2 or len(y) < 2:
+        x_array = np.asarray(x_values, dtype=float)
+        y_array = np.asarray(y_values, dtype=float)
+        if len(x_array) < 2 or len(y_array) < 2:
             return float('nan')
-        sx = float(np.std(x))
-        sy = float(np.std(y))
-        if sx == 0.0 and sy == 0.0:
-            "identical constants across predictors ⇒ treat as perfect match"
+        x_std = float(np.std(x_array))
+        y_std = float(np.std(y_array))
+        if x_std == 0.0 and y_std == 0.0:
+            "Identical constants across predictors ⇒ treat as perfect match"
             return 1.0
-        if sx == 0.0 or sy == 0.0:
-            "one side constant, the other not ⇒ no linear association"
+        if x_std == 0.0 or y_std == 0.0:
+            "One side constant, the other not ⇒ no linear association"
             return 0.0
-        corr = float(np.corrcoef(x, y)[0, 1])
-        "clip to [−1, 1] and then report; user asked to watch for negatives"
+        corr = float(np.corrcoef(x_array, y_array)[0, 1])
+        "Clip to [−1, 1] and then report; user asked to watch for negatives"
         if corr < 0:
             print(f"[verify_pf] WARNING: negative correlation ({corr:.3f})")
         return float(np.clip(corr, -1.0, 1.0))
@@ -2249,7 +2289,7 @@ def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_s
 
     "Build and write the summary CSV (one row per sample_ratio)."
     summary_rows: list[dict[str, Any]] = []
-    for sr_key in sorted(sample_ratios_to_mean_correlations.keys(), key=lambda s: float(s)):
+    for sr_key in sorted(sample_ratios_to_mean_correlations.keys(), key=lambda sample_ratio_key: float(sample_ratio_key)):
         pf_times = pf_durations_map.get(sr_key, [])
         row = {
             "sample_ratio": float(sr_key),
@@ -2295,8 +2335,8 @@ def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_s
     correlations_df.to_csv(per_param_csv_path, index=False, encoding="utf-8-sig")
 
     "----- Build the Plotly figure (square, anchored axes, [0,1] ranges) -----"
-    "x,y data with explicit anchors at (0,0) and (1,1)"
-    sr_sorted = [float(k) for k in sorted(sample_ratios_to_mean_correlations.keys(), key=lambda s: float(s))]
+    "X,y data with explicit anchors at (0,0) and (1,1)"
+    sr_sorted = [float(sample_ratio_key) for sample_ratio_key in sorted(sample_ratios_to_mean_correlations.keys(), key=lambda sample_ratio_key: float(sample_ratio_key))]
     corr_sorted = [float(sample_ratios_to_mean_correlations[f"{sr:.3f}"]) for sr in sr_sorted]
 
     fig = go.Figure()
@@ -2321,9 +2361,7 @@ def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_s
         name="anchors"
     ))
 
-    title = (
-        # Particle Filter Fidelity vs. Grid
-    )
+    title = "Particle Filter Fidelity vs. Grid"
 
     "Annotation with fancy 'n' and spaces around equals"
     "Pull n_bins_per_dimension from general settings (what you passed in here)"
@@ -2355,7 +2393,7 @@ def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_s
         ]
     )
 
-    "Axes: pass your axis styling dicts into update_xaxes / update_yaxes"
+    "Axes: pass axis styling dicts into update_xaxes / update_yaxes"
     fig.update_xaxes(
         title="Sample Ratio (fraction of grid evaluated)",
         range=[0, 1],
@@ -2376,7 +2414,7 @@ def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_s
 
     "Console report: quick glance at the summary."
     print("\n[verify_pf] Correlation & runtime summary (by sample_ratio):")
-    with pd.option_context('display.float_format', lambda v: f"{v:.3f}"):
+    with pd.option_context('display.float_format', lambda display_value: f"{display_value:.3f}"):
         print(summary_df.to_string(index=False))
 
     print(f"\n[verify_pf] Wrote summary CSV:     {summary_csv_path}")
@@ -2506,7 +2544,7 @@ def plot_param_recovery_by_round(
     corr_df = corr_df.dropna(subset=["round", "corr"])
 
     available_params = corr_df["param"].unique().tolist()
-    param_mapping = {p: canonicalize_param_name(p, available_params) for p in params}
+    param_mapping = {param_name: canonicalize_param_name(param_name, available_params) for param_name in params}
     corr_df = corr_df[corr_df["param"].isin(param_mapping.values())]
 
     fig = go.Figure()
@@ -2518,7 +2556,7 @@ def plot_param_recovery_by_round(
     param_buttons = []
     n_params = len(params)
 
-    "Store R² + final corr per param so we can use it in the initial annotation"
+    "Stores R² and final correlation per param for the initial annotation."
     fit_stats = {}
 
     for idx, param_name in enumerate(params):
@@ -2539,7 +2577,7 @@ def plot_param_recovery_by_round(
             marker=dict(size=18, color='hsla(115, 70%, 40%, 1.0)', opacity=1.0),
             visible=True if idx == 0 else False,
             hovertemplate=(
-                # Round = %{x}<br>
+                "Round = %{x}<br>"
                 f"Corr = %{{y:.3f}}<br>n_data = %{{text}}<extra>{param_name}</extra>"
             ),
             text=n_data_vals
@@ -2553,7 +2591,7 @@ def plot_param_recovery_by_round(
             else:  # "poly"
                 deg = max(2, int(poly_degree))
 
-            "polyfit needs at least deg+1 points; if not, fall back to lower degree"
+            "Polyfit needs at least deg+1 points; if not, fall back to lower degree"
             deg = min(deg, len(xvals) - 1)
             coef = np.polyfit(xvals, yvals, deg)
 
@@ -2604,7 +2642,7 @@ def plot_param_recovery_by_round(
                 {"visible": visible_list},
                 {
                     "title": (
-                        # Correlation Between Fitted Predictor Parameters and 
+                        "Correlation Between Fitted Predictor Parameters and "
                         f"True Chooser Parameters by Round for {param_titles[param_name]}"
                     ),
                     "annotations": [dict(text=annotation_text, **annotation_base)]
@@ -2733,7 +2771,6 @@ def compute_prediction_accuracy_by_segment(file_paths: Dict[str, Dict[str, str] 
         for dyad_key in dyads:
             if dyad_key in player_histories:
                 players_to_dyads[player_uuid][dyad_key] = player_histories[dyad_key]
-                # print(player_uuid, dyad_key)
 
     prediction_accuracy_data = {}
     for player_uuid, player_dyads in players_to_dyads.items():
@@ -2743,9 +2780,9 @@ def compute_prediction_accuracy_by_segment(file_paths: Dict[str, Dict[str, str] 
         for dyad_games in player_dyads.values():
             n_games_in_dyad = int(len(dyad_games) / 2) if experiment_num == 2 else len(dyad_games)
             segment_size = n_games_in_dyad // n_segments
+            # TODO Figure out why this is here.
             # segment_size = 1
             # if n_games_in_dyad < 8:
-            "continue"
             for dyad_game in dyad_games:
                 choice = dyad_game.get('choice')
                 chooser = dyad_game.get('chooser')
@@ -2838,9 +2875,9 @@ def compute_belief_update_speed(dyad_games: List[Dict[str, Any]], player_uuid: s
 
     Two modes:
         • Absolute mode (model-to-truth):
-            If `true_parameters` is provided, we track the Euclidean distance between
+            If `true_parameters` is provided, tracks the Euclidean distance between
             the predictor’s fitted vector and the ground-truth vector each round.
-            We compute:
+            Computes:
                 d(0)  = initial distance
                 d(F)  = final distance
                 d*    = d(0) + fraction · (d(F) – d(0))
@@ -2848,7 +2885,7 @@ def compute_belief_update_speed(dyad_games: List[Dict[str, Any]], player_uuid: s
             normalized by the total number of intervals (t / T).
 
         • Relative mode (prior-to-posterior):
-            If `true_parameters` is None, we track the distance between param(t)
+            If `true_parameters` is None, tracks the distance between param(t)
             and the initial param(0), and find the earliest t where the distance
             reaches `fraction` of the total prior→final shift.
 
@@ -2856,7 +2893,7 @@ def compute_belief_update_speed(dyad_games: List[Dict[str, Any]], player_uuid: s
         • dyad_games: list[dict[str, Any]];
             Full game history for a single dyad (all rounds, all roles).
         • player_uuid: str;
-            UUID of the predictor whose update speed we are measuring.
+            UUID of the predictor whose update speed is being measured.
         • general_settings: dict[str, Any];
             Settings that specify the update method (e.g., "grid") and experiment_num.
         • true_parameters: dict[str, float] | None;
@@ -2882,7 +2919,7 @@ def compute_belief_update_speed(dyad_games: List[Dict[str, Any]], player_uuid: s
     "1) gather param vectors or scalars per round"
     round_paramvals = []  # list of (round_number, param_vector)
     for game in dyad_games:
-        "must match the predictor"
+        "Must match the predictor"
         if game.get('predictor') != player_uuid:
             continue
         if experiment_num == 2 and game.get('phase') == 'rp':
@@ -2898,10 +2935,10 @@ def compute_belief_update_speed(dyad_games: List[Dict[str, Any]], player_uuid: s
         )
         if not param_est:
             continue
-        "build a param vector ignoring _std, etc. if params_of_interest is None => keep all"
+        "Build a param vector ignoring _std, etc. if params_of_interest is None => keep all"
         relevant_vals = []
         for pkey, pval in param_est.items():
-            if any(x in pkey for x in ['_std','_cov','temp']):
+            if any(excluded_token in pkey for excluded_token in ['_std','_cov','temp']):
                 continue
             if params_of_interest is not None:
                 if pkey not in params_of_interest:
@@ -2915,22 +2952,22 @@ def compute_belief_update_speed(dyad_games: List[Dict[str, Any]], player_uuid: s
     if len(round_paramvals) < 2:
         raise ValueError("Not enough param snapshots to measure an update speed.")
     
-    "2) sort by round"
-    round_paramvals.sort(key=lambda x: x[0])
-    "just store them in arrays for convenience"
+    "2) Sort by round"
+    round_paramvals.sort(key=lambda round_paramval: round_paramval[0])
+    "Just store them in arrays for convenience"
     rounds = [rp[0] for rp in round_paramvals]
     param_series = [rp[1] for rp in round_paramvals]  # each is a tuple of length k
 
-    "define a function to get Euclidian distance between param vectors"
-    def dist_vec(v1, v2):
-        return math.sqrt(sum((a-b)**2 for (a,b) in zip(v1,v2)))
+    "Define a function to get Euclidian distance between param vectors"
+    def dist_vec(first_param_vector, second_param_vector):
+        return math.sqrt(sum((first_param_value-second_param_value)**2 for (first_param_value, second_param_value) in zip(first_param_vector, second_param_vector)))
 
     if true_parameters is not None:
         "\"absolute\" => compare param(t) to the ground truth each round"
-        "build ground_truth vector, ignoring _std, etc., same dimension"
+        "Build ground_truth vector, ignoring _std, etc., same dimension"
         ground_vals = []
         for pkey in sorted(true_parameters.keys()):
-            if any(x in pkey for x in ['_std','_cov','temp']):
+            if any(excluded_token in pkey for excluded_token in ['_std','_cov','temp']):
                 continue
             if params_of_interest is not None and pkey not in params_of_interest:
                 continue
@@ -2939,73 +2976,71 @@ def compute_belief_update_speed(dyad_games: List[Dict[str, Any]], player_uuid: s
         if len(ground_vec) != len(param_series[0]):
             raise ValueError("Mismatch in dimension between param_of_interest and ground truth.")
         
-        "now param_series[t] => fitted param vector"
+        "Now param_series[t] => fitted param vector"
         # distance(t) => dist_vec( param_series[t], ground_vec )
         dist_series = [dist_vec(pv, ground_vec) for pv in param_series]
         prior_dist = dist_series[0]
         final_dist = dist_series[-1]
-        "threshold"
+        "Threshold"
         threshold = prior_dist + fraction*(final_dist - prior_dist)
-        "find earliest t crossing"
-        # if final_dist < prior_dist, we look for dist_series[t] <= threshold
-        # if final_dist > prior_dist, we look for dist_series[t] >= threshold
-        "but that might be reversed if final < prior => negative. Let's define a function:"
+        "Find earliest t crossing"
+        # If final_dist < prior_dist, look for dist_series[t] <= threshold.
+        # If final_dist > prior_dist, look for dist_series[t] >= threshold.
+        "Handles reversed direction when final < prior."
         direction = 1 if final_dist > prior_dist else -1
 
-        T = len(dist_series)-1  # total # intervals
-        crossing_round = T  # default to last => speed=1 if never cross
-        for i, dval in enumerate(dist_series):
+        total_time_intervals = len(dist_series)-1  # total # intervals
+        crossing_round = total_time_intervals  # default to last => speed=1 if never cross
+        for idx, distance_at_round in enumerate(dist_series):
             # i=0.. len-1
             if direction>0:
-                if dval >= threshold:
-                    crossing_round = i
+                if distance_at_round >= threshold:
+                    crossing_round = idx
                     break
             else:
-                if dval <= threshold:
-                    crossing_round = i
+                if distance_at_round <= threshold:
+                    crossing_round = idx
                     break
-        # update_speed = crossing_round / T
-        if T<=0:
+        if total_time_intervals <= 0:
             return 0.0
-        speed = crossing_round / float(T)
-        if speed>1:
-            speed=1
-        return speed
+        normalized_crossing_time = crossing_round / float(total_time_intervals)
+        if normalized_crossing_time > 1:
+            normalized_crossing_time = 1
+        return normalized_crossing_time
 
     else:
         "\"relative\" => time to cross half difference from param(0) to param(final)"
         prior_vec = param_series[0]
         final_vec = param_series[-1]
-        T = len(param_series)-1
+        total_time_intervals = len(param_series)-1
 
-        "define threshold vector = prior_vec + fraction*(final_vec - prior_vec)"
+        "Define threshold vector = prior_vec + fraction*(final_vec - prior_vec)"
         thresh_vec = tuple(
-            p0 + fraction*(pF - p0)
-            for (p0,pF) in zip(prior_vec, final_vec)
+            prior_param_value + fraction*(final_param_value - prior_param_value)
+            for (prior_param_value, final_param_value) in zip(prior_vec, final_vec)
         )
 
-        # direction => sign of final-prior (componentwise?? we have multiple dims).
-        "We'll do the Euclidian distance approach:"
+        "Do Euclidian distance approach:"
         prior_dist = dist_vec(prior_vec, prior_vec)  # which is 0
         final_dist = dist_vec(final_vec, prior_vec)  # the total shift from prior->final
         target_dist = fraction * final_dist
 
-        "each round => measure dist from prior"
+        "Each round => measure dist from prior"
         dist_from_prior = [dist_vec(pv, prior_vec) for pv in param_series]
 
-        crossing_round = T
-        for i, dval in enumerate(dist_from_prior):
-            "once dval >= target_dist => crossed fraction"
-            if dval >= target_dist:
-                crossing_round = i
+        crossing_round = total_time_intervals
+        for idx, distance_at_round in enumerate(dist_from_prior):
+            "Once distance_at_round >= target_dist => crossed fraction"
+            if distance_at_round >= target_dist:
+                crossing_round = idx
                 break
 
-        if T<=0:
+        if total_time_intervals <= 0:
             return 0.0
-        speed = crossing_round / float(T)
-        if speed>1:
-            speed=1
-        return speed
+        normalized_crossing_time = crossing_round / float(total_time_intervals)
+        if normalized_crossing_time > 1:
+            normalized_crossing_time = 1
+        return normalized_crossing_time
 
 
 def run_update_speed_simulation_regression(general_settings: GeneralSettings, file_paths: FilePaths, 
@@ -3044,16 +3079,36 @@ def run_update_speed_simulation_regression(general_settings: GeneralSettings, fi
     """
     def run_regression_on_speed(df_speed: pd.DataFrame, speed_col: str = "speed_value", predictors: list[str] = ["temp", "var"], add_constant: bool = True):
         """
-        Fit a linear regression: speed_col ~ predictors using statsmodels OLS.
+        Fit an OLS regression predicting belief-update speed from prior variance and temperature.
+
+        Uses `statsmodels.OLS` to regress `speed_col` onto `predictors`, optionally adding an
+        intercept column.  After fitting, prints the full regression summary to stdout.
+
+        Arguments:
+            • df_speed: pd.DataFrame
+                DataFrame containing one row per simulated dyad; must include `speed_col`
+                and all columns listed in `predictors`.
+            • speed_col: str
+                Name of the column holding the normalized crossing-time speed values (the
+                dependent variable).
+            • predictors: list[str]
+                Names of the independent variable columns (e.g., softmax temperature and
+                prior variance).
+            • add_constant: bool
+                If True, prepends a constant column to the predictor matrix before fitting.
+
+        Returns:
+            • statsmodels RegressionResultsWrapper — the fitted OLS model, including
+              coefficients, standard errors, p-values, and R².
         """
         import statsmodels.api as sm
-        "drop na"
-        df_ = df_speed.dropna(subset=[speed_col]+predictors).copy()
-        y = df_[speed_col]
-        X = df_[predictors]
+        "Drop na"
+        regression_input_dataframe = df_speed.dropna(subset=[speed_col]+predictors).copy()
+        response_variable = regression_input_dataframe[speed_col]
+        predictor_matrix = regression_input_dataframe[predictors]
         if add_constant:
-            X = sm.add_constant(X, prepend=True)
-        model = sm.OLS(y, X)
+            predictor_matrix = sm.add_constant(predictor_matrix, prepend=True)
+        model = sm.OLS(response_variable, predictor_matrix)
         results = model.fit()
         print(results.summary())
         return results
@@ -3285,10 +3340,10 @@ def plot_update_speed_by_counterpart(update_speeds_per_counterpart: Dict[str, Li
     def mean_confidence_interval(data, confidence=0.95, rnd=4):
         """This conputes the CI for continious data."""
         import scipy.stats
-        a = 1.0 * np.array(data)
-        n, m, se = len(a), np.mean(a), scipy.stats.sem(a)
-        h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
-        return (round(m-h, rnd), round(m, rnd), round(m+h, rnd))
+        data_array = 1.0 * np.array(data)
+        n_data, mean_value, standard_error = len(data_array), np.mean(data_array), scipy.stats.sem(data_array)
+        half_width = standard_error * scipy.stats.t.ppf((1 + confidence) / 2., n_data-1)
+        return (round(mean_value-half_width, rnd), round(mean_value, rnd), round(mean_value+half_width, rnd))
 
     out_path = ensure_directory_and_join(file_paths['visuals'], file_name)
 
@@ -3341,10 +3396,7 @@ def plot_update_speed_by_counterpart(update_speeds_per_counterpart: Dict[str, Li
                 array=update_speeds_cis_upper, 
                 arrayminus=update_speeds_cis_lower
             ),
-            hovertemplate=(
-                # Counterpart: %{x}<br>
-                # Update Speed: %{y:.3f}<extra></extra>
-            )
+            hovertemplate="Counterpart: %{x}<br>Update Speed: %{y:.3f}<extra></extra>"
         )])
     else:
         "Create one Violin trace (which can also be displayed as a Box) per counterpart."
@@ -3362,10 +3414,7 @@ def plot_update_speed_by_counterpart(update_speeds_per_counterpart: Dict[str, Li
                     width=0.4,
                     name=counterpart,             # Legend / name for this trace
                     line_color='hsla(115, 70%, 40%, 1.0)',  # A sample color style
-                    hovertemplate=(
-                        # Counterpart: %{x}<br>
-                        # Update Speed: %{y:.3f}<extra></extra>
-                    )
+                    hovertemplate="Counterpart: %{x}<br>Update Speed: %{y:.3f}<extra></extra>"
                 )
             )
 

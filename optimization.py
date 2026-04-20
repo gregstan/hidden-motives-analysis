@@ -48,7 +48,7 @@ def global_local_optimization(objective_fn: Callable[[Union[np.ndarray, Sequence
             The function to minimize; returns scalar loss.
         • x_bounds: Optional[List[Tuple[float, float]]];
             Bounds for each alpha dimension (used by local and global optimizers).
-            If None, we default to [-3, 3] in each dimension (arbitrary).
+            If None, defaults to [-3, 3] in each dimension (arbitrary).
         • maxiter_global: int;
             Maximum iterations for the global search stage (dual_annealing).
         • maxiter_local: int;
@@ -91,9 +91,9 @@ def global_local_optimization(objective_fn: Callable[[Union[np.ndarray, Sequence
             f"but got {optimization_method!r}."
         )
 
-    "Make sure we handle the case where local is needed but x_guesses is None"
+    "Handles the case where local optimization needs x_guesses but x_guesses is None."
     if (optimization_method in ('local', 'globloc')) and (x_guesses is None):
-        "fallback guess: random midpoint of each bound"
+        "Fallback guess: random midpoint of each bound."
         x_guesses = [random.uniform(lo, hi) for (lo, hi) in x_bounds]
 
     x_guesses = np.array(x_guesses) if x_guesses is not None else None
@@ -201,7 +201,7 @@ def global_local_optimization(objective_fn: Callable[[Union[np.ndarray, Sequence
     _default_local_methods = tuple(local_methods) if local_methods else ("L-BFGS-B",)
 
     def _minimize_once(method_name: str, x0: np.ndarray) -> Optional[OptimizeResult]:
-        "Per-method options, respecting your existing ftol/maxiter/maxfun knobs."
+        "Per-method options, respecting existing ftol/maxiter/maxfun knobs."
 
         kwargs = {
             "x0": x0,
@@ -268,7 +268,7 @@ def global_local_optimization(objective_fn: Callable[[Union[np.ndarray, Sequence
     best_result: Optional[OptimizeResult] = None
     best_label = None
 
-    "If we used global"
+    "Considers the global result if available."
     if global_opt_result is not None:
         if global_opt_result.fun < best_loss_final:
             best_loss_final = global_opt_result.fun
@@ -365,14 +365,16 @@ def global_local_then_trust_constr(objective_with_penalty: Callable[[np.ndarray]
 
     Returns:
         • dict with keys 'stage1', 'stage2' (None if not run), and 'final', where 'final'
-          holds {'chosen_optimizer', 'x', 'loss', 'duration'} for the winning solution.
+            holds {'chosen_optimizer', 'x', 'loss', 'duration'} for the winning solution.
     """
     "Stage-1: global+local"
-    "NOTE: use your existing global_local_optimization, but allow a seed for DA."
-    "To avoid changing its signature, we close over the seed inside the objective"
-    "by monkey-patching dual_annealing at call-site (shown below)."
+    """
+    NOTE: Use existing global_local_optimization, but allow a seed for DA.
+    To avoid changing its signature, this closes over the seed inside the objective
+    by monkey-patching dual_annealing at call-site (shown below).
+    """
 
-    "We re-use your function directly; to pass a seed into DA, set 'random_state' inside the internal call."
+    "Re-uses function directly; to pass a seed into DA, set 'random_state' inside the internal call."
     "Easiest safe tweak: temporarily wrap dual_annealing with seed if provided."
     from scipy.optimize import dual_annealing as _da_original
 
@@ -402,13 +404,13 @@ def global_local_then_trust_constr(objective_with_penalty: Callable[[np.ndarray]
         Returns:
             • dict; a SciPy-like result summary:
                 {
-                "method": "trust-constr",
-                "x": [...],
-                "fun": float,
-                "nit": int,
-                "success": bool,
-                "message": str,
-                "duration": float
+                    "method": "trust-constr",
+                    "x": [...],
+                    "fun": float,
+                    "nit": int,
+                    "success": bool,
+                    "message": str,
+                    "duration": float
                 }
         """
         "--- 1) Bounds & safe start ---------------------------------------------------"
@@ -788,8 +790,8 @@ def compute_std_errors_mle(best_x: NDArray[np.float64], data_rows: List[Dict[str
     def func_wrapper(x: NDArray[np.float64]) -> float:
         return loss_function_mle(x, data_rows, param_info, utility_settings, penalty_weight)
 
-    "numeric Hessian"
-    hess = gnrl.numerical_hessian(func_wrapper, best_x)  # your finite-difference approach
+    "Numeric Hessian"
+    hess = gnrl.numerical_hessian(func_wrapper, best_x)  # Finite-difference approach
     try:
         inv_hess = np.linalg.inv(hess)
     except np.linalg.LinAlgError:
@@ -853,7 +855,7 @@ def loss_function_mle(params_arr: NDArray[np.float64], data_rows: List[Dict[str,
         }
         uA = utility(payA, param_dict, utility_settings)
         uB = utility(payB, param_dict, utility_settings)
-        pA = softmax_(uA, uB)  # your function => Probability(choose A)
+        pA = softmax_(uA, uB)  
 
         selection = row["selection"]  # 0.0 or 1.0
         if loss_funct_type == "ssr":
@@ -939,13 +941,13 @@ def fit_one_player_one_role_mle(role_data: List[Dict[str, Any]], param_info: Par
     fits (1..n), storing partial results. Otherwise, do one final fit.
 
     Returns a list of dicts, each containing:
-      {
-        'meeting_idx': int,
-        'round': int,
-        'params': { param_name: float, ... },
-        'std_errors': { param_name: float, ... },
-        'loss': float
-      }
+        {
+            'meeting_idx': int,
+            'round': int,
+            'params': { param_name: float, ... },
+            'std_errors': { param_name: float, ... },
+            'loss': float
+        }
     If track_evolution=False, there's only one item for the full data.
     """
     if not role_data:
@@ -1030,18 +1032,18 @@ def store_params_in_dyad_mle(dyad_games: DyadGames, player_uuid: PlayerUUID, pla
     Store the MLE fit results in the dyad meeting dictionaries.
 
     fit_results is a list of items:
-      {
-        "meeting_idx": int,
-        "round": int,
-        "params": {...},
-        "std_errors": {...},
-        "loss": float
-      }
+        {
+            "meeting_idx": int,
+            "round": int,
+            "params": {...},
+            "std_errors": {...},
+            "loss": float
+        }
     For track_evolution=True, multiple items. For single-shot, just 1.
 
-    We'll store them in:
-      meeting["parameter_estimates"]["mle"][player_uuid][player_role]
-    at the relevant "meeting_idx".
+    Store them in:
+        meeting["parameter_estimates"]["mle"][player_uuid][player_role]
+        at the relevant "meeting_idx".
     """
     for item in fit_results:
         midx = item["meeting_idx"]
@@ -1054,11 +1056,13 @@ def store_params_in_dyad_mle(dyad_games: DyadGames, player_uuid: PlayerUUID, pla
         plyr_dict = mle_dict.setdefault(player_uuid, {})
         role_dict = plyr_dict.setdefault(player_role, {})
 
-        "Overwrite or store. If iterative, you might want a list of partial fits."
-        "But let's just store the final stage each time."
+        """
+        Overwrite or store. If iterative, it might be better to have a
+        list of partial fits but just store the final stage each time.
+        """
         role_dict["params"] = item["params"]
         role_dict["std_errors"] = item["std_errors"]
-        # role_dict["loss"] = item["loss"]
+
         model_select_A = "model_choose_A" if player_role == "chooser" else "model_predict_A"
         role_dict["output"] = {
             "loss": item["loss"],
@@ -1117,8 +1121,8 @@ def fit_dyad_parameters_mle(dyad_games: List[Dict[str, Any]], param_info: ParamI
     Notes:
         • Each player-role pair is fit *independently.* E.g., 
           (playerA, chooser), (playerA, predictor), (playerB, chooser), (playerB, predictor).
-        • If a player never acts in a particular role, we skip that pair.
-        • If track_evolution=True, we do partial fits (first 1 game, first 2 games, etc.) 
+        • If a player never acts in a particular role, skips that pair.
+        • If track_evolution=True, performs partial fits (first 1 game, first 2 games, etc.) 
           and store each step’s result at the final meeting used.
     """
     if not dyad_games:

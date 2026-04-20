@@ -187,7 +187,7 @@ def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, gener
                 if utility_settings['single_exponential_parameter']:
                     param_keys.append('γ1')
                 else:
-                    "match your enumeration rule for γ's across present terms"
+                    "Match enumeration rule for γ's across present terms"
                     param_keys_ = copy.deepcopy(param_keys)
                     if utility_settings['fix_self_interest_parameter']:
                         param_keys_ = ['Vᵢᵢ'] + param_keys_
@@ -252,10 +252,10 @@ def make_param_info(param_bds: dict[str, tuple[int | float, int | float]], utili
 
     Notes for maintainers:
         • The logic for selecting which mean parameters appear is factored through
-          `parameter_keys_for_utility_settings(...)`. If you extend the functional form
+          `parameter_keys_for_utility_settings(...)`. If user extends the functional form
           (e.g., additional terms), update that function first and this function will pick up
           the changes automatically.
-        • If you change how standard deviations or covariance parameters are handled, keep the
+        • If user changes how standard deviations or covariance parameters are handled, keep the
           ordering stable—many other modules assume that 'keys' order is the single source of truth.
     """
     param_keys = parameter_keys_for_utility_settings(

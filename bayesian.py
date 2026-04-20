@@ -61,11 +61,11 @@ def bayesian_update_parametric(old_means: Dict[str, float], old_stds: Dict[str, 
     def log_likelihood(param_dict_means: Dict[str,float]) -> float:
         "Merge param_dict_means + old_stds so choice_func ignores std keys"
         merged_params = {}
-        for k_mean in param_keys_means:
-            merged_params[k_mean] = param_dict_means[k_mean]
+        for mean_param_key in param_keys_means:
+            merged_params[mean_param_key] = param_dict_means[mean_param_key]
         "Keep the old std dev placeholders around:"
-        for k_std in old_stds:
-            merged_params[k_std] = old_stds[k_std]
+        for std_param_key in old_stds:
+            merged_params[std_param_key] = old_stds[std_param_key]
 
         "Get p(A) from choice_func"
         choice_result = choice_func(
@@ -74,47 +74,47 @@ def bayesian_update_parametric(old_means: Dict[str, float], old_stds: Dict[str, 
             utility_settings=utility_settings,
             select=False
         )
-        pA = choice_result['model_choose_A']
+        probability_choose_A = choice_result['model_choose_A']
         if observed_choice == 'A':
-            return math.log(max(pA, 1e-12))
+            return math.log(max(probability_choose_A, 1e-12))
         else:
-            return math.log(max(1 - pA, 1e-12))
+            return math.log(max(1 - probability_choose_A, 1e-12))
 
     new_means = dict(old_means)
     new_stds  = dict(old_stds)
 
     "For each dimension, numeric gradient:"
-    for pk in param_keys_means:
-        "plus"
+    for mean_param_key in param_keys_means:
+        "Plus."
         plus_means  = copy.deepcopy(old_means)
-        plus_means[pk] += epsilon
+        plus_means[mean_param_key] += epsilon
         ll_plus  = log_likelihood(plus_means)
 
-        "minus"
+        "Minus."
         minus_means = copy.deepcopy(old_means)
-        minus_means[pk] -= epsilon
+        minus_means[mean_param_key] -= epsilon
         ll_minus = log_likelihood(minus_means)
 
         grad_k = (ll_plus - ll_minus) / (2 * epsilon)
 
-        "scale by old sigma => bigger uncertainty => bigger move"
-        old_sigma = old_stds.get(pk + '_std', 0.5)
+        "Scale by old sigma => bigger uncertainty => bigger move."
+        old_sigma = old_stds.get(mean_param_key + '_std', 0.5)
         step_size = learning_rate * old_sigma
 
-        new_means[pk] = old_means[pk] + step_size * grad_k
+        new_means[mean_param_key] = old_means[mean_param_key] + step_size * grad_k
 
-        if 'γ' in pk:
+        if 'γ' in mean_param_key:
             "Prevent exponents from going negative"
-            if new_means[pk] < 0.01:
-                new_means[pk] = 0.01
+            if new_means[mean_param_key] < 0.01:
+                new_means[mean_param_key] = 0.01
 
         if shrink_std:
-            "naive shrink"
+            "Naive shrink."
             shrink_amount = shrink_factor * abs(grad_k)
             new_sigma = old_sigma * max(0.0, 1.0 - shrink_amount)
-            new_stds[pk + '_std'] = new_sigma
+            new_stds[mean_param_key + '_std'] = new_sigma
         else:
-            new_stds[pk + '_std'] = old_sigma
+            new_stds[mean_param_key + '_std'] = old_sigma
 
     return new_means, new_stds
 
@@ -147,11 +147,11 @@ def bayesian_update_mcmc(old_means: Dict[str, float], old_stds: Dict[str, float]
         • A function that returns a dict with key 'model_choose_A' or 'model_predict_A' for probability of 'A'.
 
     utility_settings: UtilitySettings
-        • Configuration for your utility function (negativity, exponent, etc.).
+        • Configuration for utility function (negativity, exponent, etc.).
     
     learning_rate, shrink_std, shrink_factor, epsilon:
         • Present purely for signature compatibility with bayesian_update_parametric().
-        • Not used in typical MCMC usage. We do a fixed-proposal Metropolis–Hastings below.
+        • Not used in typical MCMC usage. A fixed-proposal Metropolis-Hastings update is used below.
 
     Returns:
     -----------
@@ -162,14 +162,15 @@ def bayesian_update_mcmc(old_means: Dict[str, float], old_stds: Dict[str, float]
     
     Notes:
     -----------
-    1. In real usage, you'd typically do MCMC over all trials so far (batch) or re-run
+    1. In real usage, MCMC would typically run over all trials so far (batch) or re-run
        an entire chain each time with data[0..t], not just a single new observation.
-       We show the single-trial approach for consistency with your existing agent() pipeline.
+       The single-trial approach is used here for consistency with the existing agent() pipeline.
 
-    2. We interpret old_means, old_stds as a Normal prior: p(theta_i) ~ Normal(old_means[i], old_stds[i]^2).
-       Then we multiply by the likelihood from the single observed_choice.
+    2. Interprets old_means and old_stds as a Normal prior:
+       p(theta_i) ~ Normal(old_means[i], old_stds[i]^2), then multiplies by the
+       likelihood from the single observed_choice.
 
-    3. The parameter domains in your existing code suggest that some parameters have bounds,
+    3. The parameter domains in existing code suggest that some parameters have bounds,
        e.g. [-1,1] or [0.01,2]. This example enforces those bounds by rejecting proposals
        that lie outside. Real code might do fancier transformations (like log-space for exponents).
     """
@@ -196,11 +197,11 @@ def bayesian_update_mcmc(old_means: Dict[str, float], old_stds: Dict[str, float]
         total_lp = 0.0
         for param_key in param_keys:
             if '_std' not in param_key:
-                mu = old_means[param_key]
+                prior_mean = old_means[param_key]
                 sigma_key = param_key + '_std'
-                sigma = max(old_stds.get(sigma_key, 0.5), 1e-9)  # avoid zero or negative
+                sigma = max(old_stds.get(sigma_key, 0.5), 1e-9)  # Avoid zero or negative.
                 x_val = parameter_values_dict[param_key]
-                lprior = norm.logpdf(x_val, loc=mu, scale=sigma)
+                lprior = norm.logpdf(x_val, loc=prior_mean, scale=sigma)
                 total_lp += lprior
         return total_lp
 
@@ -234,10 +235,9 @@ def bayesian_update_mcmc(old_means: Dict[str, float], old_stds: Dict[str, float]
         "Respect param-specific bounds"
         for param_key in param_keys:
             val = parameter_values_dict[param_key]
-            lb, ub = param_bounds_map[param_key]
-            if val < lb or val > ub:
-                # print(f"Param {param_key} not ({lb} < {round(val, 6)} < {ub})")
-                return np.clip(a=val, a_min=lb, a_max=ub)
+            lower_bound, upper_bound = param_bounds_map[param_key]
+            if val < lower_bound or val > upper_bound:
+                return np.clip(a=val, a_min=lower_bound, a_max=upper_bound)
                 return -float('inf')
 
         return log_prior(parameter_values_dict) + log_likelihood(parameter_values_dict)
@@ -245,35 +245,37 @@ def bayesian_update_mcmc(old_means: Dict[str, float], old_stds: Dict[str, float]
     def log_posterior_(parameter_values_dict: Dict[str, float]) -> float:
         """
         Posterior ~ Prior * Likelihood, in log space => log_prior + log_likelihood.
-        Includes Jacobian adjustments for parameter transformations. #TODO Use this or delete it.
+        Includes Jacobian adjustments for parameter transformations.
+
+        TODO Figure out whether this transformed posterior should be used or deleted.
         """
         log_jacobian = 0.0
         transformed_params = {}
 
         for param_key in param_keys:
             val = parameter_values_dict[param_key]
-            lb, ub = param_bounds_map[param_key]
+            lower_bound, upper_bound = param_bounds_map[param_key]
 
             "Apply transformations and calculate Jacobian adjustments"
-            if lb > -np.inf and ub < np.inf:
+            if lower_bound > -np.inf and upper_bound < np.inf:
                 "[a,b] range: scaled logit transform"
-                scaled = (val - lb) / (ub - lb)
+                scaled = (val - lower_bound) / (upper_bound - lower_bound)
                 if scaled <= 0 or scaled >= 1:
                     return -np.inf
-                transformed = np.log(scaled / (1 - scaled))  # logit
-                log_jacobian += np.log((ub - lb) * scaled * (1 - scaled))
+                transformed = np.log(scaled / (1 - scaled))  # Logit.
+                log_jacobian += np.log((upper_bound - lower_bound) * scaled * (1 - scaled))
                 
-            elif lb > -np.inf and ub == np.inf:
+            elif lower_bound > -np.inf and upper_bound == np.inf:
                 "[a,∞) range: log transform"
-                shifted = val - lb
+                shifted = val - lower_bound
                 if shifted <= 0:
                     return -np.inf
                 transformed = np.log(shifted)
                 log_jacobian += transformed  # Jacobian: dx/dt = e^t
                 
-            elif lb == -np.inf and ub < np.inf:
+            elif lower_bound == -np.inf and upper_bound < np.inf:
                 "(-∞,b] range: reflected log transform"
-                shifted = ub - val
+                shifted = upper_bound - val
                 if shifted <= 0:
                     return -np.inf
                 transformed = np.log(shifted)
@@ -295,8 +297,8 @@ def bayesian_update_mcmc(old_means: Dict[str, float], old_stds: Dict[str, float]
     "D) Prepare MCMC chain. Start from old_means, clamped to param_info bounds"
     current_params = {**copy.deepcopy(old_means), **copy.deepcopy(old_stds)}
     for param_key in param_keys:
-        low_bd, high_bd = param_bounds_map[param_key]
-        current_params[param_key] = max(low_bd, min(high_bd, current_params[param_key]))
+        lower_bound, upper_bound = param_bounds_map[param_key]
+        current_params[param_key] = max(lower_bound, min(upper_bound, current_params[param_key]))
 
     current_log_post = log_posterior(current_params)
 
@@ -310,7 +312,7 @@ def bayesian_update_mcmc(old_means: Dict[str, float], old_stds: Dict[str, float]
     "E) Metropolis–Hastings random-walk"
     for idx in range(chain_length):
         proposal_dict = copy.deepcopy(current_params)
-        "random-walk step in each parameter"
+        "Random-walk step in each parameter."
         for param_key in param_keys:
             step = random.gauss(0.0, proposal_sd)
             proposal_dict[param_key] += step
@@ -327,14 +329,14 @@ def bayesian_update_mcmc(old_means: Dict[str, float], old_stds: Dict[str, float]
         samples_chain.append(copy.deepcopy(current_params))
 
     acceptance_rate = accepted_count / float(chain_length)
-    # print(f"MCMC acceptance rate: {acceptance_rate:.2f}")
+    # TODO Decide whether to log MCMC acceptance rates for debugging.
 
     "F) Convert chain to arrays, discard burn-in, compute mean & std"
     valid_chain = samples_chain[burn_in::thin]
     param_vectors = []
     for sample_dict in valid_chain:
         param_vectors.append([sample_dict[param_key] for param_key in param_keys])
-    chain_matrix = np.array(param_vectors)  # shape: [#samples, #params]
+    chain_matrix = np.array(param_vectors)  # Shape: [#samples, #params].
 
     posterior_means_array = chain_matrix.mean(axis=0)
     posterior_stds_array = chain_matrix.std(axis=0)
@@ -358,7 +360,7 @@ def param_vector_to_pmf_array(param_vectors: Dict[Tuple[int], float],
                               use_fallback: bool = False) -> NDArray[np.float64]:
     """
     Generates a PMF from a dictionary mapping parameter coordinates to probabilities.
-    PF-aware: if meta_data['representation'] == 'particles', we DO NOT interpolate.
+    PF-aware: skips interpolation when meta_data['representation'] == 'particles'.
     """
     grid_shape = tuple(meta_data["n_bins_per_dimension"] for _ in meta_data["tickvals"].keys())
 
@@ -406,9 +408,9 @@ def prior_grid_from_params(param_vals: Dict[str, Dict[str, Dict[str, float]]], p
                            sample_ratio: float = 0.5, covariation_matrix: CovMatDict = None, trust_inputs: bool = False) -> Dict[str, Dict[str, Any]]:
     """
     Generates a discrete joint-Gaussian pmf to act as an agent's prior, for each player and 
-    role. We randomly sample from a grid of size (n_bins_per_dimension ^ n non-std parameters).
+    role. Randomly samples from a grid of size (n_bins_per_dimension ^ n non-std parameters).
 
-    Then we compute the multivariate normal pdf at each sampled point, possibly 
+    Then this computes the multivariate normal pdf at each sampled point, possibly 
     incorporate a small 'volume element', and normalize so that it sums to 1.
 
     Arguments:
@@ -529,11 +531,11 @@ def prior_grid_from_params(param_vals: Dict[str, Dict[str, Dict[str, float]]], p
     for idx, param_key in enumerate(param_info["keys"]):
         if param_key.endswith('_std'):
             continue
-        lb, ub = param_info["bounds"][idx]
+        lower_bound, upper_bound = param_info["bounds"][idx]
         if n_bins_per_dimension > 1:
-            spacing[param_key] = (ub - lb) / (n_bins_per_dimension - 1)
+            spacing[param_key] = (upper_bound - lower_bound) / (n_bins_per_dimension - 1)
         else:
-            spacing[param_key] = (ub - lb)  # fallback if n_bins_per_dimension=1
+            spacing[param_key] = (upper_bound - lower_bound)  # Fallback if n_bins_per_dimension=1.
 
     "For each player and role, build a pmf"
     for player_uuid, roles_dict in param_vals.items():
@@ -547,17 +549,17 @@ def prior_grid_from_params(param_vals: Dict[str, Dict[str, Dict[str, float]]], p
             for idx, param_key in enumerate(param_info["keys"]):
                 if param_key.endswith('_std'):
                     continue
-                mu = params_dict[param_key]
+                param_mean = params_dict[param_key]
                 sigma_key = param_key + '_std'
                 sigma_val = params_dict[sigma_key]
                 these_param_keys.append(param_key)
                 stds.append(sigma_val)
-                means.append(mu)
+                means.append(param_mean)
 
             "2) Validate and correct the covariance matrix"
             if covariation_matrix is not None and covariation_matrix.get(player_uuid, {}).get(role_name) is not None:  
                 cov_matrix = covariation_matrix[player_uuid][role_name]
-                # cov_matrix = gnrl.validate_covariance_matrix(cov_matrix, name=f"{player_uuid} - {role_name}")
+                # TODO Figure out whether covariance validation should run before PSD repair.
                 if not gnrl.is_positive_semidefinite(matrix=cov_matrix, tol=1e-12):
                     cov_matrix = gnrl.nearest_psd_matrix(matrix=cov_matrix, min_eigval=0.0)
 
@@ -570,16 +572,16 @@ def prior_grid_from_params(param_vals: Dict[str, Dict[str, Dict[str, float]]], p
                 cov_matrix = np.diag(np.square(stds)) 
 
             "3) Create scipy's multivariate normal"
-            rv = multivariate_normal(mean=means, cov=cov_matrix, allow_singular=False)
+            multivariate_normal_distribution = multivariate_normal(mean=means, cov=cov_matrix, allow_singular=False)
 
             "4) Sample from the full grid: n_bins_per_dimension^d total points."
-            full_axes = [tickvals[param_key] for param_key in these_param_keys]  # each is length n_bins_per_dimension
+            full_axes = [tickvals[param_key] for param_key in these_param_keys]  # Each is length n_bins_per_dimension.
             mesh = np.meshgrid(*full_axes, indexing='ij')  
 
-            "Flatten them so we have all_points: shape=(n_bins_per_dimension^d, d)"
-            all_points = np.stack([m.flatten() for m in mesh], axis=-1)
+            "Flattens mesh axes into all_points: shape=(n_bins_per_dimension^d, d)."
+            all_points = np.stack([mesh_axis.flatten() for mesh_axis in mesh], axis=-1)
 
-            total_grid_size = all_points.shape[0]  # n_bins_per_dimension^d
+            total_grid_size = all_points.shape[0]  # n_bins_per_dimension^d.
             "Pick a random subset of size (samples_per_dimension^d)."
             desired_sample_size = min(int(sample_ratio * total_grid_size), total_grid_size)
 
@@ -587,15 +589,14 @@ def prior_grid_from_params(param_vals: Dict[str, Dict[str, Dict[str, float]]], p
             for param_key in these_param_keys:
                 volume_elem *= spacing[param_key]
 
-            # time_start = time.time()
             "6) Convert each point in 'sampled_points' back to a discrete 'index'."
             if sample_ratio == 1.0: 
 
                 "Use the full grid"
-                sampled_points = all_points  # Shape: (n_bins_per_dimension^d, d)
+                sampled_points = all_points  # Shape: (n_bins_per_dimension^d, d).
                 
                 "Precompute PDF values for all grid points"
-                pmf_values = rv.pdf(sampled_points)  # Compute the PDF for all grid points at once
+                pmf_values = multivariate_normal_distribution.pdf(sampled_points)  # Compute the PDF for all grid points at once.
                 
                 "Precompute indices for all points in the full grid"
                 indices = np.stack([
@@ -610,10 +611,10 @@ def prior_grid_from_params(param_vals: Dict[str, Dict[str, Dict[str, float]]], p
                     param_vectors[idx_tuple] = param_vectors.get(idx_tuple, 0.0) + pmf_val * volume_elem
             else:
                 sample_indices = random.sample(range(total_grid_size), desired_sample_size)
-                sampled_points = all_points[sample_indices, :]  # shape=(desired_sample_size, d)
+                sampled_points = all_points[sample_indices, :]  # Shape=(desired_sample_size, d).
 
                 "5) Evaluate the pdf at each sampled point"
-                pdf_values = rv.pdf(sampled_points)
+                pdf_values = multivariate_normal_distribution.pdf(sampled_points)
 
                 pmf_values = pdf_values * volume_elem
 
@@ -623,13 +624,10 @@ def prior_grid_from_params(param_vals: Dict[str, Dict[str, Dict[str, float]]], p
                 ], axis=-1)   
 
                 param_vectors = {}
-                for irow, idx_tuple in enumerate(map(tuple, indices)):
-                    pmf_val = pmf_values[irow]
+                for row_idx, idx_tuple in enumerate(map(tuple, indices)):
+                    pmf_val = pmf_values[row_idx]
                     current_val = param_vectors.get(idx_tuple, 0.0)
                     param_vectors[idx_tuple] = current_val + pmf_val
-
-            # time_stop = time.time()
-            # duration = time_stop - time_start
 
             "7) Normalize so the total sum is 1"
             total_mass = sum(param_vectors.values())
@@ -640,11 +638,6 @@ def prior_grid_from_params(param_vals: Dict[str, Dict[str, Dict[str, float]]], p
                 n_bins = len(param_vectors)
                 for idx_tuple in param_vectors:
                     param_vectors[idx_tuple] = 1.0 / n_bins if n_bins > 0 else 0.0
-
-            # pp.pprint(param_vectors)
-            # print(f"Duration: {duration}")
-            # print(f"Total Mass: {sum(param_vectors.values())}")
-            # exit()    
 
             grid_prior[player_uuid][role_name] = {
                 'param_vectors': param_vectors,
@@ -713,7 +706,7 @@ def bayesian_update_grid(prior_array: NDArray[np.float64] | dict[tuple[int, ...]
             SoftMax temperature τ used during likelihood evaluation.
         • no_memory_mode: bool
             If True, the posterior ignores the prior and is computed from the likelihood alone.
-            Used when you want a single-game belief snapshot with no accumulated history.
+            Used when user wants a single-game belief snapshot with no accumulated history.
 
     Returns:
         • dict with keys:
@@ -724,7 +717,7 @@ def bayesian_update_grid(prior_array: NDArray[np.float64] | dict[tuple[int, ...]
     use_particle_filter: bool = bool(meta_data.get("use_particle_filter", True))
 
     "Active mean-parameter keys; grid size info"
-    param_mean_keys = [k for k in param_info["keys"] if not k.endswith("_std")]
+    param_mean_keys = [param_key for param_key in param_info["keys"] if not param_key.endswith("_std")]
     n_bins_per_dimension: int = int(meta_data["n_bins_per_dimension"])
     tickvals: dict[str, list[float]] = meta_data["tickvals"]
     sample_ratio: float = float(meta_data["sample_ratio"])
@@ -738,28 +731,28 @@ def bayesian_update_grid(prior_array: NDArray[np.float64] | dict[tuple[int, ...]
             "Densify once (only for full-grid case)"
             prior_array = param_vector_to_pmf_array(param_vectors=prior_array, meta_data=meta_data, general_settings=general_settings)
 
-        full_axes = [tickvals[pk] for pk in param_mean_keys]
+        full_axes = [tickvals[param_key] for param_key in param_mean_keys]
         mesh = np.meshgrid(*full_axes, indexing='ij')
-        all_points = np.stack([m.flatten() for m in mesh], axis=-1)
+        all_points = np.stack([mesh_axis.flatten() for mesh_axis in mesh], axis=-1)
         prior_flat = prior_array.flatten().astype(float)
 
         "Bin indices for each point"
         indices = np.stack([
-            np.searchsorted(tickvals[param_key], all_points[:, d])
-            for d, param_key in enumerate(param_mean_keys)
+            np.searchsorted(tickvals[param_key], all_points[:, dim_idx])
+            for dim_idx, param_key in enumerate(param_mean_keys)
         ], axis=-1)
 
         "Evaluate likelihood once per point"
         likelihoods = np.empty(all_points.shape[0], dtype=float)
         obs_is_A = (game_dict['choice'] == 'A')
         for row_idx in range(all_points.shape[0]):
-            agent_params = {param_mean_keys[d]: float(all_points[row_idx, d]) for d in range(n_dims)}
-            pA = choice_func(current_game=game_dict,
+            agent_params = {param_mean_keys[dim_idx]: float(all_points[row_idx, dim_idx]) for dim_idx in range(n_dims)}
+            probability_choose_A = choice_func(current_game=game_dict,
                              agent_params=agent_params,
                              utility_settings=utility_settings,
                              softmax_temperature=softmax_temperature,
                              select=False)['model_choose_A']
-            likelihoods[row_idx] = pA if obs_is_A else (1.0 - pA)
+            likelihoods[row_idx] = probability_choose_A if obs_is_A else (1.0 - probability_choose_A)
 
         "Posterior (full-grid)"
         posterior_probs = likelihoods if no_memory_mode else (prior_flat * likelihoods)
@@ -770,10 +763,10 @@ def bayesian_update_grid(prior_array: NDArray[np.float64] | dict[tuple[int, ...]
             posterior_param_vectors[idx_tuple] = posterior_param_vectors.get(idx_tuple, 0.0) + float(mass)
 
         "Normalize"
-        s = sum(posterior_param_vectors.values())
-        if s > 0:
-            for k in posterior_param_vectors:
-                posterior_param_vectors[k] /= s
+        posterior_normalizer = sum(posterior_param_vectors.values())
+        if posterior_normalizer > 0:
+            for idx_tuple in posterior_param_vectors:
+                posterior_param_vectors[idx_tuple] /= posterior_normalizer
 
         return {'param_vectors': posterior_param_vectors, 'meta_data': meta_data}
 
@@ -783,29 +776,29 @@ def bayesian_update_grid(prior_array: NDArray[np.float64] | dict[tuple[int, ...]
             prior_array = param_vector_to_pmf_array(param_vectors=prior_array, meta_data=meta_data, general_settings=general_settings)
 
         desired_sample_size = max(1, min(int(sample_ratio * total_grid_size), total_grid_size))
-        full_axes = [tickvals[pk] for pk in param_mean_keys]
+        full_axes = [tickvals[param_key] for param_key in param_mean_keys]
         mesh = np.meshgrid(*full_axes, indexing='ij')
-        all_points = np.stack([m.flatten() for m in mesh], axis=-1)
+        all_points = np.stack([mesh_axis.flatten() for mesh_axis in mesh], axis=-1)
 
         sample_indices = random.sample(range(total_grid_size), desired_sample_size)
         sampled_points = all_points[sample_indices, :]
         sampled_prior_probs = prior_array.flatten()[sample_indices]
 
         indices = np.stack([
-            np.searchsorted(tickvals[param_key], sampled_points[:, d])
-            for d, param_key in enumerate(param_mean_keys)
+            np.searchsorted(tickvals[param_key], sampled_points[:, dim_idx])
+            for dim_idx, param_key in enumerate(param_mean_keys)
         ], axis=-1)
 
         obs_is_A = (game_dict['choice'] == 'A')
         likelihoods = np.empty(sampled_points.shape[0], dtype=float)
         for row_idx in range(sampled_points.shape[0]):
-            agent_params = {param_mean_keys[d]: float(sampled_points[row_idx, d]) for d in range(n_dims)}
-            pA = choice_func(current_game=game_dict,
+            agent_params = {param_mean_keys[dim_idx]: float(sampled_points[row_idx, dim_idx]) for dim_idx in range(n_dims)}
+            probability_choose_A = choice_func(current_game=game_dict,
                              agent_params=agent_params,
                              utility_settings=utility_settings,
                              softmax_temperature=softmax_temperature,
                              select=False)['model_choose_A']
-            likelihoods[row_idx] = pA if obs_is_A else (1.0 - pA)
+            likelihoods[row_idx] = probability_choose_A if obs_is_A else (1.0 - probability_choose_A)
 
         posterior_probs = likelihoods if no_memory_mode else (sampled_prior_probs * likelihoods)
 
@@ -813,10 +806,10 @@ def bayesian_update_grid(prior_array: NDArray[np.float64] | dict[tuple[int, ...]
         for idx_tuple, mass in zip(map(tuple, indices), posterior_probs):
             posterior_param_vectors[idx_tuple] = posterior_param_vectors.get(idx_tuple, 0.0) + float(mass)
 
-        s = sum(posterior_param_vectors.values())
-        if s > 0:
-            for k in posterior_param_vectors:
-                posterior_param_vectors[k] /= s
+        posterior_normalizer = sum(posterior_param_vectors.values())
+        if posterior_normalizer > 0:
+            for idx_tuple in posterior_param_vectors:
+                posterior_param_vectors[idx_tuple] /= posterior_normalizer
 
         return {'param_vectors': posterior_param_vectors, 'meta_data': meta_data}
 
@@ -831,18 +824,18 @@ def bayesian_update_grid(prior_array: NDArray[np.float64] | dict[tuple[int, ...]
 
     "Interpret sample_ratio as an upper bound on the particle budget, capped by pf_max_particles"
     target_particles = min(int(round(sample_ratio * total_grid_size)), pf_max_particles)
-    N = max(pf_min_particles, target_particles, 1)
+    n_particles = max(pf_min_particles, target_particles, 1)
 
     "Build per-dimension tick arrays once"
-    ticks_list = [np.asarray(tickvals[pk], dtype=float) for pk in param_mean_keys]
+    ticks_list = [np.asarray(tickvals[param_key], dtype=float) for param_key in param_mean_keys]
 
     def params_for_indices(idx_mat: np.ndarray) -> list[dict[str, float]]:
         "idx_mat shape: (K, n_dims); return K param dicts"
         out: list[dict[str, float]] = []
         "Grab values per dim, vectorized"
-        vals_per_dim = [ticks_list[d][idx_mat[:, d]] for d in range(n_dims)]
-        for k in range(idx_mat.shape[0]):
-            out.append({param_mean_keys[d]: float(vals_per_dim[d][k]) for d in range(n_dims)})
+        vals_per_dim = [ticks_list[dim_idx][idx_mat[:, dim_idx]] for dim_idx in range(n_dims)]
+        for row_idx in range(idx_mat.shape[0]):
+            out.append({param_mean_keys[dim_idx]: float(vals_per_dim[dim_idx][row_idx]) for dim_idx in range(n_dims)})
         return out
 
     "Fetch persistent PF state or initialize"
@@ -854,42 +847,42 @@ def bayesian_update_grid(prior_array: NDArray[np.float64] | dict[tuple[int, ...]
         "- else dense array: sample flat indices by pmf"
         if isinstance(prior_array, dict):
             prior_keys = np.array(list(prior_array.keys()), dtype=int)          # (M, d)
-            prior_wts  = np.array([max(0.0, float(v)) for v in prior_array.values()], dtype=float)
-            s = float(prior_wts.sum())
-            if s <= 0:
-                prior_wts = np.full(prior_keys.shape[0], 1.0 / max(1, prior_keys.shape[0]))
+            prior_weights  = np.array([max(0.0, float(prior_mass)) for prior_mass in prior_array.values()], dtype=float)
+            prior_weight_sum = float(prior_weights.sum())
+            if prior_weight_sum <= 0:
+                prior_weights = np.full(prior_keys.shape[0], 1.0 / max(1, prior_keys.shape[0]))
             else:
-                prior_wts /= s
-            ancestor_rows = rng.choice(prior_keys.shape[0], size=N, replace=True, p=prior_wts)
+                prior_weights /= prior_weight_sum
+            ancestor_rows = rng.choice(prior_keys.shape[0], size=n_particles, replace=True, p=prior_weights)
             indices = prior_keys[ancestor_rows]
-            weights = np.full(N, 1.0 / N, dtype=float)
+            weights = np.full(n_particles, 1.0 / n_particles, dtype=float)
         else:
             flat = np.asarray(prior_array, dtype=float).ravel()
-            s = float(flat.sum())
-            if s <= 0:
+            flat_prior_sum = float(flat.sum())
+            if flat_prior_sum <= 0:
                 flat = np.full_like(flat, 1.0 / max(1, flat.size), dtype=float)
             else:
-                flat /= s
-            flat_idx = rng.choice(flat.size, size=N, replace=True, p=flat)
+                flat /= flat_prior_sum
+            flat_idx = rng.choice(flat.size, size=n_particles, replace=True, p=flat)
             indices = np.column_stack(np.unravel_index(flat_idx, (n_bins_per_dimension,) * n_dims)).astype(int)
-            weights = np.full(N, 1.0 / N, dtype=float)
+            weights = np.full(n_particles, 1.0 / n_particles, dtype=float)
     else:
         indices = np.asarray(pf_state["indices"], dtype=int)
         weights = np.asarray(pf_state["weights"], dtype=float)
         if indices.shape[0] != weights.shape[0]:
             raise ValueError("pf_state malformed: indices and weights have different lengths.")
-        "If the requested N changes, resample to match N"
-        if indices.shape[0] != N:
-            csum = np.cumsum(weights)
-            positions = (rng.random() + np.arange(N)) / N
-            sel = np.searchsorted(csum, positions, side="left")
-            indices = indices[sel]
-            weights = np.full(N, 1.0 / N, dtype=float)
+        "If the requested particle count changes, resample to match it."
+        if indices.shape[0] != n_particles:
+            cumulative_weights = np.cumsum(weights)
+            positions = (rng.random() + np.arange(n_particles)) / n_particles
+            selected_particle_indices = np.searchsorted(cumulative_weights, positions, side="left")
+            indices = indices[selected_particle_indices]
+            weights = np.full(n_particles, 1.0 / n_particles, dtype=float)
 
-    "-- Compute per-particle likelihood for this game (unique-eval to avoid rework)"
+    "-- Compute per-particle likelihood for this game (unique-eval to avoid rework)."
     obs_A = (game_dict['choice'] == 'A')
 
-    "Unique rows of indices; inverse maps back to the full N"
+    "Unique rows of indices; inverse maps back to all particles."
     unique_indices, inverse_map = np.unique(indices, axis=0, return_inverse=True)
     n_unique = unique_indices.shape[0]
 
@@ -897,71 +890,71 @@ def bayesian_update_grid(prior_array: NDArray[np.float64] | dict[tuple[int, ...]
     "Build agent params only for unique particles"
     unique_params_list = params_for_indices(unique_indices)
 
-    for u in range(n_unique):
+    for unique_particle_idx in range(n_unique):
         choice_result = choice_func(
             current_game=game_dict,
-            agent_params=unique_params_list[u],
+            agent_params=unique_params_list[unique_particle_idx],
             utility_settings=utility_settings,
             softmax_temperature=softmax_temperature,
             select=False
         )['model_choose_A']
-        like_unique[u] = choice_result if obs_A else (1.0 - choice_result)
+        like_unique[unique_particle_idx] = choice_result if obs_A else (1.0 - choice_result)
 
-    "Broadcast back to all N particles"
+    "Broadcast back to all particles."
     like = like_unique[inverse_map]
 
     "Weight update (log-stable); if no_memory_mode → likelihood-only"
     if no_memory_mode:
         weights = like
     else:
-        lw = np.log(weights + 1e-300) + np.log(like + 1e-300)
-        lw -= lw.max()
-        weights = np.exp(lw)
+        log_weights = np.log(weights + 1e-300) + np.log(like + 1e-300)
+        log_weights -= log_weights.max()
+        weights = np.exp(log_weights)
 
     "Normalize / fallback uniform"
-    s = float(weights.sum())
-    if not np.isfinite(s) or s <= 0.0:
-        weights = np.full(N, 1.0 / N, dtype=float)
+    weights_normalizer = float(weights.sum())
+    if not np.isfinite(weights_normalizer) or weights_normalizer <= 0.0:
+        weights = np.full(n_particles, 1.0 / n_particles, dtype=float)
     else:
-        weights /= s
+        weights /= weights_normalizer
 
     "ESS-based resampling"
     ess = 1.0 / np.sum(weights ** 2)
-    if ess < pf_resample_frac * N:
-        csum = np.cumsum(weights)
-        positions = (rng.random() + np.arange(N)) / N
-        sel = np.searchsorted(csum, positions, side="left")
-        indices = indices[sel]
-        weights.fill(1.0 / N)
+    if ess < pf_resample_frac * n_particles:
+        cumulative_weights = np.cumsum(weights)
+        positions = (rng.random() + np.arange(n_particles)) / n_particles
+        selected_particle_indices = np.searchsorted(cumulative_weights, positions, side="left")
+        indices = indices[selected_particle_indices]
+        weights.fill(1.0 / n_particles)
 
         "Optional jitter in *bin space* (default 0.0 → fast; set >0 to explore)"
         if pf_jitter_sd > 0.0:
             noise = rng.normal(0.0, pf_jitter_sd, size=indices.shape)
             jittered = np.rint(indices.astype(float) + noise).astype(int)
             max_idx = n_bins_per_dimension - 1
-            "reflect at boundaries"
+            "Reflect at boundaries."
             jittered = np.where(jittered < 0, -jittered, jittered)
-            over = jittered > max_idx
-            jittered[over] = 2 * max_idx - jittered[over]
+            over_boundary = jittered > max_idx
+            jittered[over_boundary] = 2 * max_idx - jittered[over_boundary]
             indices = np.clip(jittered, 0, max_idx)
 
     "Build sparse posterior map by summing weights for identical bins"
-    uniq_bins, inv2 = np.unique(indices, axis=0, return_inverse=True)
-    mass_per_bin = np.zeros(uniq_bins.shape[0], dtype=float)
-    np.add.at(mass_per_bin, inv2, weights)
+    unique_bins, inverse_bin_map = np.unique(indices, axis=0, return_inverse=True)
+    mass_per_bin = np.zeros(unique_bins.shape[0], dtype=float)
+    np.add.at(mass_per_bin, inverse_bin_map, weights)
 
     posterior_param_vectors: dict[tuple[int, ...], float] = {
-        tuple(row): float(mass) for row, mass in zip(map(tuple, uniq_bins), mass_per_bin)
+        tuple(row): float(mass) for row, mass in zip(map(tuple, unique_bins), mass_per_bin)
     }
     "Normalize defensively"
-    s = sum(posterior_param_vectors.values())
-    if s > 0:
-        for k in posterior_param_vectors:
-            posterior_param_vectors[k] /= s
+    posterior_normalizer = sum(posterior_param_vectors.values())
+    if posterior_normalizer > 0:
+        for idx_tuple in posterior_param_vectors:
+            posterior_param_vectors[idx_tuple] /= posterior_normalizer
 
-    "Persist PF state and mark representation as 'particles' so we never densify downstream"
+    "Persists PF state and marks representation as 'particles' to prevent downstream densification."
     new_meta = dict(meta_data)
-    new_meta["pf_state"] = {"indices": indices, "weights": weights}
+    new_meta["pf_state"] = {"indices": indices.tolist(), "weights": weights.tolist()}
     new_meta["representation"] = "particles"
 
     return {'param_vectors': posterior_param_vectors, 'meta_data': new_meta}
@@ -1057,7 +1050,7 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
         "assigned_role is what the caller wants us to run"
         assigned_role = player_role
 
-        "2b) Create or get the sub-dicts where we'll store parameter estimates"
+        "2b) Create or get the sub-dicts where parameter estimates will be stored."
         param_estimates = game_dict.setdefault('parameter_estimates', {})
         method_dict = param_estimates.setdefault(update_method, {})
         player_est_dict = method_dict.setdefault(player_uuid, {})
@@ -1090,9 +1083,9 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                         player_est_dict['predictor']['meta_data'] = prev_player_est['predictor']['meta_data']
 
         else:
-            # idx == 0 => store initial_params if not already done
+            "idx == 0 => store initial_params if not already done"
             for plr_role in ('chooser', 'predictor'):
-                if plr_role in initial_params:  # e.g. initial_params['chooser'] or .predictor
+                if plr_role in initial_params:  # E.g. initial_params['chooser'] or .predictor.
                     player_est_dict.setdefault(plr_role, {})['params'] = copy.deepcopy(initial_params[plr_role])
 
             "If role='predictor' and using grid, build initial prior param_vectors for the predictor"
@@ -1119,23 +1112,23 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                     pred_sub['meta_data'] = prior_data['meta_data']
                     pred_sub['param_vectors'] = prior_data[player_uuid]['predictor']['param_vectors']
 
-        "2d) Decide if we skip or play"
+        "2d) Decides whether to skip or play."
         if assigned_role is None:
-            "If user didn't specify, we do whichever role the player has"
+            "If player_role is unspecified, uses whichever role the player has."
             if actual_game_role is None:
                 "The player is not in this game => skip"
                 idx += 1
                 continue
             role_to_play = actual_game_role
         else:
-            "We want to do assigned_role only"
+            "Uses assigned_role only."
             if actual_game_role != assigned_role:
                 "Skip if the actual game role doesn't match the assigned role"
                 idx += 1
                 continue
             role_to_play = assigned_role
 
-        "2e) We do the \"active\" role logic now"
+        "2e) Executes the active role logic."
         role_params_for_this_game = player_est_dict[role_to_play].get('params', {})
         if not role_params_for_this_game:
             "fallback to initial if missing"
@@ -1145,7 +1138,7 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
         "Make the choice or prediction"
         model_sel_key = "model_choose_A" if role_to_play == 'chooser' else "model_predict_A"
         "Decide which temperature to pass to `choice(...)`"
-        # current_temp = choice_temperature if role_to_play == 'predictor' else softmax_temperature # change made 04.13.2025
+        # TODO Check whether predictor temperature should differ from chooser temperature.
         current_temp = choice_temperature 
 
         choice_output = choice(
@@ -1171,7 +1164,7 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                 pred_bit = choice_output["model_choose_A"]
                 game_dict["prediction"] = "A" if pred_bit == 1 else "B"
 
-        "2f) If it's game 0, we do no update. Otherwise, if predictor, do Bayesian update"
+        "2f) Skips update on game 0; otherwise, updates predictor beliefs."
         if idx == 0:
             "No update in first game. Do not overwrite priors. Cannot learn until the first choice is observed."  
             pass  
@@ -1183,8 +1176,16 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
 
                 "Do the final update on the last game or if predictor observed a choice"
                 if predictor_learned_something or idx == game_idx_stop:
-                    old_means = {k: v for k, v in role_params_for_this_game.items() if not k.endswith('_std')}
-                    old_stds  = {k: v for k, v in role_params_for_this_game.items() if k.endswith('_std')}
+                    old_means = {
+                        param_key: param_value
+                        for param_key, param_value in role_params_for_this_game.items()
+                        if not param_key.endswith('_std')
+                    }
+                    old_stds = {
+                        param_key: param_value
+                        for param_key, param_value in role_params_for_this_game.items()
+                        if param_key.endswith('_std')
+                    }
 
                     if update_method == 'naive':
                         "This 'naive' model predicts from fixed parameters--no learning."
@@ -1198,7 +1199,7 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                             utility_settings=utility_settings,
                             learning_rate=learning_rate
                         )
-                        "store the updated results"
+                        "Store the updated results."
                         updated_params = {}
                         for param_key in param_info["keys"]:
                             if '_std' in param_key:
@@ -1233,10 +1234,10 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
 
                         if (prev_vectors is not None) and (prev_meta is not None):
                             "Fast path: if previous posterior was produced by the particle filter,"
-                            "we keep it sparse and DO NOT densify (no interpolation, no qhull)."
+                            "Keeps it sparse and DOES NOT densify (no interpolation, no qhull)."
                             if isinstance(prev_vectors, dict) and prev_meta.get('representation') == 'particles':
                                 prior_grid_data = {
-                                    'prior_array': prev_vectors,     # sparse map: {(i1,...,id): mass}
+                                    'prior_array': prev_vectors,     # Sparse map: {(i1,...,id): mass}.
                                     'meta_data':   prev_meta
                                 }
                             else:
@@ -1247,7 +1248,7 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                                     general_settings=general_settings
                                 )
                                 prior_grid_data = {
-                                    'prior_array': prior_array,      # dense ndarray
+                                    'prior_array': prior_array,      # Dense ndarray.
                                     'meta_data':   prev_meta
                                 }
 
@@ -1278,7 +1279,7 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                             "Mark representation so downstream knows how to treat it."
                             sparse_prior_vectors = fallback_prior_data[player_uuid][role_to_play]['param_vectors']
                             prior_grid_data = {
-                                'prior_array': sparse_prior_vectors,  # dict: {(i1,...,id): mass}
+                                'prior_array': sparse_prior_vectors,  # Dict: {(i1,...,id): mass}.
                                 'meta_data': {**fallback_prior_data['meta_data'], 'representation': 'grid_sparse'}
                             }
 
@@ -1288,7 +1289,7 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                         meta_for_update['pf_max_particles']     = int(general_settings.get('pf_max_particles', 5000))
                         meta_for_update['pf_min_particles']     = int(general_settings.get('pf_min_particles', 200))
                         meta_for_update['pf_resample_fraction'] = float(general_settings.get('pf_resample_fraction', 0.5))
-                        meta_for_update['pf_jitter_sd']         = float(general_settings.get('pf_jitter_sd', 0.0))  # default 0.0 for speed
+                        meta_for_update['pf_jitter_sd']         = float(general_settings.get('pf_jitter_sd', 0.0))  # Default 0.0 for speed.
 
                         "Used for a trivial non-Bayesian model that forgets all priors."
                         no_memory_mode = general_settings.get('no_memory_mode', False)
@@ -1296,7 +1297,7 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                         "(iii) Now do the update"
                         likelihood_temp = initial_params.get(player_role, {}).get('temp', choice_temperature)
                         posterior_data = bayesian_update_grid(
-                            prior_array=prior_grid_data['prior_array'],   # dict or ndarray
+                            prior_array=prior_grid_data['prior_array'],   # Dict or ndarray.
                             meta_data=meta_for_update,
                             softmax_temperature=likelihood_temp,
                             utility_settings=utility_settings,
@@ -1372,7 +1373,7 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                     "Skip update. Previous param data already copied into current game."
                     pass
 
-        "Always ensure we store 'params' for the role in this game"
+        "Always stores 'params' for the role in this game."
         if 'params' not in player_est_dict[role_to_play]:
             player_est_dict[role_to_play]['params'] = copy.deepcopy(role_params_for_this_game)
 
@@ -1477,9 +1478,9 @@ def loss_function_bayes(dyad_games: list[dict[str, Any]], general_settings: Dict
             for player_role, stats_dict in role_dict.items():
                 model_output: dict = stats_dict.setdefault('output', {})
                 if not model_output:
-                    continue  # no predictions here
+                    continue  # No predictions here.
 
-                "Check if we actually have a predicted probability"
+                "Checks whether a predicted probability is available."
                 if player_role == 'chooser':
                     selection = game_dict.get('choice', None)      # Actual choice
                     model_select_A = model_output.get('model_choose_A', None)
@@ -1628,7 +1629,7 @@ def create_loss_report(dyad_games: list[dict[str, Any]], general_settings: dict[
                 "penalty_weight": penalty_weight,
                 "update_method": update_method,
             }
-    # pp.pprint(lr_container)
+
     return lr_container
 
 
@@ -1707,7 +1708,8 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
             initial_params[player_role]['bounds'] += [(0.5, 3.0)]
             initial_params[player_role]['guesses'] += [softmax_temperature]
 
-    "Remove standard deviation parameters from chooser's params" #TODO CHECK Added 04/06/2025
+    "Remove standard deviation parameters from chooser's params."
+    # TODO Check whether this 2025-04-06 chooser standard-deviation cleanup is still needed.
     for param_key in list(initial_params['chooser'].keys()):
         if '_std' in param_key:
             del initial_params['chooser'][param_key] 
@@ -1718,10 +1720,46 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
     }
 
     def optimize_roles(initial_params_for_role: dict[str, list], role_to_fit: str):
-        """"""
-        
+        """
+        Run the full Bayesian fitting pipeline for a single role across all of a player's dyads.
+
+        Iterates over every dyad in `player_dyads`, calls `agent()` to propagate the given
+        parameter vector through the game sequence, then calls `loss_function_bayes()` to
+        score the resulting beliefs.  The accumulated total loss is returned and also stored
+        in `loss_report[role_to_fit]` for downstream inspection.
+
+        Arguments:
+            • initial_params_for_role: dict[str, list]
+                Must contain at least a `'keys'` entry listing the parameter names in the
+                same order as the values that the optimizer will pass through
+                `objective_function`.
+            • role_to_fit: str
+                Either `'chooser'` or `'predictor'`; determines which role's parameters
+                are being optimized and which entries in `loss_report` are updated.
+
+        Returns:
+            • float — total loss across all dyads for the given role and parameter vector.
+        """
+
         def objective_function(param_array: NDArray[np.float64]) -> float:
-            """"""
+            """
+            Convert a flat parameter array into a total loss score across all dyads.
+
+            Called by the optimizer at each evaluation step.  Unpacks `param_array` into
+            a named parameter dict, optionally repairs covariance structure via
+            `transform_cov_params`, then runs `agent()` and `loss_function_bayes()` over
+            every dyad in `player_dyads`, accumulating the per-dyad `loss_final` values
+            into a single scalar.
+
+            Arguments:
+                • param_array: NDArray[np.float64]
+                    Flat array of parameter values in the order defined by
+                    `initial_params_for_role['keys']`.  If `temperature_is_param` is True,
+                    the final element is treated as `softmax_temperature`.
+
+            Returns:
+                • float — total negative log-likelihood loss across all dyads.
+            """
             param_array = copy.deepcopy(param_array)
             if isinstance(param_array, np.ndarray):
                 param_array = param_array.tolist()
@@ -1854,7 +1892,6 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
             general_settings_['update_method'] = 'naive'
             general_settings_['run_in_parallel'] = True
             file_name_suffix_naive = prep.create_file_name_suffix(general_settings=general_settings_, utility_settings=utility_settings)
-            # directory_path_naive = f"Judgment_Game/Inputs/Iter_Binary_Dictator/player_fits/experiment_{experiment_num}"
             directory_path_naive = ensure_directory_and_join(file_paths['player_fits'], f'experiment_{experiment_num}')
             file_name_naive = file_name_suffix_naive + f"_{player_uuid}.json"
             file_path_naive = prep.ensure_directory_and_join(base_dir=directory_path_naive, file_name=file_name_naive)
@@ -1883,7 +1920,7 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
         warm_pol = general_settings.get("warmstart_policy", {}) or {}
         guesses_before = list(map(float, np.array(guesses, dtype=float)))
 
-        "We’ll record what happened for the JSON report you already write out."
+        "Record what happened for the JSON report."
         warm_meta = {
             "enabled": bool(warm_pol.get("enabled", True)),
             "phase":   warm_pol.get("phase", "cold"),
@@ -1900,7 +1937,7 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
 
         "--- Degenerate model guard: no free parameters for this role -----------------"
         if len(bounds) == 0:
-            "Evaluate once at the empty vector so your loss_report is still populated."
+            "Evaluate once at the empty vector so loss_report is still populated."
             baseline_x_vector = np.array([], dtype=float)
             baseline_loss_value = float(objective_function(baseline_x_vector))
 
@@ -1917,7 +1954,7 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
                 }
             }
             optimization_results[role_to_fit] = gltc_result
-            best_fitting_params[role_to_fit] = {}  # nothing to fit for this role
+            best_fitting_params[role_to_fit] = {}  # Nothing to fit for this role.
             return best_fitting_params, optimization_results
 
         elif len(bounds) == 1:
@@ -1929,17 +1966,16 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
             "Single-parameter models should always explore globally."
             opt_method_local = "globloc"       
 
-        # try:
         if warm_meta["enabled"] and warm_meta["phase"] == "warm":
             from analysis import best_fitting_child_parameters_for_parent
             warm_start = best_fitting_child_parameters_for_parent(
                 player_uuid=player_uuid,
                 player_role=role_to_fit,
-                utility_settings_parent=utility_settings,   # parent is the current model
-                utility_settings=utility_settings,          # ok (universe of flags)
+                utility_settings_parent=utility_settings,   # Parent is the current model.
+                utility_settings=utility_settings,          # OK (universe of flags).
                 general_settings=general_settings,
                 file_paths=file_paths,
-                param_bds=param_bds,                        # module/global
+                param_bds=param_bds,                        # Module/global.
                 within_ic_analysis=True,
                 temperature=warm_meta["temperature"]
             )
@@ -1979,10 +2015,6 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
                     if warm_pol.get("disable_dual_annealing_when_warm", True):
                         opt_method_local = "local"
 
-        # except Exception as _warm_err:
-        #     print(f"[WarmStart] {player_uuid[:8]} - {role_to_fit}: {repr(_warm_err)}")
-        #     warm_meta["exception"] = repr(_warm_err)
-
         warm_meta["x_initial_guess_after"] = list(map(float, np.array(guesses, dtype=float)))
         warm_meta["optimization_method_effective"] = opt_method_local
 
@@ -2020,8 +2052,8 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
 
         "--- Two-step optimizer: robust penalized search, then optional constrained raw-NLL refine ---"
         gltc_result = global_local_then_trust_constr(
-            objective_with_penalty = objective_function,           # existing penalized objective
-            objective_raw_nll      = objective_function_raw_nll,   # new raw NLL objective
+            objective_with_penalty = objective_function,           # Existing penalized objective.
+            objective_raw_nll      = objective_function_raw_nll,   # New raw NLL objective.
             x_bounds               = bounds,
             x_initial_guess        = guesses,
             optimization_method    = opt_method_local,
@@ -2055,13 +2087,13 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
         "Record the pipeline reports for this role"
         optimization_results[role_to_fit] = gltc_result
 
-        "--- Choose final point by *raw NLL* among all points we actually evaluated ----"
+        "--- Chooses final point by *raw NLL* among all evaluated points. ----"
         if loss_report[role_to_fit]:
             "(a) best raw NLL seen during *any* penalized objective call"
             min_row = min(loss_report[role_to_fit], key=lambda r: r.get('raw_neglogprob_sum', float('inf')))
             raw_min_seen = float(min_row.get('raw_neglogprob_sum', float('inf')))
             x_minraw = np.array(
-                [min_row[k] for k in initial_params_for_role['keys'] if k in min_row],
+                [min_row[param_key] for param_key in initial_params_for_role['keys'] if param_key in min_row],
                 dtype=float
             )
 
@@ -2096,10 +2128,10 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
         best_fitting_params[player_role] = best_fit_params_role[player_role]
         optimization_results[player_role] = opt_results_role[player_role]
 
-    "3) Build & save the CSV. We do it for each role, or unify them if you prefer"
+    "3) Build & save the CSV. Done for each role, or can be unified if preferred."
     for role_to_fit in ('chooser','predictor'):
         if not loss_report[role_to_fit]:
-            continue  # maybe it's empty for roles we didn't optimize
+            continue  # Maybe it is empty for roles not optimized.
         if experiment_num == 0 and role_to_fit == 'chooser':
             continue
 
@@ -2151,7 +2183,6 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
         fitted_dyad_games[0]['loss_report'] = create_loss_report(dyad_games=fitted_dyad_games, general_settings=general_settings)
         loss_sum += fitted_dyad_games[0].get('loss_report', {}).get(player_uuid, {}).get('chooser', {}).get('loss_final_sum', 0.0)
         loss_sum += fitted_dyad_games[0].get('loss_report', {}).get(player_uuid, {}).get('predictor', {}).get('loss_final_sum', 0.0)
-        # print(f"Final Loss Player {player_uuid}: {loss_sum}")
 
         "Making Numpy arrays JSON serializable."
         if update_method == 'grid':
@@ -2170,7 +2201,7 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
             param_loss_list: list[dict[str: int | float]] = copy.deepcopy(loss_report[player_role])
             if len(param_loss_list) > 0:
                 if "raw_neglogprob_sum" in param_loss_list[0]:
-                    param_loss_list = sorted(param_loss_list, key=lambda x: x.get('raw_neglogprob_sum', 0.0))
+                    param_loss_list = sorted(param_loss_list, key=lambda loss_row: loss_row.get('raw_neglogprob_sum', 0.0))
                     dict_with_raw_loss_minimizing_params = param_loss_list[0]
                     raw_neglogprob_sum = dict_with_raw_loss_minimizing_params["raw_neglogprob_sum"]
                     for param_key in param_info['keys']:
@@ -2194,28 +2225,25 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
 
         fitted_plr_dyads[dyad_key] = fitted_dyad_games
 
-    def _json_safe(obj: Any) -> Any:
-        """
-        Recursively convert NumPy arrays/scalars and other non-serializable
-        objects into JSON-safe Python types (lists, floats, ints).
-        Leaves serializable types unchanged.
-        """
-        "NumPy arrays → lists"
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        "NumPy scalars → Python scalars"
-        if isinstance(obj, (np.floating, np.integer, np.bool_)):
-            return obj.item()
-        "dict → recurse"
-        if isinstance(obj, dict):
-            return {k: _json_safe(v) for k, v in obj.items()}
-        "list/tuple → recurse"
-        if isinstance(obj, (list, tuple)):
-            return [_json_safe(v) for v in obj]
-        "everything else unchanged"
-        return obj
-
-    fitted_plr_dyads = _json_safe(fitted_plr_dyads)   #TODO directly figure out what is not serializable when I use particle filter.
+    def _serialize_particle_filter_state(dyad_games_by_key: dict[str, DyadGames]) -> None:
+        for dyad_games in dyad_games_by_key.values():
+            for dyad_game in dyad_games:
+                grid_estimates = dyad_game.get('parameter_estimates', {}).get('grid', {})
+                for player_estimates in grid_estimates.values():
+                    for role_estimates in player_estimates.values():
+                        meta_data = role_estimates.get('meta_data')
+                        if not meta_data or meta_data.get('representation') != 'particles':
+                            continue
+                        pf_state = meta_data.get('pf_state')
+                        if not pf_state:
+                            continue
+                        indices = pf_state.get('indices')
+                        weights = pf_state.get('weights')
+                        if isinstance(indices, np.ndarray):
+                            pf_state['indices'] = indices.tolist()
+                        if isinstance(weights, np.ndarray):
+                            pf_state['weights'] = weights.tolist()
+    _serialize_particle_filter_state(fitted_plr_dyads)
 
     "Save the fitted results."
     with open(plr_file_path, 'w', encoding='utf-8') as file:
@@ -2236,7 +2264,7 @@ def fit_dyad_parameters_bayes(dyad_games: DyadGames, param_info: ParamInfo, util
         • param_info: ParamInfo; Contains parameter keys, bounds, and initial guesses.
             Example:
                 {
-                    "keys": ["Vᵢᵢ", "Vᵢⱼ", "Ƹᵢⱼ", "Ʒᵢⱼ", "exp1"]  # plus '_std' and '_cov' keys if used.
+                    "keys": ["Vᵢᵢ", "Vᵢⱼ", "Ƹᵢⱼ", "Ʒᵢⱼ", "exp1"]  # Plus '_std' and '_cov' keys if used.
                     "bounds": [(lower, upper), ...],
                     "guesses": callable or list of floats
                 }
@@ -2258,6 +2286,7 @@ def fit_dyad_parameters_bayes(dyad_games: DyadGames, param_info: ParamInfo, util
         • dict; Updated dyad_games with fitted parameters and associated loss, as well as the best parameter estimates.
     """
     time_start_fit_dyad = time.time()
+
     "Determine dyad file path and attempt to load if create_new_file is False."
     first_game = dyad_games[0]
     first_choo = first_game.get('chooser')
@@ -2332,7 +2361,7 @@ def fit_dyad_parameters_bayes(dyad_games: DyadGames, param_info: ParamInfo, util
                     for idx, param_key in enumerate(param_mean_keys):
                         std_key = param_key + "_std"
                         if std_key not in param_info["keys"]:
-                            continue  # no std?
+                            continue  # No std?
                         idx_std = param_info["keys"].index(std_key)
                         (lower_bound, upper_bound) = param_info["bounds"][idx_std]
 
@@ -2343,19 +2372,12 @@ def fit_dyad_parameters_bayes(dyad_games: DyadGames, param_info: ParamInfo, util
                                 cov_matrix[idx, idx] = round(lower_bound ** 2, 9)
                             else:
                                 cov_matrix[idx, idx] = int(upper_bound ** 2)
-                            # warning_str = f"After PSD fix, stdev for param '{param_key}' = {stdev} is "
-                            # warning_str += f"out of user-specified bounds [{lower_bound}, {upper_bound}]."
-                            # print(warning_str)
-                            # return huge_loss
 
                     "Ensure that the altered matrix is symmetric."
                     for idx, key1 in enumerate(param_mean_keys):
                         for jdx, key2 in enumerate(param_mean_keys[idx + 1:], start=idx + 1):
                             if abs(cov_matrix[idx][jdx] - cov_matrix[jdx][idx]) > asymmetry_tol:
                                 cov_matrix[idx][jdx] = cov_matrix[jdx][idx]
-                                # print(f"Asymmetry detected in covariance matrix:")
-                                # print(cov_matrix)
-                                # return huge_loss
 
                 if not gnrl.is_positive_semidefinite(matrix=cov_matrix, tol=is_psd_tol):
                     print("[objective] Covariance not PSD => penalty.")
@@ -2380,7 +2402,7 @@ def fit_dyad_parameters_bayes(dyad_games: DyadGames, param_info: ParamInfo, util
                             updated[role_to_fit][cov_key] = cov_matrix[idx][jdx]
 
             "Construct a full parameter dictionary for this player."
-            "For the other player, we use the initial parameters."
+            "Uses initial parameters for the other player."
             full_param_dict = {player_uuid: updated}
 
             "For the other player, use the original guess."
@@ -2729,7 +2751,8 @@ def run_analysis_bayes(histories_data: Histories, file_paths: FilePaths, param_i
 
         if not (isinstance(player_uuids, list) and all(isinstance(player_uuid, str) for player_uuid in player_uuids)):
             player_uuids = sorted([player_uuid for player_uuid, info in player_info.items() 
-                            if info.get('player_type') == 'participant' or (experiment_num == 0 and 'predictor' in player_uuid)])  #TODO CHECK THIS!
+                            if info.get('player_type') == 'participant' or (experiment_num == 0 and 'predictor' in player_uuid)])
+            # TODO Check whether experiment 0 should include every predictor-like player UUID here.
 
         n_items = len(player_uuids)
         args_list = [
@@ -2768,7 +2791,7 @@ def run_analysis_bayes(histories_data: Histories, file_paths: FilePaths, param_i
         max_procs = max(1, mp.cpu_count() - 1)
         n_items   = len(args_list)
         n_workers = min(max_procs, n_items)
-        "You can override via general_settings if you want:"
+        "Can override via general_settings if preferred:"
         n_workers = general_settings.get('n_workers', n_workers)
 
         "Choose a chunksize: enough work per task to amortize overhead,"
@@ -2779,16 +2802,8 @@ def run_analysis_bayes(histories_data: Histories, file_paths: FilePaths, param_i
         "Recycle workers periodically to curb leaks / fragmentation"
         maxtasks = int(general_settings.get('maxtasksperchild', 50))
 
-        "On Windows spawn is already the default; making it explicit is fine"
-        # ctx = mp.get_context("spawn")
-        # with ctx.Pool(processes=n_workers,
-        #               initializer=_init_worker_blas,
-        #               initargs=(1, general_settings.get('random_seed', None)),
-        #               maxtasksperchild=maxtasks) as pool:
-        #     for idx, key_returned in enumerate(
-        #             pool.imap_unordered(_worker_fit_one, args_list, chunksize=chunksize), 1):
-        #         if print_:
-        #             print(f"Processed {idx} / {n_items} {analysis_unit}s - {key_returned}.")
+        # TODO Figure out whether the explicit spawn context, worker initializer, chunksize,
+        # and maxtasksperchild settings should replace the simpler mp.Pool path below.
 
         with mp.Pool(processes=mp.cpu_count() - 1) as pool:
             for idx, key_returned in enumerate(pool.imap_unordered(_worker_fit_one, args_list), 1):

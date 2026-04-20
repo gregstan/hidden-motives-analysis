@@ -501,7 +501,6 @@ def avatar_posteriors(dyad_games: list[dict], update_method: str = 'grid', avata
     total_continious_model_loss = sum_of_all_loss(dyad_games=dyad_games, update_method=update_method, 
                                                   target_player=participant_uuid, target_role='predictor')
 
-
     "Add total_loss to first game"
     first_game = dyad_games[0]
     param_data: dict = first_game.get('parameter_estimates', {}).get(update_method, {})
@@ -526,8 +525,8 @@ def discrete_bayesian_model(dyad_games: list[dict], choice_funct: callable, play
 
     This is the generic typological Bayesian learner used in the paper’s
     continuous vs discrete comparison: instead of four named avatar types,
-    we consider a finite set of (Vᵢᵢ, Vᵢⱼ) profiles with prior probabilities,
-    update them based on observed choices, and evaluate prediction loss.
+    this considers a finite set of (Vᵢᵢ, Vᵢⱼ) profiles with prior probabilities,
+    updates them based on observed choices, and evaluates prediction loss.
 
     Arguments:
         • dyad_games: List[Dict[str, Any]]; List of games that store all data.

@@ -208,7 +208,7 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
             exp_j = (exp1 if utility_settings['single_exponential_parameter'] else exp2)
 
         elif utility_settings['payoff_ratios_not_differences']:
-            "Ratios, centered at 1/2. If we apply γ into payoffs, do it here."
+            "Ratios, centered at 1/2. If apply γ into payoffs, do it here."
             if utility_settings.get('apply_exponents_to_payoffs') and utility_settings['use_exponential_parameters']:
                 "Apply γ into the two payoff arguments that form each ratio"
                 ai = (payAi ** exp1)
@@ -500,10 +500,10 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A")
     def _simplify_nonnegatives(pretty: str) -> str:
         """
         Simplify ReLU expressions when the argument is a single payoff or '3':
-        • max(π·, 0)^γₖ → π·^γₖ
-        • max(π·, 0)    → π·
-        • max(-π·,0)^γₖ → 0
-        • max(-π·,0)    → 0
+            • max(π·, 0)^γₖ → π·^γₖ
+            • max(π·, 0)    → π·
+            • max(-π·,0)^γₖ → 0
+            • max(-π·,0)    → 0
         """
         toks = r"(πᵢᴬ|πⱼᴬ|πᵢᴮ|πⱼᴮ|3)"
         "With exponent"
@@ -597,7 +597,7 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A")
     def term(term_type: str) -> str:
         """Creates all three terms for the equation."""
 
-        "generate weights, bases, and operators."
+        "Generate weights, bases, and operators."
         if term_type == "self-interest":
             weight1, weight2 = f"{Vᵢᵢ}", "Ʌᵢᵢ"
             operator1, operator2 = "", " - "
@@ -690,7 +690,7 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A")
 
         "Use both groups if negativity parameters are included."
         if (loss_av and not (term_type == "self-interest" and fix_self)) or (la_socc and term_type == "social_comparison"):
-            "if loss_av or (la_socc and term_type == 'social_comparison'):"
+            "if loss_av or (la_socc and term_type == 'social_comparison'):" # TODO figure out if this line should be delted
             return group1 + group2
         else:
             return group1

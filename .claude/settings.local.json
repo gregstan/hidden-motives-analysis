@@ -14,7 +14,10 @@
       "Bash(python _fix_bracket_strings.py)",
       "Bash(python3 -c \"import sys; print\\(sys.version\\)\")",
       "Bash(python -c \"import sys; print\\(sys.version\\)\")",
-      "Read(//c/Users/Gregory Stanley/.ssh/**)"
+      "Read(//c/Users/Gregory Stanley/.ssh/**)",
+      "Bash(python -m py_compile analysis.py)",
+      "Bash(python -m py_compile utilities.py)",
+      "Bash(python -m py_compile preprocessing.py)"
     ]
   }
 }
