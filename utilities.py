@@ -453,11 +453,11 @@ def compute_statistics(joint_pmf: NDArray[np.float64],
                     'Vᵢⱼ_Ƹᵢⱼ_cov': <covariance between Vᵢⱼ and Ƹᵢⱼ>
                 }
     """
-    # Extract the names for the parameters (exclude any keys ending with '_std')
+    "Extract the names for the parameters (exclude any keys ending with '_std')"
     parameter_mean_names = [param for param in param_info["keys"] if not param.endswith('_std')]
     num_parameters: int = len(parameter_mean_names)
 
-    # Ensure that the joint PMF is normalized; otherwise, normalize it.
+    "Ensure that the joint PMF is normalized; otherwise, normalize it."
     total_probability_mass: float = float(np.sum(joint_pmf)) #type: ignore   Type of "sum" is partially unknown
     if total_probability_mass <= 0 or np.isnan(total_probability_mass):
         if print_warnings:
@@ -465,14 +465,14 @@ def compute_statistics(joint_pmf: NDArray[np.float64],
         total_probability_mass = 1.0
 
     normalized_joint_pmf = joint_pmf / total_probability_mass
-    # Each coordinate array has the same shape as the joint PMF.
+    "Each coordinate array has the same shape as the joint PMF."
     meshgrid_coordinate_arrays: List[NDArray[np.float64]] = np.meshgrid(*grids, indexing='ij')
 
-    # Initialize lists to store computed means and standard deviations for each parameter.
+    "Initialize lists to store computed means and standard deviations for each parameter."
     computed_means: List[float] = [0.0] * num_parameters
     computed_standard_deviations: List[float] = [0.0] * num_parameters
 
-    # Compute marginal means and variances for each parameter dimension.
+    "Compute marginal means and variances for each parameter dimension."
     for parameter_index in range(num_parameters):
         coordinate_values: NDArray[np.float64] = meshgrid_coordinate_arrays[parameter_index]
         
@@ -489,7 +489,7 @@ def compute_statistics(joint_pmf: NDArray[np.float64],
 
         computed_standard_deviations[parameter_index] = np.sqrt(parameter_variance)
 
-    # Compute pairwise covariances between parameters.
+    "Compute pairwise covariances between parameters."
     computed_covariances: Dict[str, float] = {}
     for idx in range(num_parameters):
         for jdx in range(idx + 1, num_parameters):
@@ -498,13 +498,13 @@ def compute_statistics(joint_pmf: NDArray[np.float64],
             covariance_key = f"{parameter_mean_names[idx]}_{parameter_mean_names[jdx]}_cov"
             computed_covariances[covariance_key] = covariance_value
 
-    # Build the final statistics dictionary.
+    "Build the final statistics dictionary."
     computed_statistics: Dict[str, float] = {}
-    # Add the means.
+    "Add the means."
     computed_statistics.update({param_name: computed_means[idx] for idx, param_name in enumerate(parameter_mean_names)})
-    # Add the standard deviations with key format '<parameter>_std'
+    "Add the standard deviations with key format '<parameter>_std'"
     computed_statistics.update({f"{param_name}_std": computed_standard_deviations[idx] for idx, param_name in enumerate(parameter_mean_names)})
-    # Add the pairwise covariances.
+    "Add the pairwise covariances."
     computed_statistics.update(computed_covariances)
 
     return computed_statistics
@@ -547,7 +547,7 @@ def _statistics_from_sparse_param_vectors(
             sum_x2[param_key] += mass * (x_val * x_val)
 
     if total_mass <= 0.0:
-        # Degenerate; return zeros to be safe (should not happen if normalized)
+        "Degenerate; return zeros to be safe (should not happen if normalized)"
         out_zero = {k: 0.0 for k in mean_param_keys}
         out_zero.update({f"{k}_std": 0.0 for k in mean_param_keys})
         return out_zero
@@ -564,7 +564,7 @@ def _statistics_from_sparse_param_vectors(
 
 
 def is_positive_semidefinite(matrix: NDArray[np.float64], tol: float = 1e-12) -> bool:
-    """Check if a matrix is positive semidefinite."""
+    """Check if a matrix is positive semidefinite.""" # TODO Make docstring conform to formatting conventions.
     try:
         np.linalg.cholesky(matrix)
         return True
@@ -1139,7 +1139,7 @@ def is_valid_utility_settings(candidate: UtilitySettings, provide_explanation: b
         if not candidate['single_exponential_parameter']:
             explanation += ", then there must be only one exponent."
             return explanation if provide_explanation else False
-        # if candidate['include_social_comparison']:
+        # if candidate['include_social_comparison']: # TODO Can these lines be removed???
         #     if candidate['single_payoffs_not_differences']:
         #         explanation += " and that is a social comparison term, then it must apply to payoff differences or ratios."
         #         return explanation if provide_explanation else False
@@ -1553,7 +1553,7 @@ def parents_children_of(
     else:
         base = copy.deepcopy(utility_settings)
     ordered_keys = list(base.keys())
-    # pp.pprint(base)
+
     if not is_valid_utility_settings(base):
         explanation = is_valid_utility_settings(candidate=base, provide_explanation=True)
         raise ValueError(explanation)
@@ -2206,6 +2206,7 @@ def test_utility_functions(build_utility_equation: Callable, general_settings: G
     if print_: print(relations)
 
     return (errored, relations)
+
 
 "=========================================================================================="
 "=============================== Pretty Equation Evaluators ==============================="

@@ -1,19 +1,22 @@
-# Inferring Hidden Motives — Code Sample (Utility Bayesian Model)
+# Inferring Hidden Motives — Utility Bayesian Model
 
-This repository contains executable code for the *Utility Bayesian Model (UBM)* from **Inferring Hidden Motives: Bayesian Models of Preference Learning in Repeated Dictator Games, *Stanley, Zhang, & Lewis (2025; arXiv)***. The UBM formalizes how an observer updates beliefs about another person’s *social preferences* (e.g., altruism vs. selfishness; envy vs. guilt) from their repeated payoff-allocation choices in *iterated binary dictator games*.
+This repository implements the **Utility Bayesian Model (UBM)** from *Inferring Hidden Motives:
+Bayesian Models of Preference Learning in Repeated Dictator Games* (Stanley, Zhang, & Lewis, 2025; arXiv).
+The UBM formalizes how an observer updates beliefs about another person's *social preferences*
+(e.g., altruism vs. selfishness; envy vs. guilt) from their repeated payoff-allocation choices
+in *iterated binary dictator games*.
 
-The full paper includes large-scale analyses (e.g., parameter fitting and a 476-model utility-function comparison). Those runs can be very time-intensive. To make this code sample easy to evaluate, I provide a **quick demo** that reproduces a working subset: (i) a light-mode parameter-recovery simulation with figures, (ii) an interactive 3D belief-update visualizations, and (iii) an optional model-nesting validity checks.
-
-I provided all my code in a .zip file. [`quick_demo.py`](quick_demo.py) runs the demo. The most important and interesting code lives in [`main.py`](main.py) (and also utilities.py).
-
-By the way, if you didn't already see them in my application, feel free to watch the videos I uploaded to the Google folder, which are about the Morality Game (total ~5 minutes). The Morality Game is my platform for running online multiplayer game theoretic experiments. The bots are cognitive models in themselves, but there is too much of that code to demo here, and so I'm attaching videos instead. Morality_Game_Demo_RA_Lab.mp4 shows the user-experience and Live_Morality_Game_Demo.MOV shows the experience of the researcher. Eventually, I'll integrate the UBM into the Morality Game artificial agents
+The full paper includes computationally intensive analyses (e.g., an IC comparison across 476 utility
+functions that takes weeks to run on a multi-core machine). [`quick_demo.py`](quick_demo.py) provides a
+configurable entry point that can run every major analysis at reduced scale (toggled via `light_mode`)
+or at full scale — making it useful for both fast debugging and producing the paper's main results.
 
 ---
 
 ## 1) Requirements
 
 - **Python**: 3.9+
-- **Packages** [see `requirements.txt`](requirements.txt):
+- **Packages** (see [`requirements.txt`](requirements.txt)):
   - `numpy>=1.24`
   - `pandas>=2.2`
   - `scipy>=1.11`
@@ -21,11 +24,9 @@ By the way, if you didn't already see them in my application, feel free to watch
   - `statsmodels>=0.14`
   - `numexpr>=2.8`
 
-> Note: `requirements.txt` is included in the ZIP for exact reproducibility. I still list requirements here because that’s what the email requested (so you can see them without opening other files).
-
 ---
 
-## 2) Setup + run (reproduces at least one result)
+## 2) Setup and run
 
 ```bash
 python -m venv venv
@@ -34,159 +35,163 @@ pip install -r requirements.txt
 python quick_demo.py
 ```
 
-All demo outputs are written under `demo_files/` so you can delete that folder afterward if desired.
+All demo outputs are written under `demo_files/` so you can delete that folder afterward.
+Sections 8–11 (requiring raw experiment data) additionally write to `demo_files/` to ensure
+precomputed results (e.g., the IC analysis results) are never overwritten by a smaller demo run.
 
 ---
 
-## 3) What to look at after it runs
+## 3) Quick demo configuration
 
-### A) Parameter recovery (simulation)
-Open the HTML files below **in a browser**:
-
-- **Violin plot of recovery correlations**:  
-  [`demo_files/player_fits/simulation_results/corr_violin_Vij_first.html`](demo_files/player_fits/simulation_results/corr_violin_Vij_first.html)
-
-    * Screenshot of what you should see: <img src="images/screenshot_param_recovery_correlation.png"/>
-
-- **Correlation vs. round** (how belief accuracy improves over sequential games):  
-  [`demo_files/player_fits/simulation_results/corr_by_round_sim_pred.html`](demo_files/player_fits/simulation_results/corr_by_round_sim_pred.html)  
-  When it opens, select **μ(Vij)** in the dropdown.
-
-    * Screenshot of what you should see: <img src="images/screenshot_correlation_by_round.png"/>
-
-Folder:  
-[`demo_files/player_fits/simulation_results/`](demo_files/player_fits/simulation_results/)
-
-### B) 3D Bayesian belief updating
-Folder:  
-[`demo_files/visuals/bayesian_updates_3d/`](demo_files/visuals/bayesian_updates_3d/)
-
-Open any HTML file in that directory. In each interactive plot:
-
-- **Left surface** = the model’s **prior** over the target parameters.
-- **Right surface** = the **likelihood** (choice probability for the option that was actually chosen).  
-- **USE THE SLIDER** to step through rounds and watch the model update: priors concentrate in regions consistent with the chooser’s behavior.
-
-    * Screenshot of what you should see: <img src="images/screenshot_bayesian_updates_3d.png"/>
-
-> You only need to run create_simulated_data once because it stores all the data used to create the figures above. You can comment it out after that. 
-
-### C) Optional: model-nesting / “no nesting violations” sanity checks
-In `run_quick_demo.py`, set:
-```python
-analysis_options["run_model_nesting_tests"] = True
-```
-…and rerun the demo. This produces CSV summaries under `demo_files/processed/` (e.g., adjacency matrices / parent-child relationships, and checks that nested models produce identical choice probabilities / losses when the parent’s extra parameters take “special” values that reduce it to the child).
-
----
-
-## 4) Demo configuration (what to toggle)
-
-At the top of `run_quick_demo.py`:
+At the top of [`quick_demo.py`](quick_demo.py), set the flags you want:
 
 ```python
 analysis_options = {
-    "light_mode": True,
-    "run_simulation": True,
-    "visualize_belief_updates": True,
-    "run_model_nesting_tests": False,
+    'light_mode': True,           # True: fast/small versions. False: full scale.
+
+    # No external data required
+    'run_model_demos':              True,  # All 476 utility equations; Bayesian core checks.
+    'run_nesting_tests':            True,  # Model nesting adjacency; equivalence and embedding checks.
+
+    # Synthetic simulation data
+    'run_simulation':               True,  # Parameter recovery simulation (Figures 5–6).
+    'run_particle_filter_test':     True,  # Particle filter vs full-grid fidelity check.
+    'run_recovery_by_k':            True,  # Recovery accuracy across k-param model complexity.
+    'run_update_speed_analysis':    True,  # Belief update speed regression.
+    'visualize_belief_updates':     True,  # Interactive 3D Bayesian update plots.
+
+    # Requires raw experiment data in raw_data/
+    'run_model_comparison':         False, # Alternative model contest + typological comparison.
+    'run_ic_analysis':              False, # IC utility comparison (5 forms light, 476 full).
+    'run_parameter_distribution':   False, # Population parameter distributions.
+    'run_inequality_aversion':      False, # Inequality aversion bot competition heatmaps.
 }
 ```
 
-- `light_mode=True` reduces the simulation scale so the demo is feasible on a laptop.
-- If you want the fastest possible run, you can set `run_simulation=False` and just generate the belief-update visuals (assuming the included demo data is present).
+Key rules:
+- `light_mode=True` is recommended for fast debugging. It reduces particle counts, bin counts,
+  game counts, and player counts across every section.
+- `visualize_belief_updates` and `run_update_speed_analysis` require `run_simulation` to have
+  produced data first (either in the same run or a prior run).
+- `run_ic_analysis` with `light_mode=False` runs all 476 models and takes **weeks**.
+  With `light_mode=True` it runs 5 representative forms (one per k level, k=1..5).
+- Sections 8–11 check whether the required raw CSV files exist. If any are missing a loud
+  warning is printed (missing raw data is treated as an error, not a normal skip).
 
 ---
 
-## 5) Codebase structure (high level)
+## 4) What to look at after running
 
-- `quick_demo.py` — entry point for the reproducible demo (creates outputs in `demo_files/`).
-- `main.py` — thin entry point for the full pipeline: `run_code_settings` flags + `main()`.
-- `config.py` — configuration dictionaries used throughout (`general_settings`, `utility_settings`, `param_info`, `param_bds`, `fig_lay`, etc.).
-- `model.py` — utility functions, choice model, `build_utility_equation`.
-- `optimization.py` — shared optimization helpers + full MLE pipeline (`run_analysis_mle`).
-- `bayesian.py` — the core UBM: `bayesian_update_grid`, `agent`, `run_analysis_bayes`.
-- `simulation.py` — parameter recovery simulations.
-- `visualization.py` — belief-update visualizations (2D, 3D, accuracy).
-- `analysis.py` — typological model comparison, IC analysis, nesting verification, parameter distributions, inequality aversion.
-- `utilities.py` — general helpers (utility-function enumeration, model-nesting utilities).
-- `preprocessing.py` — data cleaning/merges (used by full analyses).
-- `typological.py` — discrete/typological Bayesian variants (not used by the quick demo).
+### Sections 1–2 (utility model + nesting): terminal output
+The equations for all 476 utility forms print to the terminal, along with nesting relationship
+counts, parent-child classification examples, and pass/fail results from the equivalence
+and embedding sanity checks.
 
-**Import chain:** `config → preprocessing/utilities/typological → model → optimization → bayesian → simulation → visualization → analysis → main`
+### Section 3 (parameter recovery simulation): HTML figures
+Open these in a browser:
+
+- **Violin of recovery correlations**:
+  [`demo_files/player_fits/simulation_results/corr_violin_Vij_first.html`](demo_files/player_fits/simulation_results/corr_violin_Vij_first.html)
+
+- **Correlation vs. round** (belief accuracy improving over sequential games):
+  [`demo_files/player_fits/simulation_results/corr_by_round_sim_pred.html`](demo_files/player_fits/simulation_results/corr_by_round_sim_pred.html)
+  — select **μ(Vij)** in the dropdown.
+
+### Section 7 (3D belief update visualization): HTML figures
+Folder: [`demo_files/visuals/bayesian_updates_3d/`](demo_files/visuals/bayesian_updates_3d/)
+
+Open any HTML file. In the interactive plot:
+- **Left surface** = the model's **prior** over the target parameters.
+- **Right surface** = the **likelihood** (choice probability for the option actually chosen).
+- **Use the slider** to step through rounds and watch the posterior concentrate.
+
+### Sections 8–11 (real-data analyses): outputs in `demo_files/`
+All outputs from these sections go to `demo_files/` to protect any precomputed results in the
+main output directories. This includes IC results in `demo_files/bic_aic/`, fitted parameters
+in `demo_files/player_fits/`, and visualizations in `demo_files/visuals/`.
+
+---
+
+## 5) Codebase structure
+
+- [`quick_demo.py`](quick_demo.py) — configurable demo entry point (all 11 analysis sections).
+- [`main.py`](main.py) — thin entry point for the full pipeline: `run_code_settings` flags + `main()`.
+- [`config.py`](config.py) — all settings, paths, type aliases, and parameter specs.
+- [`model.py`](model.py) — utility functions, softmax choice model, `build_utility_equation`.
+- [`optimization.py`](optimization.py) — optimization helpers + full MLE pipeline (`run_analysis_mle`).
+- [`bayesian.py`](bayesian.py) — the core UBM: `bayesian_update_grid`, `agent`, `run_analysis_bayes`.
+- [`simulation.py`](simulation.py) — parameter recovery simulations and particle filter validation.
+- [`visualization.py`](visualization.py) — belief-update visualizations (2D, 3D, accuracy).
+- [`analysis.py`](analysis.py) — model comparison, IC analysis, nesting verification, parameter
+  distributions, inequality aversion.
+- [`utilities.py`](utilities.py) — utility-function enumeration, nesting classification, penalties.
+- [`preprocessing.py`](preprocessing.py) — data loading, dyad construction, experiment cleaning.
+- [`typological.py`](typological.py) — discrete/typological Bayesian variants.
+
+**Import chain (no circular dependencies):**
+`config → preprocessing / utilities / typological → model → optimization → bayesian → simulation → visualization → analysis → main`
 
 Additional docs:
-- [`docs/data_dictionary.md`](docs/data_dictionary.md): data structures + file outputs.
-- [`docs/architecture.md`](docs/architecture.md): high-level architecture notes.
-- [`docs/core_function_map.md`](docs/core_function_map.md): guided map of core functions (what they do and why they matter).
+- [`docs/data_dictionary.md`](docs/data_dictionary.md) — data structures and file outputs.
+- [`docs/architecture.md`](docs/architecture.md) — high-level architecture notes.
+- [`docs/core_function_map.md`](docs/core_function_map.md) — guided map of core functions.
+- [`Agents.md`](Agents.md) — AI collaborator orientation (coding style, domain vocabulary, architecture).
+- [`ihm_starter_pack.md`](ihm_starter_pack.md) — compact briefing on the paper's model and results.
 
 ---
 
-## 6) Pointers to core implementations (files, functions, and line ranges)
-
-Most core logic lives in `main.py`:
+## 6) Pointers to core implementations
 
 ### Utility → choice likelihood
-- `utility_term` (building blocks): **L10–L72**
-- `utility` (full utility “Swiss army knife”): **L74–L275**
-- `softmax_` (probabilistic choice rule): **L277–L329**
-- `choice` (wraps softmax for option A/B): **L331–L385**
+- `utility_term` (building blocks): [`model.py`](model.py)
+- `utility` (full utility function): [`model.py`](model.py)
+- `softmax_` (probabilistic choice rule): [`model.py`](model.py)
+- `choice` (wraps softmax for option A/B): [`model.py`](model.py)
+- `build_utility_equation` (string form): [`model.py`](model.py)
 
-### Utility Bayesian Model (UBM) updating
-- `prior_grid_from_params` (construct priors over latent traits): **L1029–L1090**
-- `bayesian_update_grid` (grid / particle-filter posterior update): **L1092–L1339**
-- `agent` (self-perpetuating UBM over sequential games): **L1341–L1699**
+### Utility Bayesian Model (UBM)
+- `prior_grid_from_params` (construct priors over latent traits): [`bayesian.py`](bayesian.py)
+- `bayesian_update_grid` (grid / particle-filter posterior update): [`bayesian.py`](bayesian.py)
+- `agent` (self-perpetuating UBM over sequential games): [`bayesian.py`](bayesian.py)
 
-### Optimization + loss
-- `global_local_optimization` (simulated annealing → local refinement): **L1731–L1896**
-- `loss_function_bayes` (NLL from UBM predictions): **L2134–L2246**
-- `create_loss_report` (stores dyad loss metadata in the first game): **L2287–L2376**
-- `fit_params_by_player` (fit one player across all their dyads): **L2453–L2678**
-- `run_analysis_bayes` (full fitting pipeline; supports multiprocessing): **L2680–L3086**
+### Optimization and loss
+- `global_local_optimization` (simulated annealing → local refinement): [`optimization.py`](optimization.py)
+- `loss_function_bayes` (NLL from UBM predictions): [`bayesian.py`](bayesian.py)
+- `fit_params_by_player` (fit one player across all dyads): [`bayesian.py`](bayesian.py)
+- `run_analysis_bayes` (full fitting pipeline, multiprocessing): [`bayesian.py`](bayesian.py)
 
-### Quick-demo entry points
-- `create_simulated_data`: **L3179–L3556**
-- `run_simulation_recovery_analysis`: **L3727–L4030**
-- `visualize_bayesian_updates_3d`: **L4782–L5154**
+### Simulation and validation
+- `create_simulated_data`: [`simulation.py`](simulation.py)
+- `run_simulation_recovery_analysis`: [`simulation.py`](simulation.py)
+- `verify_particle_filter_fidelity`: [`simulation.py`](simulation.py)
+- `run_param_recovery_by_k`: [`simulation.py`](simulation.py)
 
-### Model-nesting / validation utilities (used by optional demo branch)
-- `model_nesting_adjacency_matrices`: **L11060–L11268**
-- `run_child_parent_embedding_sanity_checks`: **L11359–L11622**
-- `run_child_parent_probability_equivalence_smoketest`: **L11624–L11720**
-- `build_utility_equation` (string form of the active utility): **L12250–L12502**
-
-### Efficiency / scalability
-- `verify_particle_filter_fidelity` (PF vs full-grid agreement; speed/accuracy tradeoff): **L7427–L7852**
-- Multiprocessing is primarily exercised in `run_analysis_bayes` / `fit_params_by_player`.
-
-> For detailed explanations of *why* each of these functions exists and how they compose into the full pipeline, see [`docs/CORE_FUNCTION_MAP.md`](docs/CORE_FUNCTION_MAP.md).
+### Model nesting and IC analysis
+- `model_nesting_adjacency_matrices`: [`analysis.py`](analysis.py)
+- `run_child_parent_embedding_sanity_checks`: [`analysis.py`](analysis.py)
+- `run_child_parent_probability_equivalence_smoketest`: [`analysis.py`](analysis.py)
+- `information_criterion_analysis`: [`analysis.py`](analysis.py)
 
 ---
 
-## 7) Where to find key details in the write-up (arXiv PDF)
+## 7) Where to find key details in the paper (arXiv PDF)
 
-If you’re reading the PDF and want to jump to the most relevant parts:
-
-- **UBM formulation + implementation details**: Section **3.3**, especially **3.3.2–3.3.5** (pages ~12–25).
-- **Simulation methods & results**: Section **3.3.6** (corresponds to Figures **5–6**; `light_mode` will differ slightly).
-- **Belief-update visualization**: Figure **4** (the demo generates interactive 3D versions).
-- **Information criterion + nesting / parent-fair comparisons**: Section **4**, especially **4.4** (pages ~31–45).
+- **UBM formulation**: Section 3.3, especially 3.3.2–3.3.5.
+- **Simulation methods and results**: Section 3.3.6 (Figures 5–6; `light_mode` will differ slightly).
+- **Belief-update visualization**: Figure 4 (the demo generates interactive 3D versions).
+- **IC analysis and nesting**: Section 4, especially 4.4.
+- **Parameter distributions**: Section 5.
 
 ---
 
-## 8) Optional: Full IC model comparison output (not run in demo)
+## 8) Full IC model comparison output (precomputed)
 
-I also ran a large-scale information-criterion model comparison across 476 candidate utility functions (the full pipeline is too compute-intensive to include in the quick demo). The results are included as:
+The large-scale IC comparison across 476 utility functions is too compute-intensive to run in the
+quick demo (months on the paper's settings). Results are included as:
 
-[`All_Utility_Forms_IC_Analysis_Experiment3.csv`](demo_files/bic_aic/All_Utility_Forms_IC_Analysis_Experiment3.csv)
+[`bic_aic/All_Utility_Forms_IC_Analysis_Experiment3.csv`](bic_aic/All_Utility_Forms_IC_Analysis_Experiment3.csv)
 
-How to read the file: each row is one utility-function specification (defined by the boolean utility_settings columns). Key columns:
-
-- *equation*: human-readable utility function (string form)
-- *loss*: best-fit negative log-likelihood (summed over n_data)
-- *k_params*: number of free parameters
-- *AIC*, *BIC*: information criteria scores (lower is better)
-- *ΔAIC*, *ΔBIC*: difference from the best model within the same k_params
-- *AIC_rank, *BIC_rank*: ranks within each k_params group (for overall ranking, sort by BIC directly)
-
-The generating code is information_criterion_analysis(...) in main.py (starts around line ~10369). It refits models across multiple restarts/iterations and uses a model-nesting graph + child→parent warm-starting (with “special parameter” mappings) to prevent nesting violations (cases where a parent fits worse than a nested child due to optimization/penalty artifacts).
+Key columns: *equation*, *loss*, *k_params*, *AIC*, *BIC*, *ΔAIC*, *ΔBIC*, *AIC_rank*, *BIC_rank*.
+Each row is one utility-function specification defined by its boolean `utility_settings` columns.
+Sort by *BIC* ascending for the overall ranking. The generating function is
+`information_criterion_analysis` in [`analysis.py`](analysis.py).

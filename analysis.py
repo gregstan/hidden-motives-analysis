@@ -1089,9 +1089,10 @@ def typological_model_comparison_fit_individually(best_profiles: list[tuple[floa
 "========= Information Criterion Analysis: Determining Optimal Utility Structures ========="
 "=========================================================================================="
 
-def information_criterion_analysis(general_settings: Dict[str, Any], utility_settings: Dict[str, bool], file_paths: Dict[str, str], 
+def information_criterion_analysis(general_settings: Dict[str, Any], utility_settings: Dict[str, bool], file_paths: Dict[str, str],
                                    param_bds: Dict[str, tuple[int | float, int | float]], dynamic_updating: bool = False, max_iters: int = 1, robustness_epsilon: float = 10,
-                                   check_for_n_players: int | str = "all", write_mode: WriteMode = "resume") -> Tuple[pd.DataFrame, Dict[str, Dict[Tuple[bool], Dict[str, Any]]]]:
+                                   check_for_n_players: int | str = "all", write_mode: WriteMode = "resume",
+                                   utility_setting_varieties: Optional[List[UtilitySettings]] = None) -> Tuple[pd.DataFrame, Dict[str, Dict[Tuple[bool], Dict[str, Any]]]]:
     """
     Computes and compares AIC/BIC across different utility function configurations.
 
@@ -1100,15 +1101,19 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         • utility_settings: Dict[str, bool]; Flat dictionary of boolean flags controlling the functional form.
         • file_paths: Dict[str, str]; Paths to files/directories for reading/writing data.
         • param_info: Dict[str, Any]; Contains parameter keys, bounds, guesses, etc.
-        • robustness_epsilon: float; If sum of ΔMinLoss < this threshold for two 
+        • robustness_epsilon: float; If sum of ΔMinLoss < this threshold for two
             consecutive iterations, then stop early.
         • dynamic_updating: bool; Because the computational demands of fitting individual-level belief updating
             are prohibitive, this analysis relies on a static (no updating) version of the UBM by default. Yet,
-            setting this input to True can work on a machine with more cores.  
+            setting this input to True can work on a machine with more cores.
+        • utility_setting_varieties: Optional[List[UtilitySettings]]; If provided, this exact list of utility
+            configurations is used instead of generating all valid configurations via
+            gnrl.generate_utility_settings. Each entry must pass gnrl.is_valid_utility_settings or a
+            ValueError is raised. Pass None (the default) to run the full comparison across all 476 forms.
 
     Returns:
         • df: pd.DataFrame; Dataframe summarizing the IC metrics (loss, AIC, BIC) for each utility configuration.
-        • all_ic_results: Dict[str, Dict[Tuple[bool], Dict[str, Any]]]; 
+        • all_ic_results: Dict[str, Dict[Tuple[bool], Dict[str, Any]]];
             - "ic_results": Maps each utility config (as a tuple of booleans) to its {n,k,loss,AIC,BIC}.
             - "utility_varieties": Maps the same config tuple to the actual dictionary of settings.
     """
@@ -1614,8 +1619,17 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
     ic_results_dict = {}
     utility_varieties = {}
 
-    "Generate all valid utility configurations."
-    utility_setting_varieties = gnrl.generate_utility_settings(utility_settings=utility_settings, sort_by_k=True)
+    "Generate or validate the utility configurations to compare."
+    if utility_setting_varieties is not None:
+        invalid_settings = [s for s in utility_setting_varieties if not gnrl.is_valid_utility_settings(s)]
+        if invalid_settings:
+            raise ValueError(
+                f"information_criterion_analysis received {len(invalid_settings)} invalid utility setting(s) "
+                f"in utility_setting_varieties. Validate each entry with gnrl.is_valid_utility_settings "
+                f"before passing it in."
+            )
+    else:
+        utility_setting_varieties = gnrl.generate_utility_settings(utility_settings=utility_settings, sort_by_k=True)
 
     n_varieties = len(utility_setting_varieties)
 

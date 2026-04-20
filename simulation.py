@@ -3000,10 +3000,12 @@ def compute_belief_update_speed(dyad_games: List[Dict[str, Any]], player_uuid: s
         final_dist = dist_series[-1]
         "Threshold"
         threshold = prior_dist + fraction*(final_dist - prior_dist)
-        "Find earliest t crossing"
-        # If final_dist < prior_dist, look for dist_series[t] <= threshold.
-        # If final_dist > prior_dist, look for dist_series[t] >= threshold.
-        "Handles reversed direction when final < prior."
+        """
+        Find earliest t crossing
+        If final_dist < prior_dist, look for dist_series[t] <= threshold.
+        If final_dist > prior_dist, look for dist_series[t] >= threshold.
+        Handles reversed direction when final < prior.   
+        """
         direction = 1 if final_dist > prior_dist else -1
 
         total_time_intervals = len(dist_series)-1  # Total intervals.
