@@ -186,7 +186,7 @@ where each argument is introduced with `•`, and a `Returns:` block.
 ```python
 def example_function(first_argument: pd.DataFrame, second_argument: bool) -> pd.DataFrame:
     """
-    One-sentence description of what the function does.
+    One- to three-sentence description of what the function does.
 
     Arguments:
         • first_argument: pd.DataFrame
@@ -218,8 +218,61 @@ posterior_weights = posterior_weights / posterior_weights.sum()
 Major sections use the 90-character separator style already present in the file:
 ```python
 "=========================================================================================="
-"============================== Section Title =============================================="
+"===================================== Section Title ======================================"
 "=========================================================================================="
+```
+
+The middle line must have an equal number of `=` characters on both sides of the text (with one
+space padding on each side). If the available `=` count is odd, the extra `=` goes **after** the
+text (right side). Example: a 90-character line with "My Title" (8 chars) has 80 `=` characters
+available (after 2 spaces), split 40 left and 40 right — even, so equal. A title with 9 chars
+leaves 79, split 39 left and 40 right (extra `=` on right).
+
+### Always use keyword arguments in function calls
+
+All non-trivial function calls must use keyword arguments so a reader can tell at a glance what
+each value is. Positional-only calls are acceptable for standard builtins (`len`, `range`, `print`)
+but not for project functions.
+
+```python
+"Good"
+gnrl.classify_pair_relation(
+    model_1=child_utility_settings, model_2=parent_utility_settings,
+    utility_settings=utility_settings, general_settings=general_settings,
+)
+
+"Bad — reader cannot tell which argument is which"
+gnrl.classify_pair_relation(child_utility_settings, parent_utility_settings)
+```
+
+### Comment capitalization and consolidation
+
+- Comments (string literals used as block comments) must start with an upper-case letter, unless
+  the very first word is a variable or function name that is lower-case by convention.
+- A run of two or more consecutive single-line comment strings must be consolidated into one
+  triple-quoted string rather than written as separate `"..."` lines.
+- Comments describe what the code *does* and are addressed to a third-party researcher,
+  developer, collaborator, or AI assistant who has no prior context for the project — not to
+  Greg personally. Write as if explaining to a capable stranger, not as a personal note.
+
+```python
+"Good — single comment, upper-case, third-person framing"
+"Normalize the posterior so it sums to one before the next update."
+posterior_weights = posterior_weights / posterior_weights.sum()
+
+"""
+Good — multiple related lines consolidated into one triple-quoted block.
+The first step converts each parameter vector to an index tuple so the grid
+can be addressed by integer coordinates rather than raw float values.
+"""
+index_tuples = [param_vector_to_index(v) for v in parameter_vectors]
+
+"Bad — lower-case start (unless first word is a variable name)"
+"normalize the posterior..."
+
+"Bad — two separate single-line strings that should be one block"
+"Step 1: convert vectors."
+"Step 2: build grid."
 ```
 
 ### Design philosophy

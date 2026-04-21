@@ -190,12 +190,14 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
                     "Vᵢⱼ": v_ij
                 }
                 "Compute p(choose A)."
+                _gp = grid_predictor.get('params', {})
+                _tau = _gp.get('τ', _gp.get('temp', 1.5))
+                "TODO Decide whether visualization should dampen temperature or use the fitted value directly."
                 p_choose_A = choice(
                     current_game=game,
                     agent_params=agent_params,
                     utility_settings=utility_settings,
-                    # TODO Decide whether visualization should dampen temperature or use the fitted value directly.
-                    softmax_temperature=grid_predictor.get('params', {}).get('temp', 1.5) * 0.75,
+                    softmax_temperature=_tau * 0.75,
                     select=False
                 )["model_choose_A"]
 
@@ -848,7 +850,7 @@ def belief_accuracy_analysis(file_paths: FilePaths, general_settings: GeneralSet
                 first_game = dyad_games[0]
                 param_est = first_game.get('parameter_estimates', {}).get(
                     'grid', {}).get(player_uuid, {}).get('predictor', {}).get('params', {})
-                temperature = param_est.get('temp', None)
+                temperature = param_est.get('τ', param_est.get('temp', None))
             dyad_games = typo.avatar_posteriors(dyad_games=dyad_games, temperature=temperature, 
                                                  loss_funct_type=general_settings.get('loss_funct_type', 'log'),
                                                  update_method=general_settings.get('update_method', 'grid'))

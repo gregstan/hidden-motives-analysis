@@ -1410,20 +1410,6 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         df_local["BIC_rank"] = df_local["BIC"].rank(method="min", ascending=True)
         return df_local
     
-    def make_unique_guesses(bounds, *, model_key, iter_idx, restart_idx): # TODO delete???
-        """
-        Bounds: list[(low, high)] aligned with param_info['keys'].
-        Returns a list of floats with unique-but-deterministic randomness.
-        """
-        def _seed_from(*parts) -> int:
-            """Deterministic 32-bit seed from stable identifiers."""
-            hash = hashlib.sha256("|".join(map(str, parts)).encode("utf-8")).hexdigest()
-            return int(hash[:8], 16)
-          
-        seed = _seed_from("IC", model_key, iter_idx, restart_idx)
-        rng = random.Random(seed)
-        return [rng.uniform(bound_low, bound_high) for (bound_low, bound_high) in bounds]
-
     def _warmstart_temperature(iter_idx: int, warmstart_policy: dict) -> float | None:
         """
         Returns None ⇒ 'cold' (no warm-starts).
@@ -1882,7 +1868,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                                             player_uuid, {}).get(player_role, {}).get('params')
 
                     "Extract the parameters that minimize the raw losses, not the penalized losses."
-                    "NOTE: If successful, this overwrites the logic directly above." # TODO Consider what to do here.
+                    "This supersedes the grab above when reports['final']['min_raw_neglog_sum'] is present, which is the preferred source."
                     if len(dyad_games) > 0:
                         if "reports" in dyad_games[0]:
                             for player_role in ('chooser', 'predictor'):
@@ -2346,19 +2332,6 @@ def plot_ic_robustness_analysis(general_settings: Dict[str, Any], file_paths: Di
         line=dict(width=line_width, dash="solid", color='hsla(200, 65%, 20%, 1.0)')
     )
     fig.add_trace(trace_rank, row=1, col=2)
-
-    "Optional median rank-change overlay for the second panel"
-    rank_med = False
-    if rank_med:
-        trace_median = go.Scatter(
-            x=x_iter2,
-            y=rank_med,
-            mode="lines+markers",
-            name="Median Rank Change",
-            marker=dict(size=fig_lay.get("markersize", 10)+2, color='hsla(285, 65%, 40%, 1.0)'),
-            line=dict(width=line_width, dash="dot", color='hsla(285, 65%, 20%, 1.0)')
-        )
-        fig.add_trace(trace_median, row=1, col=2)
 
     tickvals_x = list(np.linspace(2, x_iter2[-1], len(x_iter2) - 1))
     ticktext_x = tickvals_x
@@ -2873,16 +2846,6 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
         for jdx in sibling_indices:
             if jdx <= idx:
                 continue  # Proper de-dup.
-            # TODO Figure out whether payoff-format edge filters should be restored here.
-            # Historical commented-out guards appeared to skip edges involving these utility settings.
-            # if settings_list[idx]["single_payoffs_not_differences"]:
-            #     continue
-            # if settings_list[idx]["payoff_ratios_not_differences"]:
-            #     continue
-            # if settings_list[jdx]["single_payoffs_not_differences"]:
-            #     continue
-            # if settings_list[jdx]["payoff_ratios_not_differences"]:
-            #     continue
             flip = effective_flip(settings_list[idx], settings_list[jdx], SIBLING_FLIPS)
             if flip:
                 sib_edges.append((idx, jdx, flip))
@@ -2890,32 +2853,9 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
     pc_edges: list[tuple[int,int,str]] = []
     for parent_idx, children in enumerate(parent_of):
         for child_idx in children:
-            # TODO Figure out whether payoff-format edge filters should be restored here.
-            # Historical commented-out guards appeared to skip edges involving these utility settings.
-            # if settings_list[parent_idx]["single_payoffs_not_differences"]:
-            #     continue
-            # if settings_list[parent_idx]["payoff_ratios_not_differences"]:
-            #     continue
-            # if settings_list[child_idx]["single_payoffs_not_differences"]:
-            #     continue
-            # if settings_list[child_idx]["payoff_ratios_not_differences"]:
-            #     continue
             flip = effective_flip(settings_list[parent_idx], settings_list[child_idx], PARENT_CHILD_FLIPS)
             if flip:              
                 pc_edges.append((parent_idx, child_idx, flip))
-
-    "Debugging code"
-    check_interested_settings = False
-    if check_interested_settings:
-        setting_of_interest = 'reference_dependent_altruism'
-        for sib_edge in sib_edges:
-            sib_1, sib_2, flipped_setting = sib_edge
-            if flipped_setting == setting_of_interest:
-                sib_1_equation = graph['equations'][sib_1]
-                sib_2_equation = graph['equations'][sib_2]
-                print(sib_1_equation)
-                print(sib_2_equation)
-                print()
 
     "Quick sanity counts that should match terminal counts."
     print("Sibling edges (graph):", len(sib_edges))
@@ -3659,7 +3599,6 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
     def row_to_tuple(row: pd.Series) -> tuple[bool, ...]:
         return tuple(bool(row[key]) for key in ordered_flag_keys)
     ic_dataframe['utility_tuple'] = ic_dataframe.apply(row_to_tuple, axis=1)
-    signature_to_index: dict[tuple[bool, ...], int] = {tup: idx for idx, tup in ic_dataframe['utility_tuple'].items()} # TODO delete???
 
     rng = random.Random(random_seed)
     results_rows: list[dict[str, Any]] = []
@@ -3982,25 +3921,6 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
             util_components[new_key] = util_components.pop(old_key)
         return {key: round(val, 6) for key, val in util_components.items()}
         
-    def align_parent_child_equations(parent_eq: str, child_eq: str, pad: int = 1) -> tuple[str,str]:  # TODO Figure out whether this should be deleted.
-        """
-        Token-aligns two equation strings so corresponding terms start at the same columns.
-        Splits on spaces, pads each column to the max width across the two rows.
-        """
-        parent_rhs = parent_eq.split("=", 1)[1].strip()
-        child_rhs  = child_eq.split("=", 1)[1].strip()
-        p_tokens = parent_rhs.split()
-        c_tokens = child_rhs.split()
-        width = [max(len(p_tokens[idx]) if idx < len(p_tokens) else 0,
-                    len(c_tokens[idx]) if idx < len(c_tokens) else 0)
-                for idx in range(max(len(p_tokens), len(c_tokens)))]
-        def _pad(tokens):
-            return "".join((tokens[idx] if idx < len(tokens) else "").ljust(width[idx] + pad)
-                        for idx in range(len(width)))
-        aligned_parent = f"{parent_eq.split('=')[0]}= " + _pad(p_tokens)
-        aligned_child  = f"{child_eq.split('=')[0]}= " + _pad(c_tokens)
-        return aligned_parent, aligned_child
-
     def _evaluate_equation_numeric(equation_string: str, params: dict[str, float], utility_settings: UtilitySettings, payoffs: dict[str, float], 
                                    param_overrides: dict[str, float] | None = None, decimals_local: int = 6, ) -> tuple[float | None, str]:
         """
@@ -4216,7 +4136,6 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
         comp_parent = _components_for_utility(payoffs_for_one, parent_means, parent_settings)
         comp_delta  = {component_key: round(comp_parent[component_key]-comp_child[component_key], 6) for component_key in comp_child.keys() if abs(comp_parent[component_key]-comp_child[component_key]) > 1e-9}
 
-        "Equation alignment can be restored with align_parent_child_equations if needed."
         equation_parent_aligned, equation_child_aligned = equation_parent, equation_child
 
         results.append({
@@ -4624,8 +4543,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
                 gamma1_value = float(params_pretty[k_try]); break
         if gamma1_value is None: gamma1_value = 1.0
 
-        
-        # TODO Figure out whether conditional-welfare weight normalization belongs in equation evaluation.
+        "Conditional-welfare normalization is intentionally skipped here; the utility() call above also uses normalize_conditional_welfare_params=False, keeping both paths consistent."
         payoff_symbol_map = {"As": "πᵢᴬ", "Ao": "πⱼᴬ", "Bs": "πᵢᴮ", "Bo": "πⱼᴮ"}
         payoffs_pretty_map = {payoff_symbol_map[payoff_key]: payoff_value for payoff_key, payoff_value in payoffs.items()}
 
@@ -5384,8 +5302,6 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
         for param_key, param_guess in zip(param_info['keys'], initial_guesses):
             fallback_params[param_key] = float(param_guess)
 
-        # TODO Figure out whether bounded random fallback is still needed here.
-
         return fallback_params
 
     "Normalize inputs"
@@ -5492,9 +5408,9 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
     setting_keys_child = set(selected_child_settings.keys())
     missing_keys = setting_keys_all - setting_keys_child
     n_missing_keys = len(list(missing_keys))
-    max_missing_keys = 2  # TODO Revisit this threshold; it may be too permissive.
-    if n_missing_keys < 0:
-        raise ValueError(f"Child model has extra keys: {setting_keys_child}.")
+    max_missing_keys = 2
+    if n_missing_keys == 0:
+        pass
     elif n_missing_keys > 0:
         if n_missing_keys > max_missing_keys:
             pp.pprint(best_fitting_child_params)
@@ -5731,7 +5647,6 @@ def population_parameter_distribution_histograms(general_settings: dict[str, Any
 
     if general_settings.get('temperature_is_param'):
         param_keys += ["τ"]
-        # TODO Figure out whether "temp" should be included alongside "τ".
     for param_key in param_keys:
         if param_key in ("τ", "temp"):
             fancy_key = "τ"

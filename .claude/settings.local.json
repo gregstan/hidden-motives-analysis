@@ -17,7 +17,10 @@
       "Read(//c/Users/Gregory Stanley/.ssh/**)",
       "Bash(python -m py_compile analysis.py)",
       "Bash(python -m py_compile utilities.py)",
-      "Bash(python -m py_compile preprocessing.py)"
+      "Bash(python -m py_compile preprocessing.py)",
+      "Bash(python -c \"import sys; data = sys.stdin.buffer.read\\(\\); print\\(data.decode\\('utf-8', errors='replace'\\)\\)\")",
+      "Bash(del \"c:\\\\Users\\\\Gregory Stanley\\\\Desktop\\\\U of M\\\\Research Archive\\\\Multiplayer\\\\hidden-motives-analysis\\\\_extra_models_tmp.txt\")",
+      "Bash(python -c \" import sys src = sys.stdin.read\\(\\) idx = src.find\\('n_social_preference_params == 1'\\) print\\(src[idx:idx+500] if idx != -1 else 'not found in b327582'\\) \")"
     ]
   }
 }

@@ -481,7 +481,7 @@ def prior_grid_from_params(param_vals: Dict[str, Dict[str, Dict[str, float]]], p
                     continue
 
                 "Check parameter keys"
-                param_keys_in_params = [param_key for param_key in params.keys() if '_cov' not in param_key and param_key != 'temp']
+                param_keys_in_params = [param_key for param_key in params.keys() if '_cov' not in param_key and param_key not in ('τ', 'temp')]
                 if sorted(param_keys_in_params) != sorted(param_info["keys"]):
                     raise ValueError(
                         f"Parameter keys mismatch in player {player_uuid}, role {role}. "
@@ -1295,7 +1295,8 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                         no_memory_mode = general_settings.get('no_memory_mode', False)
 
                         "(iii) Now do the update"
-                        likelihood_temp = initial_params.get(player_role, {}).get('temp', choice_temperature)
+                        role_params = initial_params.get(player_role, {})
+                        likelihood_temp = role_params.get('τ', role_params.get('temp', choice_temperature))
                         posterior_data = bayesian_update_grid(
                             prior_array=prior_grid_data['prior_array'],   # Dict or ndarray.
                             meta_data=meta_for_update,
@@ -1326,12 +1327,15 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                                 param_info=param_info
                             )
 
-                        if 'temp' not in pred_sub['params']:
+                        if 'τ' not in pred_sub['params']:
                             "Storing choice temperature (which is static across rounds)."
-                            if 'temp' in initial_params.get(player_role, {}):
-                                pred_sub['params']['temp'] = initial_params[player_role]['temp']
+                            role_init = initial_params.get(player_role, {})
+                            if 'τ' in role_init:
+                                pred_sub['params']['τ'] = role_init['τ']
+                            elif 'temp' in role_init:
+                                pred_sub['params']['τ'] = role_init['temp']
                             else:
-                                pred_sub['params']['temp'] = choice_temperature
+                                pred_sub['params']['τ'] = choice_temperature
 
                         "(iii) Store the new posterior param_vectors"
                         pred_sub['meta_data'] = posterior_data['meta_data']
@@ -1704,7 +1708,7 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
             if include_covariance:
                 initial_params[player_role][param_cat] += copy.deepcopy(param_info['covar'][param_cat])
         if temperature_is_param and update_method in ('MCMC', 'grid'):
-            initial_params[player_role]['keys'] += ['temp']
+            initial_params[player_role]['keys'] += ['τ']
             initial_params[player_role]['bounds'] += [(0.5, 3.0)]
             initial_params[player_role]['guesses'] += [softmax_temperature]
 
@@ -2153,11 +2157,13 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
 
         if temperature_is_param:
             choice_temperature = softmax_temperature
-            choice_temp = best_fitting_params.get('chooser', {}).get('temp')
+            chooser_params = best_fitting_params.get('chooser', {})
+            choice_temp = chooser_params.get('τ', chooser_params.get('temp'))
             if choice_temp is not None:
                 choice_temperature = choice_temp
             else:
-                choice_temp = best_fitting_params.get('predictor', {}).get('temp')
+                predictor_params = best_fitting_params.get('predictor', {})
+                choice_temp = predictor_params.get('τ', predictor_params.get('temp'))
                 if choice_temp is not None:
                     choice_temperature = choice_temp
         else:
@@ -2385,7 +2391,7 @@ def fit_dyad_parameters_bayes(dyad_games: DyadGames, param_info: ParamInfo, util
 
                 try:
                     param_means = [param_val for param_key, param_val in updated[role_to_fit].items() 
-                                   if not any(key in param_key for key in ('_std', '_cov', 'temp'))]
+                                   if not any(key in param_key for key in ('_std', '_cov', 'τ', 'temp'))]
                     multivariate_normal(mean=param_means, cov=cov_matrix, allow_singular=False)
                 except np.linalg.LinAlgError:
                     print(f"Failed Multivariate Normal:")
@@ -2412,7 +2418,8 @@ def fit_dyad_parameters_bayes(dyad_games: DyadGames, param_info: ParamInfo, util
             dyad_copy = copy.deepcopy(dyad_games)
 
             if temperature_is_param and role_to_fit == 'predictor' and update_method == 'grid':
-                choice_temperature = full_param_dict[player_uuid]['predictor']['temp']
+                pred_pd = full_param_dict[player_uuid]['predictor']
+                choice_temperature = pred_pd.get('τ', pred_pd.get('temp'))
             else:
                 choice_temperature = None
 
@@ -2440,7 +2447,7 @@ def fit_dyad_parameters_bayes(dyad_games: DyadGames, param_info: ParamInfo, util
             free_keys += [key for key in param_info["covar"]["keys"]]
             param_bounds += [key for key in param_info["covar"]["bounds"]]
         if temperature_is_param:
-            free_keys += ['temp']
+            free_keys += ['τ']
             param_bounds += [(0.5, 3.0)]
 
         "Extract initial free parameters for the active (thawed) role."

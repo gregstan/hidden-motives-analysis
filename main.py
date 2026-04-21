@@ -32,8 +32,6 @@ def main():
                               params_predictor_range={'Vᵢᵢ': (1, 1, 1), 'Vᵢⱼ': (-1, 1, 7), 'std': (0.5, 1.5, 3), 'τ': (0.5, 3, 3)}, 
                               utility_settings=utility_settings, dynamic_predictor=use_dynamic_predictor)
 
-        suffix = "_sim_pred_predictor" if use_dynamic_predictor else "_fitted_predictor"
-        temp_col = f"τ{suffix}" if use_dynamic_predictor else f"temp{suffix}"
         df_merged = run_simulation_recovery_analysis(
             general_settings=general_settings, file_paths=file_paths,
             fig_lay=fig_lay, export_fig=True, create_new_file=True, produce_figures=True, 
@@ -44,7 +42,7 @@ def main():
         compute_recovery_by_prior_bins(
             df=df_merged,
             var_col="Vᵢⱼ_std_true_predictor",      # prior σ(Vij)
-            temp_col="temp_true_predictor",        # prior temp / τ
+            temp_col="τ_true_predictor",
             param_true_chooser="Vᵢⱼ_true_chooser",
             param_fitted_predictor="Vᵢⱼ_sim_pred_predictor",
             player_id_col="player_uuid_predictor",

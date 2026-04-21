@@ -501,7 +501,7 @@ def global_local_then_trust_constr(objective_with_penalty: Callable[[np.ndarray]
             {Vᵢᵢ, Ʌᵢᵢ, Vᵢⱼ, Ʌᵢⱼ, Ƹᵢⱼ, Ʒᵢⱼ}  or  {Vii, Λii, Vij, Λij, Eij, Gij}
 
         Excluded:
-            • Temperature ('temp')
+            • Temperature ('τ')
             • Any standard deviation / covariance keys ('*_std', '*_cov')
             • All exponent parameters (γ₁/γ₂/γ₃, or ASCII 'gamma*')
             • Any other keys not explicitly recognized as weights
@@ -531,7 +531,7 @@ def global_local_then_trust_constr(objective_with_penalty: Callable[[np.ndarray]
 
         mask_values: list[bool] = []
         for key in parameter_keys:
-            if key == "temp":
+            if key in ("τ", "temp"):
                 mask_values.append(False); continue
             if _is_std_or_cov(key):
                 mask_values.append(False); continue
@@ -740,7 +740,7 @@ def best_initial_guesses(dyad_key: str | int, file_paths: FilePaths, param_info:
             raise ValueError("Softmax temperature could not be accessed.")
         for player_params in [params_player_1, params_player_2]:
             for param_dict in player_params.values():
-                param_dict['temp'] = softmax_temperature
+                param_dict['τ'] = softmax_temperature
 
     if use_only_guesses:
         chooser_uuid = player_uuid_1

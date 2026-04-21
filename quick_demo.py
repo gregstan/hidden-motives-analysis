@@ -91,9 +91,11 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
         },
     }
 
-    "Demo real-data file paths: reads from the true raw/processed directories but writes all"
-    "outputs to demo_files/. This protects precomputed files (e.g., the IC analysis that took"
-    "a month to run) from being overwritten by a smaller-scale demo run."
+    """
+    Demo real-data file paths: reads from the true raw/processed directories but writes all
+    outputs to demo_files/. This protects precomputed files (e.g., the IC analysis that took
+    a month to run) from being overwritten by a smaller-scale demo run.
+    """
     demo_real_file_paths = {
         **file_paths,
         "bic_aic":     demo_root / "bic_aic",
@@ -125,9 +127,11 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     "=========================================================================================="
     "===== Section 1: Utility Model — Equations, Parameters, and Core Bayesian Components ====="
     "=========================================================================================="
-    "Manuscript context: Sections 2 and 3.1–3.2. No data required."
-    "Functions exercised: build_utility_equation, utility, make_param_info, is_valid_utility_settings,"
-    "generate_utility_settings, classify_pair_relation, verify_utility_vs_string_equation."
+    """
+    Manuscript context: Sections 2 and 3.1–3.2. No data required.
+    Functions exercised: build_utility_equation, utility, make_param_info, is_valid_utility_settings,
+    generate_utility_settings, classify_pair_relation, verify_utility_vs_string_equation.
+    """
 
     if analysis_options['run_model_demos']:
         print("\n" + "=" * 70)
@@ -138,7 +142,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
         settings_are_valid = gnrl.is_valid_utility_settings(utility_settings, provide_explanation=True)
         print(f"\nis_valid_utility_settings(utility_settings) → {settings_are_valid}")
 
-        demo_param_info = make_param_info(param_bds=param_bds, utility_settings=utility_settings)
+        demo_param_info = make_param_info(param_bds=param_bds, utility_settings=utility_settings, general_settings=general_settings)
         print(f"\nmake_param_info → parameter keys: {demo_param_info['keys']}")
 
         "Count and list all valid utility configurations."
@@ -154,8 +158,14 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
         "Demonstrate classify_pair_relation on a parent-child pair and a sibling pair."
         child_utility_settings   = {**utility_settings, 'include_social_comparison': False}
         sibling_utility_settings = {**utility_settings, 'single_payoffs_not_differences': True}
-        parent_child_relation = gnrl.classify_pair_relation(child_utility_settings, utility_settings)
-        sibling_relation      = gnrl.classify_pair_relation(utility_settings, sibling_utility_settings)
+        parent_child_relation = gnrl.classify_pair_relation(
+            model_1=child_utility_settings, model_2=utility_settings,
+            utility_settings=utility_settings, general_settings=general_settings,
+        )
+        sibling_relation = gnrl.classify_pair_relation(
+            model_1=utility_settings, model_2=sibling_utility_settings,
+            utility_settings=utility_settings, general_settings=general_settings,
+        )
         print(f"\nclassify_pair_relation examples:")
         print(f"  + social_comparison added: '{parent_child_relation}'  (expected: 'parent_child')")
         print(f"  single_payoffs vs diffs:   '{sibling_relation}'       (expected: 'sibling')")
@@ -181,10 +191,12 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     "=========================================================================================="
     "============== Section 2: Model Nesting Infrastructure and Validity Checks ==============="
     "=========================================================================================="
-    "Manuscript context: Section 4.4 (nesting logic and parent-fair regularization)."
-    "Functions exercised: model_nesting_adjacency_matrices, summarize_nesting_relationship_counts,"
-    "test_utility_functions, run_child_parent_probability_equivalence_smoketest,"
-    "run_child_parent_embedding_sanity_checks."
+    """
+    Manuscript context: Section 4.4 (nesting logic and parent-fair regularization).
+    Functions exercised: model_nesting_adjacency_matrices, summarize_nesting_relationship_counts,
+    test_utility_functions, run_child_parent_probability_equivalence_smoketest,
+    run_child_parent_embedding_sanity_checks.
+    """
 
     if analysis_options['run_nesting_tests']:
         print("\n" + "=" * 70)
@@ -244,9 +256,11 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     "=========================================================================================="
     "============== Section 3: Simulation — Parameter Recovery (Figures 5 and 6) =============="
     "=========================================================================================="
-    "Manuscript context: Section 3.3.6 (simulation validation, parameter recovery)."
-    "Functions exercised: create_simulated_data, run_simulation_recovery_analysis,"
-    "compute_recovery_by_prior_bins, plot_param_recovery_by_round."
+    """
+    Manuscript context: Section 3.3.6 (simulation validation, parameter recovery).
+    Functions exercised: create_simulated_data, run_simulation_recovery_analysis,
+    compute_recovery_by_prior_bins, plot_param_recovery_by_round.
+    """
 
     if analysis_options['run_simulation']:
         print("\n" + "=" * 70)
@@ -288,7 +302,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             compute_recovery_by_prior_bins(
                 df=df_merged,
                 var_col="Vᵢⱼ_std_true_predictor",
-                temp_col="temp_true_predictor",
+                temp_col="τ_true_predictor",
                 param_true_chooser="Vᵢⱼ_true_chooser",
                 param_fitted_predictor="Vᵢⱼ_sim_pred_predictor",
                 player_id_col="player_uuid_predictor",
@@ -298,13 +312,20 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
                 print_=True,
             )
 
-            plot_param_recovery_by_round(df_merged=df_merged, fig_lay=fig_lay)
+            plot_param_recovery_by_round(
+                df_merged=df_merged,
+                general_settings=general_settings,
+                file_paths=demo_file_paths,
+                fig_lay=fig_lay,
+            )
 
     "=========================================================================================="
     "=============== Section 4: Particle Filter Fidelity vs Full-Grid Posterior ==============="
     "=========================================================================================="
-    "Manuscript context: Section 3.3.5 (particle filter validation, correlation > 0.993)."
-    "Functions exercised: verify_particle_filter_fidelity."
+    """
+    Manuscript context: Section 3.3.5 (particle filter validation, correlation > 0.993).
+    Functions exercised: verify_particle_filter_fidelity.
+    """
 
     if analysis_options['run_particle_filter_test']:
         print("\n" + "=" * 70)
@@ -334,8 +355,10 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     "=========================================================================================="
     "============ Section 5: Parameter Recovery Across Model Complexity (k params) ============"
     "=========================================================================================="
-    "Manuscript context: Section 3.3.6 (how recovery quality varies with model dimensionality)."
-    "Functions exercised: run_param_recovery_by_k."
+    """
+    Manuscript context: Section 3.3.6 (how recovery quality varies with model dimensionality).
+    Functions exercised: run_param_recovery_by_k.
+    """
 
     if analysis_options['run_recovery_by_k']:
         print("\n" + "=" * 70)
@@ -361,9 +384,11 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     "=========================================================================================="
     "======================== Section 6: Belief Update Speed Analysis ========================="
     "=========================================================================================="
-    "Manuscript context: Section 3.3.6 (prior variance and temperature predict update speed)."
-    "Functions exercised: run_update_speed_simulation_regression."
-    "Requires: simulation data from Section 3 (run_simulation must have run first)."
+    """
+    Manuscript context: Section 3.3.6 (prior variance and temperature predict update speed).
+    Functions exercised: run_update_speed_simulation_regression.
+    Requires: simulation data from Section 3 (run_simulation must have run first).
+    """
 
     if analysis_options['run_update_speed_analysis']:
         print("\n" + "=" * 70)
@@ -391,9 +416,11 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     "=========================================================================================="
     "============= Section 7: 3D Bayesian Belief Update Visualization (Figure 4) =============="
     "=========================================================================================="
-    "Manuscript context: Section 3.3.4 and Figure 4 (posterior concentration over sequential games)."
-    "Functions exercised: visualize_bayesian_updates_3d."
-    "Requires: simulation data from Section 3 (run_simulation must have run first)."
+    """
+    Manuscript context: Section 3.3.4 and Figure 4 (posterior concentration over sequential games).
+    Functions exercised: visualize_bayesian_updates_3d.
+    Requires: simulation data from Section 3 (run_simulation must have run first).
+    """
 
     if analysis_options['visualize_belief_updates']:
         print("\n" + "=" * 70)
@@ -427,9 +454,11 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     "=========================================================================================="
     "=========== Section 8: Alternative Model Competition + Typological Comparison ============"
     "=========================================================================================="
-    "Manuscript context: Sections 3.4–3.5 (UBM vs non-Bayesian and discrete-type alternatives)."
-    "Functions exercised: alternative_model_contest, typological_model_comparison_fit_individually."
-    "Requires: raw experiment data (Experiments 1 and 2) in raw_data/."
+    """
+    Manuscript context: Sections 3.4–3.5 (UBM vs non-Bayesian and discrete-type alternatives).
+    Functions exercised: alternative_model_contest, typological_model_comparison_fit_individually.
+    Requires: raw experiment data (Experiments 1 and 2) in raw_data/.
+    """
 
     if analysis_options['run_model_comparison']:
         print("\n" + "=" * 70)
@@ -480,11 +509,13 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     "=========================================================================================="
     "======= Section 9: Information Criterion Utility Function Comparison (476 Models) ========"
     "=========================================================================================="
-    "Manuscript context: Section 4 (near-comprehensive IC comparison across 476 utility forms)."
-    "Functions exercised: gnrl.identify_redundant_utility_functions, gnrl.equation_to_settings,"
-    "information_criterion_analysis, plot_ic_scores_delta_bic, plot_ic_robustness_analysis,"
-    "utility_setting_contribution_analysis, extract_rankings_of_canonical_utility_functions."
-    "Requires: raw experiment 3 data. WARNING: full mode (light_mode=False) takes weeks."
+    """
+    Manuscript context: Section 4 (near-comprehensive IC comparison across 476 utility forms).
+    Functions exercised: gnrl.identify_redundant_utility_functions, gnrl.equation_to_settings,
+    information_criterion_analysis, plot_ic_scores_delta_bic, plot_ic_robustness_analysis,
+    utility_setting_contribution_analysis, extract_rankings_of_canonical_utility_functions.
+    Requires: raw experiment 3 data. WARNING: full mode (light_mode=False) takes weeks.
+    """
 
     if analysis_options['run_ic_analysis']:
         print("\n" + "=" * 70)
@@ -517,8 +548,10 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
                 create_new_file=True,
             )
 
-            "In light mode, select one representative form for each k level from k=1 to k=5."
-            "In full mode, pass None so information_criterion_analysis generates all 476."
+            """
+            In light mode, select one representative form for each k level from k=1 to k=5.
+            In full mode, pass None so information_criterion_analysis generates all 476.
+            """
             if light_mode:
                 all_varieties_by_k = gnrl.generate_utility_settings(
                     utility_settings=utility_settings, sort_by_k=True
@@ -579,10 +612,12 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     "=========================================================================================="
     "============ Section 10: Population Parameter Distributions and Correlations ============="
     "=========================================================================================="
-    "Manuscript context: Section 5 (parameter estimates, cross-role correlations, ratios)."
-    "Functions exercised: run_analysis_bayes (or mle), population_parameter_distribution_histograms,"
-    "subpopulation_stats_and_param_ratio_histograms, param_correlation_matrix_report."
-    "Requires: raw experiment data. The fitting step is computationally expensive."
+    """
+    Manuscript context: Section 5 (parameter estimates, cross-role correlations, ratios).
+    Functions exercised: run_analysis_bayes (or mle), population_parameter_distribution_histograms,
+    subpopulation_stats_and_param_ratio_histograms, param_correlation_matrix_report.
+    Requires: raw experiment data. The fitting step is computationally expensive.
+    """
 
     if analysis_options['run_parameter_distribution']:
         print("\n" + "=" * 70)
@@ -653,9 +688,11 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     "=========================================================================================="
     "================ Section 11: Inequality Aversion Bot Competition Heatmaps ================"
     "=========================================================================================="
-    "Manuscript context: Section 5.4 (envy vs guilt asymmetry competition)."
-    "Functions exercised: visualize_inequality_aversion_bot_competition."
-    "Requires: raw experiment data (to load trial histories)."
+    """
+    Manuscript context: Section 5.4 (envy vs guilt asymmetry competition).
+    Functions exercised: visualize_inequality_aversion_bot_competition.
+    Requires: raw experiment data (to load trial histories).
+    """
 
     if analysis_options['run_inequality_aversion']:
         print("\n" + "=" * 70)

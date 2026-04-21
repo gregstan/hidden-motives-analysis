@@ -154,13 +154,10 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
             Number of games to simulate.
         • params_chooser: dict[str, float];
             Parameters controlling the chooser’s utility (weights, exponents, etc.).
-            If a temperature parameter is used for the chooser, set both:
-                • 'temp' for `agent(...)` style compatibility (if ever needed),
-                • 'τ'   for the choice(...) call used here (SoftMax temperature).
+            Use ‘τ’ for the SoftMax temperature (canonical key).
         • params_predictor: dict[str, float];
             Parameters controlling the predictor’s *initial* beliefs (e.g., means/stds when later
-            used to seed a grid prior). Similarly, include both 'temp' and 'τ' for consistent
-            SoftMax behavior across the codebase.
+            used to seed a grid prior). Use ‘τ’ for the SoftMax temperature.
         • utility_settings: UtilitySettings;
             The utility family under which the chooser and predictor operate.
             If `default_utility_settings=True`, a simple default family is used and this argument is ignored.
@@ -192,12 +189,6 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
         raise TypeError(f"n_games must be an integer not {type(n_games)} - {n_games}.")
     if not n_games > 0:
         raise ValueError(f"n_games must be greater than 0, not {n_games}.")
-
-    def _inject_temp_alias(dict_: dict[str, float]) -> dict[str, float]:
-        dict_ = dict(dict_)  # Shallow copy.
-        if "temp" not in dict_ and "τ" in dict_:
-            dict_["temp"] = float(dict_["τ"])
-        return dict_
 
     utility_settings_: UtilitySettings = {
         'conditional_welfare_mode':       False,
@@ -276,8 +267,8 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
         }
 
         if embed_true_params and game_idx == 0:
-            dyad_game["true_params_predictor"] = _inject_temp_alias(params_predictor)
-            dyad_game["true_params_chooser"]   = _inject_temp_alias(params_chooser)
+            dyad_game["true_params_predictor"] = dict(params_predictor)
+            dyad_game["true_params_chooser"]   = dict(params_chooser)
 
         dyad_games.append(dyad_game)
 
@@ -586,12 +577,12 @@ def parse_robot_string(robot_str: str) -> dict:
         'robot_predictor_Vii=(1.0,1.0)_Vij=(-1.0,1.0)_t=1.5_n=9'
     Returns a dict of parameter values, e.g.:
         {
-          "Vᵢᵢ": 1.0,
-          "Vᵢᵢ_std": 1.0,
-          "Vᵢⱼ": -1.0,
-          "Vᵢⱼ_std": 1.0,
-          "temp": 1.5,
-          "n_games": 9
+            "Vᵢᵢ": 1.0,
+            "Vᵢᵢ_std": 1.0,
+            "Vᵢⱼ": -1.0,
+            "Vᵢⱼ_std": 1.0,
+            "τ": 1.5,
+            "n_games": 9
         }
     """
     pattern_vii = r"Vii=\((-?\d+\.?\d*),(-?\d+\.?\d*)\)"
@@ -612,7 +603,7 @@ def parse_robot_string(robot_str: str) -> dict:
         parsed["Vᵢⱼ"]     = float(match_vij.group(1))
         parsed["Vᵢⱼ_std"] = float(match_vij.group(2))
     if match_t:
-        parsed["temp"]    = float(match_t.group(1))
+        parsed["τ"]       = float(match_t.group(1))
     if match_n:
         parsed["n_games"] = int(match_n.group(1))
 
@@ -835,7 +826,7 @@ def compute_param_recovery_correlations(df: pd.DataFrame, dir_path: str, out_csv
                 - "final": one row per dyad at its latest round.
                 - "all":   one row per (round, param).
         • params: list[str] | None;
-            Base parameter names like ["Vii","Vij","temp"]. If None, auto-detect all
+            Base parameter names like ["Vii","Vij","τ"]. If None, auto-detect all
             parameters that have both <param>_true_<true_role> and <param>_fitted_predictor.
         • create_new_file: bool;
             If False and the CSV already exists, load and return it. If True, recompute
@@ -1015,7 +1006,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
         if fig_lay is None:
             fig_lay = {}
         if as_scatterplot and (params is None or len(params) == 0):
-            params = ["Vii", "Vij", "Vii_std", "Vij_std", "temp"]
+            params = ["Vii", "Vij", "Vii_std", "Vij_std", "τ"]
 
         "1) Subset data to the specified round"
         if round_selection == "first":
@@ -1036,7 +1027,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
             "Vij":     "Mean Altruism μ(𝑉𝑖𝑗)", 
             "Vii_std": "Self-interest Standard Deviation σ(𝑉𝑖𝑖)", 
             "Vij_std": "Altruism Standard Deviation σ(𝑉𝑖𝑗)", 
-            "temp":    "SoftMax Temperature (τ)"
+            "τ":       "SoftMax Temperature (τ)"
         }
 
         def axis_title(param: str, role: str, type_: str) -> str:
@@ -1110,7 +1101,10 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                     "Do a linear fit"
                     xvals = subp[xcol].values
                     yvals = subp[ycol].values
-                    slope, intercept = np.polyfit(xvals, yvals, 1)
+                    if xvals.min() == xvals.max():
+                        slope, intercept = 0.0, float(yvals.mean())
+                    else:
+                        slope, intercept = np.polyfit(xvals, yvals, 1)
 
                     "For plotting, covers the range of xvals."
                     x_min, x_max = xvals.min(), xvals.max()
@@ -1352,7 +1346,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
 
     if produce_figures:
         for round_selection in ('first', 'final'):
-            for param in ("Vii", "Vij", "Vii_std", "Vij_std", "temp"):
+            for param in ("Vii", "Vij", "Vii_std", "Vij_std", "τ"):
                 "Boxplot/violin"
                 plot_correlation(
                     df=df_combined,
@@ -1373,7 +1367,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                 export_fig=export_fig,
                 round_selection=round_selection,
                 as_scatterplot=True,
-                params=["Vii","Vij","Vii_std","Vij_std","temp"],
+                params=["Vii","Vij","Vii_std","Vij_std","τ"],
                 file_paths=file_paths,
                 out_path=os.path.join(sim_dir, f"corr_scatter_{round_selection}.html"),
                 fitted_suffix=fitted_suffix,
@@ -1382,7 +1376,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
         "Correlation by round => line"
         plot_param_recovery_by_round(
             general_settings=general_settings,
-            df_merged=df_combined, params=["Vii", "Vij", "Vii_std", "Vij_std", "temp"], fig_lay=fig_lay, 
+            df_merged=df_combined, params=["Vii", "Vij", "Vii_std", "Vij_std", "τ"], fig_lay=fig_lay, 
             export_fig=export_fig, create_new_file=create_new_file, file_paths=file_paths, 
             file_name=("corr_by_round_sim_pred.html" if use_dynamic_predictor else "corr_by_round.html"),
             corr_csv_name=("correlation_results_by_round_sim_pred.csv" if use_dynamic_predictor else "correlation_results_by_round.csv"),
@@ -1392,7 +1386,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
     return df_combined
 
 
-def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted_predictor", temp_col="temp_fitted_predictor", param_true_chooser="Vᵢⱼ_true_chooser", 
+def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted_predictor", temp_col="τ_fitted_predictor", param_true_chooser="Vᵢⱼ_true_chooser", 
                                       param_fitted_predictor="Vᵢⱼ_fitted_predictor", player_id_col="player_uuid_predictor", var_edges: list[float] = None, 
                                       temp_edges: list[float] = None, last_rounds: list[int] = [18,19,20], print_: bool = True) -> dict:
     """
@@ -1400,13 +1394,13 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
 
     For each predictor:
         1) Look at their round-0 row to read:
-               var_col   = prior variance (e.g., σ(Vij))
-               temp_col  = prior SoftMax temperature.
-        2) Bin each into 3 levels (low/med/high) using quantile-based edges or
-           user-provided edges → var_bin ∈ {1,2,3}, temp_bin ∈ {1,2,3}.
+            var_col   = prior variance (e.g., σ(Vij))
+            temp_col  = prior SoftMax temperature.
+        2) Bin each into 3 levels (low/med/high) using quantile-based edges
+            or user-provided edges → var_bin ∈ {1,2,3}, temp_bin ∈ {1,2,3}.
         3) For all rows in `last_rounds`, compute:
-               Corr(param_true_chooser, param_fitted_predictor)
-           within each (var_bin, temp_bin) combination.
+            Corr(param_true_chooser, param_fitted_predictor)
+            within each (var_bin, temp_bin) combination.
 
     Returns 3×3 tables of correlations and bin counts plus the bin edges.
 
@@ -1418,7 +1412,7 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
             (typically something like "<param>_std_fitted_predictor").
         • temp_col: str;
             Column representing the prior temperature at round 0
-            (e.g., "temp_fitted_predictor").
+            (e.g., "τ_fitted_predictor").
         • param_true_chooser: str;
             Column name for the chooser’s true parameter (e.g., "Vij_true_chooser").
         • param_fitted_predictor: str;
@@ -1435,10 +1429,10 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
     Returns:
         • dict;
             {
-              "corr_table":  3×3 DataFrame of recovery correlations by (var_bin, temp_bin),
-              "count_table": 3×3 DataFrame of participant counts per bin,
-              "var_edges":   list[float] bin edges used for variance,
-              "temp_edges":  list[float] bin edges used for temperature,
+                "corr_table":  3×3 DataFrame of recovery correlations by (var_bin, temp_bin),
+                "count_table": 3×3 DataFrame of participant counts per bin,
+                "var_edges":   list[float] bin edges used for variance,
+                "temp_edges":  list[float] bin edges used for temperature,
             }
     """
     def bin_index(value: float, edges: list[float]) -> int:
@@ -1454,16 +1448,18 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
             idx=len(edges)-2
         return idx+1
 
-    def assign_bin_edges(series: pd.Series, nbins=3) -> list[float]:
+    def assign_bin_edges(series: pd.Series, nbins=3) -> list[float] | None:
         """
         Compute bin edges from quantiles [0, 1/nbins, ..., 1].
-        Fallback to [0,1,2,3] if data are degenerate.
+        Returns None if data are constant (degenerate — no binning possible).
         """
         non_null_series = series.dropna()
         if len(non_null_series) < 3:
-            return [0,1,2,3]  # Fallback.
+            return None
         qvals = non_null_series.quantile([idx/nbins for idx in range(nbins+1)]).values
         "That yields 4 values for nbins=3, i.e. 0.0, 0.33...,0.66...,1.0 quantiles"
+        if qvals.min() == qvals.max():
+            return None
         return qvals.tolist()
 
     "0) Make a copy"
@@ -1475,16 +1471,10 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
                 .replace("Vii", "Vᵢᵢ")
                 .replace("Vij", "Vᵢⱼ"))
 
-    col_names = list(df0.columns)
-    cols_temp = [col for col in col_names if "temp" in col]
-    cols_tau  = [col for col in col_names if "τ" in col]
-    n_cols_temp, n_cols_tau = len(cols_temp), len(cols_tau)
-    if "τ" in temp_col:
-        if n_cols_temp > 0:
-            temp_col = "temp_sim_pred_predictor"
-    elif "temp" in temp_col:
-        if n_cols_tau > 0:
-            temp_col = "τ_sim_pred_predictor"
+    if temp_col not in df0.columns:
+        fallback = temp_col.replace("τ", "temp") if "τ" in temp_col else temp_col.replace("temp", "τ")
+        if fallback in df0.columns:
+            temp_col = fallback
 
     if print_:
         print("Unique participants with round=0:", df0[player_id_col].nunique())
@@ -1495,6 +1485,15 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
         var_edges = assign_bin_edges(df0[var_col], nbins=3)
     if temp_edges is None:
         temp_edges = assign_bin_edges(df0[temp_col], nbins=3)
+
+    if var_edges is None or temp_edges is None:
+        degenerate = []
+        if var_edges is None:
+            degenerate.append(f"{var_col} (all values = {df0[var_col].iloc[0]:.3g})")
+        if temp_edges is None:
+            degenerate.append(f"{temp_col} (all values = {df0[temp_col].iloc[0]:.3g})")
+        print(f"[compute_recovery_by_prior_bins] Skipping: constant data in {', '.join(degenerate)} — no binning possible.")
+        return {}
 
     "Build a small DataFrame: [player_id, prior_var, prior_temp, var_bin, temp_bin]"
     bin_rows = []
@@ -1745,8 +1744,8 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         altruism-containing model exists for any requested k.
 
         Returns:
-            • dict[int, dict[str, bool]] — mapping from k to the best altruism-containing
-              utility settings dict for that dimensionality.
+            • dict[int, dict[str, bool]] — mapping from k to the best altruism-
+                containing utility settings dict for that dimensionality.
         """
         ic_comparison_csv_path = os.path.join(file_paths["bic_aic"], file_paths["file_names"]["information_criterion"])
         if not os.path.exists(ic_comparison_csv_path):
@@ -1910,6 +1909,8 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
                     n_games=n_games,
                     params_chooser=params_ch,
                     params_predictor=params_pred,
+                    general_settings=general_settings,
+                    param_bds=param_bds,
                     utility_settings=u_settings_k,
                     payoff_structures=None,
                     default_utility_settings=False,
@@ -1979,7 +1980,7 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         "Compute correlation (predictor truth vs predictor fitted), first-round only"
         params_to_correlate = ['Vᵢⱼ'] if evenly_space_altruism else [
             param_key for param_key in param_info_k['keys'] 
-            if '_std' not in param_key and '_cov' not in param_key and 'temp' not in param_key
+            if '_std' not in param_key and '_cov' not in param_key and param_key not in ('τ', 'temp')
         ]
         corr_df_k = compute_param_recovery_correlations(
             df=df_k,
@@ -2473,7 +2474,7 @@ def plot_param_recovery_by_round(
         • file_paths: dict[str: str | dict[str: str]];
             Dictionary of all file paths in this project.
         • params: list[str] | None;
-            Parameters to plot (e.g., ["Vii","Vij","Vii_std","Vij_std","temp"]).
+            Parameters to plot (e.g., ["Vii","Vij","Vii_std","Vij_std","τ"]).
             If None, defaults to that list.
         • fig_lay: dict | None;
             Layout settings (font, template, axis options) for Plotly.
@@ -2523,7 +2524,7 @@ def plot_param_recovery_by_round(
         return 1.0 - (ss_res / ss_tot)
 
     if params is None:
-        params = ["Vij", "Vii", "Vij_std", "Vii_std", "temp"]
+        params = ["Vij", "Vii", "Vij_std", "Vii_std", "τ"]
     if fig_lay is None:
         fig_lay = {}
 
@@ -2534,15 +2535,15 @@ def plot_param_recovery_by_round(
         "Vij":     "Mean Altruism μ(𝑉𝑖𝑗)", 
         "Vii_std": "Self-interest Standard Deviation σ(𝑉𝑖𝑖)", 
         "Vij_std": "Altruism Standard Deviation σ(𝑉𝑖𝑗)", 
-        "temp":    "SoftMax Temperature (τ)"
+        "τ":       "SoftMax Temperature (τ)"
     }
 
     param_containers = {
-        "Vii":     "μ(𝑉𝑖𝑖)", 
-        "Vij":     "μ(𝑉𝑖𝑗)", 
-        "Vii_std": "σ(𝑉𝑖𝑖)", 
-        "Vij_std": "σ(𝑉𝑖𝑗)", 
-        "temp":    "(τ)"
+        "Vii":     "μ(𝑉𝑖𝑖)",
+        "Vij":     "μ(𝑉𝑖𝑗)",
+        "Vii_std": "σ(𝑉𝑖𝑖)",
+        "Vij_std": "σ(𝑉𝑖𝑗)",
+        "τ":       "(τ)"
     }
 
     "1) Correlations by round"
@@ -2955,7 +2956,7 @@ def compute_belief_update_speed(dyad_games: List[Dict[str, Any]], player_uuid: s
         "Build a param vector ignoring _std, etc. if params_of_interest is None => keep all"
         relevant_vals = []
         for pkey, pval in param_est.items():
-            if any(excluded_token in pkey for excluded_token in ['_std','_cov','temp']):
+            if any(excluded_token in pkey for excluded_token in ['_std', '_cov']) or pkey in ('τ', 'temp'):
                 continue
             if params_of_interest is not None:
                 if pkey not in params_of_interest:
@@ -2984,7 +2985,7 @@ def compute_belief_update_speed(dyad_games: List[Dict[str, Any]], player_uuid: s
         "Build ground_truth vector, ignoring _std, etc., same dimension"
         ground_vals = []
         for pkey in sorted(true_parameters.keys()):
-            if any(excluded_token in pkey for excluded_token in ['_std','_cov','temp']):
+            if any(excluded_token in pkey for excluded_token in ['_std', '_cov']) or pkey in ('τ', 'temp'):
                 continue
             if params_of_interest is not None and pkey not in params_of_interest:
                 continue
@@ -3096,7 +3097,7 @@ def run_update_speed_simulation_regression(general_settings: GeneralSettings, fi
         • None;
             Prints statsmodels OLS summary for the speed ~ variance + temperature regression.
     """
-    def run_regression_on_speed(df_speed: pd.DataFrame, speed_col: str = "speed_value", predictors: list[str] = ["temp", "var"], add_constant: bool = True):
+    def run_regression_on_speed(df_speed: pd.DataFrame, speed_col: str = "speed_value", predictors: list[str] = ["τ", "var"], add_constant: bool = True):
         """
         Fit an OLS regression predicting belief-update speed from prior variance and temperature.
 

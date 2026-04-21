@@ -257,7 +257,7 @@ def should_penalize_parameter_key(parameter_key: str) -> bool:
     Return True iff this parameter should be included in the parameter penalty.
     Excludes temperature and covariance entries; keeps means and stds.
     """
-    if parameter_key == "temp":
+    if parameter_key in ("τ", "temp"):
         return False
     if parameter_key.endswith("_cov"):
         return False
@@ -411,7 +411,7 @@ def parameter_penalty(
 
     # 5) Temperature (optional)
     if penalize_temp:
-        temperature = parameter_value(params, "temp")
+        temperature = parameter_value(params, "τ") or parameter_value(params, "temp")
         if temperature != 0.0:
             penalty += (temperature - 1.5) ** 4
 
@@ -952,8 +952,8 @@ def transform_cov_params(params: dict[str, float], param_info: dict[str, list[st
 
     try:
         from scipy.stats import multivariate_normal # type: ignore
-        param_means = [param_val for param_key, param_val in params.items() 
-                        if not any(key in param_key for key in ('_std', '_cov', 'temp'))]
+        param_means = [param_val for param_key, param_val in params.items()
+                        if not any(key in param_key for key in ('_std', '_cov', 'τ', 'temp'))]
         multivariate_normal(mean=param_means, cov=cov_matrix, allow_singular=False)
     except np.linalg.LinAlgError:
         report_str = "Failed Multivariate Normal:"
