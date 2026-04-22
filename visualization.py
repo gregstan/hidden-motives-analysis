@@ -1,4 +1,5 @@
 from simulation import *
+import hashlib
 
 "=========================================================================================="
 "============================== Illustrating Belief Updates ==============================="
@@ -386,8 +387,11 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
 
     if isinstance(dyad_games_or_key, list):
         dyad_games = dyad_games_or_key
+    elif general_settings.get('experiment_num') == 0:
+        _raw = get_simulated_dyad(file_paths=file_paths, dyad_idx=dyad_games_or_key, n_games=0)
+        dyad_games = next(iter(_raw.values()))
     else:
-        dyad_games = prep.get_dyad_data(dyad_key=dyad_games_or_key, file_paths=file_paths, 
+        dyad_games = prep.get_dyad_data(dyad_key=dyad_games_or_key, file_paths=file_paths,
                                               experiment_num=general_settings.get('experiment_num', 3), analysis_mode='bayesian', dyad_already_analyzed=False)
 
     first_game = dyad_games[0]
@@ -401,7 +405,8 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
     first_choo = first_game['chooser']
     first_pred = first_game['predictor']    
     player_number = 1 if player_uuid == first_choo else 2    
-    dyad_name = f"{player_number}_{first_choo[:8]}_{first_pred[:8]}"
+    _uuid_hash = hashlib.md5(f"{first_choo}|{first_pred}".encode()).hexdigest()[:12]
+    dyad_name = f"{player_number}_{_uuid_hash}"
 
     "Filter dyad games: only include games where the player is the predictor and did not abdicate."
     if general_settings.get('experiment_num') == 3:

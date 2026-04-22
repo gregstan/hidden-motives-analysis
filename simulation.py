@@ -1918,8 +1918,13 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
                 )
                 "Overwrite predictor UUID in the freshly created dyad to the fixed one"
                 (dyad_key, games_list), = dyad.items()
+                original_predictor_uuid = games_list[0]["predictor"]
                 for game in games_list:
                     game["predictor"] = predictor_uuid_fixed
+                    "Rename parameter-estimate keys so they stay reachable by the new UUID."
+                    for method_dict in game.get("parameter_estimates", {}).values():
+                        if original_predictor_uuid in method_dict:
+                            method_dict[predictor_uuid_fixed] = method_dict.pop(original_predictor_uuid)
                 fixed_key = f"({predictor_uuid_fixed}, {games_list[0]['chooser']})"
                 dyads_for_k.append({fixed_key: games_list})
 
@@ -3151,7 +3156,7 @@ def run_update_speed_simulation_regression(general_settings: GeneralSettings, fi
 
     params_to_us = {}
     for dyad_idx in range(n_dyads):
-        simulated_dyad = get_simulated_dyad(dyad_idx=dyad_idx, json_path=json_path, n_games=21)
+        simulated_dyad = get_simulated_dyad(file_paths=file_paths, dyad_idx=dyad_idx, n_games=21)
 
         dyad_key = list(simulated_dyad.keys())[0]
         dyad_games = simulated_dyad[dyad_key]

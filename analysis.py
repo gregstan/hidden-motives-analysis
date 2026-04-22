@@ -1,6 +1,109 @@
 from visualization import *
 
 "=========================================================================================="
+"========================= Canonical Utility Function Specifications ======================="
+"=========================================================================================="
+
+CANONICAL_UTILITY_SPECS: dict[str, dict] = {
+    "Fehr–Schmidt (1999) inequity aversion": {
+        "conditional_welfare_mode": False,
+        "reference_dependent_altruism": False,
+        "min_max_rawlsian_leontief": False,
+        "use_exponential_parameters": False,
+        "apply_exponents_to_payoffs": False,
+        "single_exponential_parameter": True,
+        "single_payoffs_not_differences": True,
+        "payoff_ratios_not_differences": False,
+        "reference_dependent_utility": False,
+        "use_negativity_parameters": False,
+        "negativity_social_comparison": True,
+        "fix_self_interest_parameter": True,
+        "include_social_comparison": True,
+        "include_altruism_term": False,
+    },
+    "Bolton–Ockenfels ERC (2000)": {
+        "conditional_welfare_mode": False,
+        "reference_dependent_altruism": False,
+        "min_max_rawlsian_leontief": False,
+        "use_exponential_parameters": False,
+        "apply_exponents_to_payoffs": False,
+        "single_exponential_parameter": True,
+        "single_payoffs_not_differences": False,
+        "payoff_ratios_not_differences": True,
+        "reference_dependent_utility": False,
+        "use_negativity_parameters": False,
+        "negativity_social_comparison": False,
+        "fix_self_interest_parameter": True,
+        "include_social_comparison": True,
+        "include_altruism_term": False,
+    },
+    "Charness–Rabin (2002) conditional welfare": {
+        "conditional_welfare_mode": True,
+        "reference_dependent_altruism": False,
+        "min_max_rawlsian_leontief": False,
+        "use_exponential_parameters": False,
+        "apply_exponents_to_payoffs": False,
+        "single_exponential_parameter": True,
+        "single_payoffs_not_differences": True,
+        "payoff_ratios_not_differences": False,
+        "reference_dependent_utility": False,
+        "use_negativity_parameters": False,
+        "negativity_social_comparison": False,
+        "fix_self_interest_parameter": False,
+        "include_social_comparison": False,
+        "include_altruism_term": False,
+    },
+    "Andreoni–Miller (2002) CES (warm glow)": {
+        "conditional_welfare_mode": False,
+        "reference_dependent_altruism": False,
+        "min_max_rawlsian_leontief": False,
+        "use_exponential_parameters": True,
+        "apply_exponents_to_payoffs": False,
+        "single_exponential_parameter": True,
+        "single_payoffs_not_differences": True,
+        "payoff_ratios_not_differences": False,
+        "reference_dependent_utility": False,
+        "use_negativity_parameters": False,
+        "negativity_social_comparison": False,
+        "fix_self_interest_parameter": True,
+        "include_social_comparison": False,
+        "include_altruism_term": True,
+    },
+    "Engelmann–Strobel (2004) maximin‑efficiency": {
+        "conditional_welfare_mode": False,
+        "reference_dependent_altruism": False,
+        "min_max_rawlsian_leontief": True,
+        "use_exponential_parameters": False,
+        "apply_exponents_to_payoffs": False,
+        "single_exponential_parameter": True,
+        "single_payoffs_not_differences": False,
+        "payoff_ratios_not_differences": False,
+        "reference_dependent_utility": False,
+        "use_negativity_parameters": False,
+        "negativity_social_comparison": False,
+        "fix_self_interest_parameter": True,
+        "include_social_comparison": False,
+        "include_altruism_term": False,
+    },
+    "Messick–McClintock (1968) SVO linear": {
+        "conditional_welfare_mode": False,
+        "reference_dependent_altruism": False,
+        "min_max_rawlsian_leontief": False,
+        "use_exponential_parameters": False,
+        "apply_exponents_to_payoffs": False,
+        "single_exponential_parameter": True,
+        "single_payoffs_not_differences": True,
+        "payoff_ratios_not_differences": False,
+        "reference_dependent_utility": False,
+        "use_negativity_parameters": False,
+        "negativity_social_comparison": False,
+        "fix_self_interest_parameter": True,
+        "include_social_comparison": False,
+        "include_altruism_term": True,
+    },
+}
+
+"=========================================================================================="
 "========= Model Validation: Comparing Bayesian and Alternative Cognitive Models =========="
 "=========================================================================================="
 
@@ -75,9 +178,14 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
     output_path = os.path.join(file_paths["processed"], output_file)
     if not create_new_file and os.path.exists(output_path):
         with open(output_path, "r", encoding='utf-8') as file:
-            model_losses = json.load(file)        
+            model_losses = json.load(file)
             print(model_losses)
     if not isinstance(model_losses, dict):
+
+        def _save_progress(label: str) -> None:
+            with open(output_path, "w", encoding='utf-8') as _f:
+                json.dump(model_losses, _f, ensure_ascii=False, indent=4)
+            print(f"  [saved after {label}] → {output_path}")
 
         "2) Identify player UUIDs for Experiment 2"
         player_uuids = prep.all_player_uuids(
@@ -160,6 +268,7 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
                 model_losses[hspace_name] += loss_dict.get("raw_neglogprob_sum", 0.0)
 
         pp.pprint(model_losses)
+        _save_progress("discrete Bayesian models")
 
         "7) Calculate loss for the purely stochastic (random) model"
         n_iter_stochastic = 1000
@@ -186,8 +295,10 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
 
             stochastic_losses.append(stochastic_loss)    
 
-        model_losses["stochastic_model"] = sum(stochastic_losses) / n_iter_stochastic       
+        model_losses["stochastic_model"] = sum(stochastic_losses) / n_iter_stochastic
         pp.pprint(model_losses)
+        _save_progress("stochastic model")
+
         "8) Calculate loss for \"no memory\" Bayesian model"
         "(always resets posterior after each new observation)"
         general_settings_["update_method"] = "grid"
@@ -229,6 +340,7 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
             model_losses["no_memory_model"] += loss_dict.get("raw_neglogprob_sum", 0.0)
         del general_settings_["no_memory_mode"]
         pp.pprint(model_losses)
+        _save_progress("no-memory model")
 
         "9) Calculate loss for \"no learning\" model"
         "(static parameters, no posterior updates)"
@@ -289,6 +401,7 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
                 ).get(player_uuid, {}).get("predictor", {})
                 model_losses["no_learning_model"] += loss_dict.get("raw_neglogprob_sum", 0.0)
         pp.pprint(model_losses)
+        _save_progress("no-learning model")
 
         "10) Calculate loss for full (continuous) Bayesian model"
         general_settings_["update_method"] = "grid"
@@ -338,6 +451,7 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
                 model_losses["utility_bayesian"] += loss_dict.get("raw_neglogprob_sum", 0.0)
 
         pp.pprint(model_losses)
+        _save_progress("utility Bayesian model")
 
     "Sort the models by ascending loss for easier comparison"
     sorted_model_losses = dict(sorted(model_losses.items(), key=lambda model_loss_item: model_loss_item[1]))
@@ -386,11 +500,6 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
     fig.write_html(output_html_path)
 
     print("Saved model losses bar chart to", output_html_path)
-
-    "11) Save and return results"
-
-    with open(output_path, "w", encoding='utf-8') as file:
-        json.dump(model_losses, file, ensure_ascii=False, indent=4)
 
     pp.pprint(model_losses)
     return model_losses
@@ -2803,17 +2912,9 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
             index_to_model_id.append(mid)
 
     if missing_indices:
-        "Provide concrete, actionable info"
-        examples = []
-        for idx in missing_indices[:10]:
-            sig = settings_signature(settings_list[idx])
-            examples.append(
-                f"graph_idx={idx}, signature={sig}, settings="
-                f"{ {feature_col: bool(settings_list[idx].get(feature_col, False)) for feature_col in feature_cols} }"
-            )
-        msg = ("The following models from the nesting graph were not found in the IC table "
-               "were built over different universes or column orderings:\n  - " + "\n  - ".join(examples))
-        raise RuntimeError(msg)
+        n_total = len(settings_list)
+        print(f"[INFO] {len(missing_indices)} / {n_total} graph models are not in the IC table "
+              f"(subset mode or partial run). Edges involving these models will be skipped.")
 
     "The only flips that *define* relationships (mirror classify_pair_relation)"
     SIBLING_FLIPS = {
@@ -2879,9 +2980,12 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
     pp.pprint(n_flips_by_setting_par_chi)
 
     "---- Convert graph indices → true model_ids via the signature map ----"
+    "Skip any edge where either endpoint was not found in the IC table (subset / partial run)."
     rows = []
     if "sibling" in use_edge_types:
         for idx, jdx, flip in sib_edges:
+            if index_to_model_id[idx] is None or index_to_model_id[jdx] is None:
+                continue
             rows.append({
                 "edge_type": "sibling",
                 "flip_name": flip,
@@ -2890,6 +2994,8 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
             })
     if "parent_child" in use_edge_types:
         for parent_idx, child_idx, flip in pc_edges:
+            if index_to_model_id[parent_idx] is None or index_to_model_id[child_idx] is None:
+                continue
             rows.append({
                 "edge_type": "parent_child",
                 "flip_name": flip,
@@ -3057,14 +3163,15 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
     return edge_level_df, summary_by_flip, payoff_paths_summary
 
 
-def extract_rankings_of_canonical_utility_functions(file_paths: FilePaths, rank_col: str = "BIC", print_: bool = True) -> pd.DataFrame:
+def extract_rankings_of_canonical_utility_functions(file_paths: FilePaths, rank_col: str = "BIC", print_: bool = True,
+                                                    canonical_specs: Optional[dict] = None) -> pd.DataFrame:
     """
     Filter the full IC results table for canonical model specifications and report their ranks.
 
-    Matches rows in the stored IC DataFrame against a hardcoded set of canonical utility
-    specifications (Fehr-Schmidt, Bolton-Ockenfels, Charness-Rabin, etc.), finds the best-
-    ranking row per label, and returns a summary DataFrame with each canonical model's IC rank,
-    loss, AIC, BIC, and ΔBIC relative to the best-fitting model in the full comparison.
+    Matches rows in the stored IC DataFrame against a set of canonical utility specifications
+    (Fehr-Schmidt, Bolton-Ockenfels, Charness-Rabin, etc.), finds the best-ranking row per
+    label, and returns a summary DataFrame with each canonical model's IC rank, loss, AIC, BIC,
+    and ΔBIC relative to the best-fitting model in the full comparison.
 
     Arguments:
         • file_paths: FilePaths
@@ -3073,109 +3180,25 @@ def extract_rankings_of_canonical_utility_functions(file_paths: FilePaths, rank_
             The column to rank by; typically 'BIC' (default) or 'AIC'.
         • print_: bool
             If True, prints the ranking table to stdout for inspection.
+        • canonical_specs: dict[str, dict] | None
+            Mapping of label → utility settings dict. If None, defaults to the module-level
+            CANONICAL_UTILITY_SPECS. The active specs are always saved to
+            bic_aic/canonical_utility_settings.json for downstream use.
 
     Returns:
         • pd.DataFrame — rows indexed by canonical model label, with columns:
             label, n_matches, k_params, loss, AIC, BIC, global_rank, ΔBIC_to_best.
     """
-    CANONICAL_SPECS: dict[UtilitySettings] = {
-        "Fehr–Schmidt (1999) inequity aversion": {
-            "conditional_welfare_mode": False,
-            "reference_dependent_altruism": False,
-            "min_max_rawlsian_leontief": False,
-            "use_exponential_parameters": False,
-            "apply_exponents_to_payoffs": False,
-            "single_exponential_parameter": True,
-            "single_payoffs_not_differences": True,
-            "payoff_ratios_not_differences": False,
-            "reference_dependent_utility": False,
-            "use_negativity_parameters": False,
-            "negativity_social_comparison": True,
-            "fix_self_interest_parameter": True,
-            "include_social_comparison": True,
-            "include_altruism_term": False
-        },
-        "Bolton–Ockenfels ERC (2000)": {
-            "conditional_welfare_mode": False,
-            "reference_dependent_altruism": False,
-            "min_max_rawlsian_leontief": False,
-            "use_exponential_parameters": False,
-            "apply_exponents_to_payoffs": False,
-            "single_exponential_parameter": True,
-            "single_payoffs_not_differences": False,
-            "payoff_ratios_not_differences": True,
-            "reference_dependent_utility": False,
-            "use_negativity_parameters": False,
-            "negativity_social_comparison": False,
-            "fix_self_interest_parameter": True,
-            "include_social_comparison": True,
-            "include_altruism_term": False
-        },
-        "Charness–Rabin (2002) conditional welfare": {
-            "conditional_welfare_mode": True,
-            "reference_dependent_altruism": False,
-            "min_max_rawlsian_leontief": False,
-            "use_exponential_parameters": False,
-            "apply_exponents_to_payoffs": False,
-            "single_exponential_parameter": True,
-            "single_payoffs_not_differences": True,  
-            "payoff_ratios_not_differences": False,
-            "reference_dependent_utility": False,
-            "use_negativity_parameters": False,       
-            "negativity_social_comparison": False,
-            "fix_self_interest_parameter": False,
-            "include_social_comparison": False,
-            "include_altruism_term": False
-        },
-        "Andreoni–Miller (2002) CES (warm glow)": {
-            "conditional_welfare_mode": False,
-            "reference_dependent_altruism": False,
-            "min_max_rawlsian_leontief": False,
-            "use_exponential_parameters": True,    
-            "apply_exponents_to_payoffs": False,
-            "single_exponential_parameter": True,
-            "single_payoffs_not_differences": True,
-            "payoff_ratios_not_differences": False,
-            "reference_dependent_utility": False,
-            "use_negativity_parameters": False,
-            "negativity_social_comparison": False,
-            "fix_self_interest_parameter": True,
-            "include_social_comparison": False,
-            "include_altruism_term": True
-        },
-        "Engelmann–Strobel (2004) maximin‑efficiency": {
-            "conditional_welfare_mode": False,
-            "reference_dependent_altruism": False,
-            "min_max_rawlsian_leontief": True,
-            "use_exponential_parameters": False,
-            "apply_exponents_to_payoffs": False,
-            "single_exponential_parameter": True,
-            "single_payoffs_not_differences": False,  
-            "payoff_ratios_not_differences": False,
-            "reference_dependent_utility": False,
-            "use_negativity_parameters": False,
-            "negativity_social_comparison": False,
-            "fix_self_interest_parameter": True,
-            "include_social_comparison": False,
-            "include_altruism_term": False
-        },
-        "Messick–McClintock (1968) SVO linear": {
-            "conditional_welfare_mode": False,
-            "reference_dependent_altruism": False,
-            "min_max_rawlsian_leontief": False,
-            "use_exponential_parameters": False,
-            "apply_exponents_to_payoffs": False,
-            "single_exponential_parameter": True,
-            "single_payoffs_not_differences": True,
-            "payoff_ratios_not_differences": False,
-            "reference_dependent_utility": False,
-            "use_negativity_parameters": False,
-            "negativity_social_comparison": False,
-            "fix_self_interest_parameter": True,
-            "include_social_comparison": False,
-            "include_altruism_term": True
-        }
-    }
+    if canonical_specs is None:
+        canonical_specs = CANONICAL_UTILITY_SPECS
+
+    "Save canonical specs to JSON so quick_demo.py and other callers can load them."
+    json_out = os.path.join(file_paths["bic_aic"], "canonical_utility_settings.json")
+    os.makedirs(file_paths["bic_aic"], exist_ok=True)
+    with open(json_out, "w", encoding="utf-8") as _f:
+        json.dump(canonical_specs, _f, ensure_ascii=False, indent=4)
+
+    CANONICAL_SPECS = canonical_specs
     if print_:
         for function_name, settings in CANONICAL_SPECS.items():
             explanation = gnrl.is_valid_utility_settings(settings, provide_explanation=True)
@@ -3228,7 +3251,9 @@ def extract_rankings_of_canonical_utility_functions(file_paths: FilePaths, rank_
             "ΔBIC_to_best": float(best["BIC"] - global_best_bic),
             "model_id": int(best.get("model_id", -1)),
         })
-    out = pd.DataFrame(rows).sort_values(by=["BIC"], ascending=True, na_position="last")
+    out = pd.DataFrame(rows)
+    if "BIC" in out.columns:
+        out = out.sort_values(by=["BIC"], ascending=True, na_position="last")
     return out
 
 
@@ -6423,7 +6448,9 @@ def inequality_aversion_sanity_check(file_paths: FilePaths, param_strong: float,
         choice = 'A' if p_choose_A >= 0.5 else 'B'
         return {'choice': choice, 'p_choose_A': p_choose_A}
 
-    all_data = prep.all_histories(column_names=column_names, file_paths=file_paths)[2]
+    pairs_path = Path(file_paths["processed"]) / file_paths["file_names"]["player_pairs_exper3"]
+    with open(pairs_path, "r") as _f:
+        all_data = json.load(_f)
     dyads, player_info = all_data['histories'], all_data['player_info']
 
     params = {

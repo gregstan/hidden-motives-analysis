@@ -1,0 +1,10 @@
+﻿edge_type,flip_name,n_edges,mean_delta,median_delta
+parent_child,single_exponential_parameter,2,-3.6154455011669455,-3.6154455011669455
+parent_child,use_exponential_parameters,3,-3.4192072002621408,0.28421284902896105
+parent_child,negativity_social_comparison,2,-0.1810077736891884,-0.1810077736891884
+parent_child,use_negativity_parameters,4,6.693787845287424,5.39261622709941
+parent_child,include_altruism_term,6,7.780850055726584,6.5225495777780225
+parent_child,fix_self_interest_parameter,6,27.979597930330097,16.78850696561061
+sibling,single_payoffs_not_differences,6,-6.636707823199089,1.8733719393046755
+sibling,reference_dependent_utility,7,-1.8183111239418923,6.001578599641988
+sibling,payoff_ratios_not_differences,4,27.57217097542636,30.352103459206916

@@ -20,7 +20,13 @@
       "Bash(python -m py_compile preprocessing.py)",
       "Bash(python -c \"import sys; data = sys.stdin.buffer.read\\(\\); print\\(data.decode\\('utf-8', errors='replace'\\)\\)\")",
       "Bash(del \"c:\\\\Users\\\\Gregory Stanley\\\\Desktop\\\\U of M\\\\Research Archive\\\\Multiplayer\\\\hidden-motives-analysis\\\\_extra_models_tmp.txt\")",
-      "Bash(python -c \" import sys src = sys.stdin.read\\(\\) idx = src.find\\('n_social_preference_params == 1'\\) print\\(src[idx:idx+500] if idx != -1 else 'not found in b327582'\\) \")"
+      "Bash(python -c \" import sys src = sys.stdin.read\\(\\) idx = src.find\\('n_social_preference_params == 1'\\) print\\(src[idx:idx+500] if idx != -1 else 'not found in b327582'\\) \")",
+      "Bash(python3 -c ' *)",
+      "Bash(ping -n 2 l-w6ffp4xmmx.psych.lsa.umich.edu)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(grep -i \"processed\\\\|raw_data\" echo \"---\" find \"c:/Users/Gregory Stanley/Desktop/U of M/Research Archive/Multiplayer/hidden-motives-analysis\" -maxdepth 3 -name \"*Experiment_2*\" find \"c:/Users/Gregory Stanley/Desktop/U of M/Research Archive/Multiplayer/hidden-motives-analysis\" -maxdepth 3 -name \"*Experiments_1*\")",
+      "Bash(git remote *)",
+      "Bash(python '/c/Users/Gregory Stanley/Desktop/U of M/Research Archive/Multiplayer/hidden-motives-analysis/demo_files/player_fits/experiment_0/robot_predictor_Vii~1.0~1.0~_Vij~-0.333~1.0~_t~0.5_n~24~1-11.00.5_14.json')"
     ]
   }
 }

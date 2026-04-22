@@ -614,7 +614,7 @@ def prior_grid_from_params(param_vals: Dict[str, Dict[str, Dict[str, float]]], p
                 sampled_points = all_points[sample_indices, :]  # Shape=(desired_sample_size, d).
 
                 "5) Evaluate the pdf at each sampled point"
-                pdf_values = multivariate_normal_distribution.pdf(sampled_points)
+                pdf_values = np.atleast_1d(multivariate_normal_distribution.pdf(sampled_points))
 
                 pmf_values = pdf_values * volume_elem
 

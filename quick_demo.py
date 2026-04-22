@@ -1,6 +1,5 @@
 from main import *
 import utilities as gnrl
-import preprocessing as prep
 from config import *
 
 "=========================================================================================="
@@ -33,6 +32,15 @@ analysis_options = {
 "=========================================================================================="
 
 
+def _section_header(text: str, width: int = 70) -> str:
+    padding = width - 2 - len(text)
+    if padding < 0:
+        return text
+    left  = padding // 2
+    right = padding - left
+    return "=" * left + " " + text + " " + "=" * right
+
+
 def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
     Runs a comprehensive demo of the Utility Bayesian Model (UBM) codebase.
@@ -54,8 +62,8 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
         • All demo outputs are written under demo_files/ and can be safely deleted.
         • Sections 'run_simulation' through 'visualize_belief_updates' use synthetic data only.
         • 'visualize_belief_updates' requires 'run_simulation' to have produced data first.
-        • 'run_model_comparison', 'run_ic_analysis', 'run_parameter_distribution', and
-            'run_inequality_aversion' require raw experiment CSVs in raw_data/.
+        • 'run_model_comparison', 'run_ic_analysis', and 'run_parameter_distribution'
+            require raw experiment CSVs in raw_data/. 'run_inequality_aversion' is parametric only.
         • NEVER set light_mode=False for 'run_ic_analysis' without expecting a multi-week run.
     """
 
@@ -98,6 +106,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
     demo_real_file_paths = {
         **file_paths,
+        "processed":   demo_root / "processed",
         "bic_aic":     demo_root / "bic_aic",
         "player_fits": demo_root / "player_fits",
         "param_data":  demo_root / "param_data",
@@ -118,11 +127,33 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
         demo_root / "player_fits" / "experiment_0",
         demo_root / "player_fits" / "loss_reports" / "experiment_0",
         demo_root / "player_fits" / "simulation_results",
+        demo_root / "player_fits" / "experiment_2",
+        demo_root / "player_fits" / "loss_reports" / "experiment_2",
+        demo_root / "player_fits" / "experiment_3",
+        demo_root / "player_fits" / "loss_reports" / "experiment_3",
         demo_root / "player_fits" / f"experiment_{experiment_num_for_distributions}",
         demo_root / "player_fits" / "loss_reports" / f"experiment_{experiment_num_for_distributions}",
     ]
     for directory in required_demo_dirs:
         directory.mkdir(parents=True, exist_ok=True)
+
+    def _seed_demo_processed(demo_processed: Path, real_processed: Path, file_names: dict) -> None:
+        """Copy read-only input files from real processed/ into demo_files/processed/ on first run."""
+        import shutil
+        seed_keys = [k for k in file_names if k.startswith(("player_pairs_exper", "processed_data_exper"))]
+        for key in seed_keys:
+            fname = file_names[key]
+            src   = real_processed / fname
+            dest  = demo_processed / fname
+            if src.exists() and not dest.exists():
+                shutil.copy2(src, dest)
+                print(f"  [demo seed] copied {fname} → demo_files/processed/")
+
+    _seed_demo_processed(
+        demo_processed=demo_root / "processed",
+        real_processed=ROOT / "processed",
+        file_names=file_paths["file_names"],
+    )
 
     "=========================================================================================="
     "===== Section 1: Utility Model — Equations, Parameters, and Core Bayesian Components ====="
@@ -134,9 +165,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
 
     if analysis_options['run_model_demos']:
-        print("\n" + "=" * 70)
-        print("SECTION 1: Utility model equations and Bayesian core demos")
-        print("=" * 70)
+        print("\n" + _section_header("SECTION 1: Utility model equations and Bayesian core demos"))
 
         "Validate the active utility settings and show what parameters they imply."
         settings_are_valid = gnrl.is_valid_utility_settings(utility_settings, provide_explanation=True)
@@ -199,9 +228,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
 
     if analysis_options['run_nesting_tests']:
-        print("\n" + "=" * 70)
-        print("SECTION 2: Model nesting adjacency matrices and validity checks")
-        print("=" * 70)
+        print("\n" + _section_header("SECTION 2: Model nesting adjacency matrices and validity checks"))
 
         model_nesting_adjacency_matrices(
             general_settings=general_settings,
@@ -263,9 +290,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
 
     if analysis_options['run_simulation']:
-        print("\n" + "=" * 70)
-        print("SECTION 3: Parameter recovery simulation")
-        print("=" * 70)
+        print("\n" + _section_header("SECTION 3: Parameter recovery simulation"))
 
         if light_mode:
             params_chooser_range   = {'Vᵢᵢ': (1, 1, 1), 'Vᵢⱼ': (-1, 1, 7), 'std': (1.0, 1.0, 1), 'τ': (0.5, 0.5, 1)}
@@ -299,19 +324,6 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
         )
 
         if df_merged is not None:
-            compute_recovery_by_prior_bins(
-                df=df_merged,
-                var_col="Vᵢⱼ_std_true_predictor",
-                temp_col="τ_true_predictor",
-                param_true_chooser="Vᵢⱼ_true_chooser",
-                param_fitted_predictor="Vᵢⱼ_sim_pred_predictor",
-                player_id_col="player_uuid_predictor",
-                last_rounds=[18, 19, 20],
-                var_edges=None,
-                temp_edges=None,
-                print_=True,
-            )
-
             plot_param_recovery_by_round(
                 df_merged=df_merged,
                 general_settings=general_settings,
@@ -328,9 +340,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
 
     if analysis_options['run_particle_filter_test']:
-        print("\n" + "=" * 70)
-        print("SECTION 4: Particle filter vs full-grid posterior fidelity")
-        print("=" * 70)
+        print("\n" + _section_header("SECTION 4: Particle filter vs full-grid posterior fidelity"))
 
         if light_mode:
             particle_filter_sample_ratios = [0.1]
@@ -361,9 +371,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
 
     if analysis_options['run_recovery_by_k']:
-        print("\n" + "=" * 70)
-        print("SECTION 5: Parameter recovery across model complexity (k params)")
-        print("=" * 70)
+        print("\n" + _section_header("SECTION 5: Parameter recovery across model complexity (k params)"))
 
         run_param_recovery_by_k(
             n_games                  = 8 if light_mode else 28,
@@ -391,9 +399,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
 
     if analysis_options['run_update_speed_analysis']:
-        print("\n" + "=" * 70)
-        print("SECTION 6: Belief update speed regression (synthetic simulation data)")
-        print("=" * 70)
+        print("\n" + _section_header("SECTION 6: Belief update speed regression (synthetic simulation data)"))
 
         simulation_json_present = (
             demo_file_paths["processed"] / demo_file_paths["file_names"]["player_pairs_exper0"]
@@ -423,33 +429,68 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
 
     if analysis_options['visualize_belief_updates']:
-        print("\n" + "=" * 70)
-        print("SECTION 7: 3D Bayesian belief update visualization")
-        print("=" * 70)
+        print("\n" + _section_header("SECTION 7: 3D Bayesian belief update visualization"))
 
         simulation_pairs_path = (
             demo_file_paths["processed"] / demo_file_paths["file_names"]["player_pairs_exper0"]
         )
-        if not simulation_pairs_path.exists():
+        fits_dir = os.path.join(str(demo_file_paths['player_fits']), 'experiment_0')
+        basic_files = sorted([
+            f for f in os.listdir(fits_dir)
+            if f.startswith('robot_predictor_Vii') and f.endswith('.json')
+        ]) if os.path.isdir(fits_dir) else []
+
+        if not simulation_pairs_path.exists() or not basic_files:
             print(
                 "\nWARNING: No simulation data found for visualization.\n"
                 f"Expected: {simulation_pairs_path}\n"
                 "Set analysis_options['run_simulation'] = True and rerun to generate it first."
             )
         else:
-            general_settings['update_method'] = 'sim_pred'
-            n_total_dyads        = 49 if light_mode else 945
-            n_dyads_to_visualize = 9 if light_mode else 45
-            dyad_indices = sorted(random.sample(range(n_total_dyads), n_dyads_to_visualize))
-            for dyad_idx in dyad_indices:
-                visualize_bayesian_updates_3d(
-                    dyad_games_or_key=dyad_idx,
-                    player_uuid=2,
-                    fig_lay=fig_lay,
-                    file_paths=demo_file_paths,
-                    general_settings=general_settings,
-                    fix_z_axis=True,
+            "Check that at least one file has been analyzed (has parameter_estimates with grid data)."
+            _analyzed = False
+            for _f in basic_files[:10]:
+                _sp = os.path.join(fits_dir, _f)
+                if os.path.getsize(_sp) > 20:
+                    with open(_sp, encoding='utf-8') as _fh:
+                        _sd = json.load(_fh)
+                    _sg = next(iter(_sd.values()))
+                    if any('parameter_estimates' in g for g in _sg):
+                        _analyzed = True
+                        break
+
+            if not _analyzed:
+                print(
+                    "\nWARNING: Simulation files exist but analysis has not been run.\n"
+                    "Set analysis_options['run_simulation'] = True and rerun so that\n"
+                    "grid posteriors are computed before visualizing belief updates.\n"
+                    "Note: if you have already run the full analysis pipeline with a\n"
+                    "different file_paths config, those player_fits folders can be used\n"
+                    "as a fallback by pointing demo_file_paths['player_fits'] to them."
                 )
+            else:
+                general_settings['update_method'] = 'sim_pred'
+                n_dyads_to_visualize = min(9 if light_mode else 45, len(basic_files))
+                sample_files = random.sample(basic_files, n_dyads_to_visualize)
+                visualized = 0
+                for fname in sample_files:
+                    fpath = os.path.join(fits_dir, fname)
+                    try:
+                        with open(fpath, encoding='utf-8') as fh:
+                            dyad_dict = json.load(fh)
+                        dyad_games = next(iter(dyad_dict.values()))
+                        visualize_bayesian_updates_3d(
+                            dyad_games_or_key=dyad_games,
+                            player_uuid=2,
+                            fig_lay=fig_lay,
+                            file_paths=demo_file_paths,
+                            general_settings=general_settings,
+                            fix_z_axis=True,
+                        )
+                        visualized += 1
+                    except (ValueError, KeyError):
+                        pass
+                print(f"Visualized {visualized} / {len(sample_files)} sampled dyads.")
 
     "=========================================================================================="
     "=========== Section 8: Alternative Model Competition + Typological Comparison ============"
@@ -461,25 +502,25 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
 
     if analysis_options['run_model_comparison']:
-        print("\n" + "=" * 70)
-        print("SECTION 8: Alternative model contest + typological model comparison")
-        print("=" * 70)
+        print("\n" + _section_header("SECTION 8: Alternative model contest + typological model comparison"))
 
-        required_raw_data_files = [
-            file_paths["file_names"]["raw_data_exper1"],
-            file_paths["file_names"]["raw_data_exper2"],
-        ]
-        missing_raw_data_files = [
-            f for f in required_raw_data_files
-            if not (ROOT / "raw_data" / f).exists()
-        ]
-        if missing_raw_data_files:
+        "Section 8 uses Experiment 2 data. Look in processed/ first, then raw_data/."
+        "Experiment 1 data is not needed by alternative_model_contest or typological fitting."
+        exper2_filename = file_paths["file_names"]["raw_data_exper2"]
+        exper2_path = next(
+            (d / exper2_filename for d in (ROOT / "processed", ROOT / "raw_data")
+             if (d / exper2_filename).exists()),
+            None
+        )
+        if exper2_path is None:
             print(
                 "\n" + "!" * 70 + "\n"
-                "CRITICAL WARNING: Raw experiment data files not found:\n"
-                + "".join(f"  {ROOT / 'raw_data' / f}\n" for f in missing_raw_data_files)
-                + "Section 8 cannot run without these files.\n"
-                "Raw participant data should always be present — this is unexpected.\n"
+                f"CRITICAL WARNING: Experiment 2 data file not found:\n"
+                f"  {exper2_filename}\n"
+                f"Searched in:\n"
+                f"  {ROOT / 'processed'}\n"
+                f"  {ROOT / 'raw_data'}\n"
+                "Section 8 cannot run without this file.\n"
                 + "!" * 70 + "\n"
             )
         else:
@@ -518,19 +559,18 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
 
     if analysis_options['run_ic_analysis']:
-        print("\n" + "=" * 70)
-        print("SECTION 9: IC utility function comparison")
-        print(f"  Mode: {'5 representative forms (light)' if light_mode else 'all 476 forms (FULL — may take weeks)'}")
-        print("=" * 70)
+        mode_label = "5 representative forms (light)" if light_mode else "all 476 forms (FULL — may take weeks)"
+        print("\n" + _section_header(f"SECTION 9: IC utility function comparison [{mode_label}]"))
 
-        raw_data_exper3_path = ROOT / "raw_data" / file_paths["file_names"]["raw_data_exper3"]
-        if not raw_data_exper3_path.exists():
+        exper3_pairs_path = (
+            demo_real_file_paths["processed"] / file_paths["file_names"]["player_pairs_exper3"]
+        )
+        if not exper3_pairs_path.exists():
             print(
                 "\n" + "!" * 70 + "\n"
-                "CRITICAL WARNING: Raw experiment 3 data not found at:\n"
-                f"  {raw_data_exper3_path}\n"
+                "CRITICAL WARNING: Processed experiment 3 histories not found at:\n"
+                f"  {exper3_pairs_path}\n"
                 "Section 9 cannot run without this file.\n"
-                "Raw participant data should always be present — this is unexpected.\n"
                 + "!" * 70 + "\n"
             )
         else:
@@ -549,7 +589,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             )
 
             """
-            In light mode, select one representative form for each k level from k=1 to k=5.
+            In light mode, select one representative form for each k level from k=1 to k=9.
             In full mode, pass None so information_criterion_analysis generates all 476.
             """
             if light_mode:
@@ -557,15 +597,26 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
                     utility_settings=utility_settings, sort_by_k=True
                 )
                 ic_demo_varieties = []
-                seen_k_values     = set()
+                k_counts          = {}
+                n_per_k           = 3
                 for settings_variety in all_varieties_by_k:
-                    k_count = len(parameter_keys_for_utility_settings(utility_settings=settings_variety))
-                    if k_count not in seen_k_values and k_count <= 5:
+                    k = len(parameter_keys_for_utility_settings(utility_settings=settings_variety))
+                    if k_counts.get(k, 0) < n_per_k:
                         ic_demo_varieties.append(settings_variety)
-                        seen_k_values.add(k_count)
-                    if len(ic_demo_varieties) >= 5:
-                        break
-                print(f"  Running IC analysis on {len(ic_demo_varieties)} utility forms (one per k, k=1..5)")
+                        k_counts[k] = k_counts.get(k, 0) + 1
+
+                "Ensure all canonical forms are always included so extract_rankings_of_ can find them."
+                existing_sigs = {tuple(sorted(s.items())) for s in ic_demo_varieties}
+                canonical_added = 0
+                for spec in CANONICAL_UTILITY_SPECS.values():
+                    if tuple(sorted(spec.items())) not in existing_sigs:
+                        ic_demo_varieties.append(spec)
+                        existing_sigs.add(tuple(sorted(spec.items())))
+                        canonical_added += 1
+
+                k_range = f"k={min(k_counts)}..{max(k_counts)}" if k_counts else "none"
+                print(f"  Running IC analysis on {len(ic_demo_varieties)} utility forms "
+                      f"({n_per_k} per k, {k_range}) + {canonical_added} canonical forms added)")
             else:
                 ic_demo_varieties = None
 
@@ -607,6 +658,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
                 file_paths=demo_real_file_paths,
                 rank_col="BIC",
                 print_=True,
+                canonical_specs=CANONICAL_UTILITY_SPECS,
             )
 
     "=========================================================================================="
@@ -619,31 +671,29 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     Requires: raw experiment data. The fitting step is computationally expensive.
     """
 
-    if analysis_options['run_parameter_distribution']:
-        print("\n" + "=" * 70)
-        print("SECTION 10: Population parameter distribution results")
-        print("=" * 70)
+    if analysis_options['run_parameter_distribution'] and not light_mode:
+        print("\n" + _section_header("SECTION 10: Population parameter distribution results"))
 
         experiment_num_for_distributions = general_settings.get('experiment_num', 3)
-        raw_data_key  = f"raw_data_exper{experiment_num_for_distributions}"
-        raw_data_path = ROOT / "raw_data" / file_paths["file_names"][raw_data_key]
-        if not raw_data_path.exists():
+        distribution_settings = {**general_settings, 'experiment_num': experiment_num_for_distributions}
+        run_analysis_function = run_analysis_bayes if general_settings['analysis_mode'] == 'bayesian' else run_analysis_mle
+
+        exper_pairs_key  = f"player_pairs_exper{experiment_num_for_distributions}"
+        exper_pairs_path = demo_real_file_paths["processed"] / file_paths["file_names"][exper_pairs_key]
+        if not exper_pairs_path.exists():
             print(
                 "\n" + "!" * 70 + "\n"
-                f"CRITICAL WARNING: Raw experiment {experiment_num_for_distributions} data not found at:\n"
-                f"  {raw_data_path}\n"
+                f"CRITICAL WARNING: Processed experiment {experiment_num_for_distributions} histories not found at:\n"
+                f"  {exper_pairs_path}\n"
                 "Section 10 cannot run without this file.\n"
-                "Raw participant data should always be present — this is unexpected.\n"
                 + "!" * 70 + "\n"
             )
         else:
-            distribution_settings  = {**general_settings, 'experiment_num': experiment_num_for_distributions}
-            run_analysis_function  = run_analysis_bayes if general_settings['analysis_mode'] == 'bayesian' else run_analysis_mle
-
             print(f"Active utility equation: {build_utility_equation(utility_settings=utility_settings)}\n")
-            all_histories_data = prep.all_histories(file_paths=file_paths, experiment_numbers=[1, 2, 3])
+            with open(exper_pairs_path, "r") as _f:
+                pairs_data = json.load(_f)
             run_analysis_function(
-                histories_data=all_histories_data[experiment_num_for_distributions - 1],
+                histories_data=pairs_data,
                 file_paths=demo_real_file_paths,
                 param_info=param_info,
                 utility_settings=utility_settings,
@@ -691,42 +741,29 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
     Manuscript context: Section 5.4 (envy vs guilt asymmetry competition).
     Functions exercised: visualize_inequality_aversion_bot_competition.
-    Requires: raw experiment data (to load trial histories).
+    Requires: nothing (purely parametric — no participant data).
     """
 
     if analysis_options['run_inequality_aversion']:
-        print("\n" + "=" * 70)
-        print("SECTION 11: Inequality aversion bot competition heatmaps")
-        print("=" * 70)
+        print("\n" + _section_header("SECTION 11: Inequality aversion bot competition heatmaps"))
 
-        raw_data_exper1_path = ROOT / "raw_data" / file_paths["file_names"]["raw_data_exper1"]
-        if not raw_data_exper1_path.exists():
-            print(
-                "\n" + "!" * 70 + "\n"
-                "CRITICAL WARNING: Raw experiment 1 data not found at:\n"
-                f"  {raw_data_exper1_path}\n"
-                "Section 11 cannot run without this file.\n"
-                "Raw participant data should always be present — this is unexpected.\n"
-                + "!" * 70 + "\n"
-            )
-        else:
-            visualize_inequality_aversion_bot_competition(
-                fig_lay=fig_lay,
-                file_paths=demo_real_file_paths,
-                param_strong=0.75,
-                param_weak=0.25,
-                temperature=1.0,
-                param_self_values=[0.0, 0.25, 0.5, 0.75, 1.0],
-                param_altr_values=[0.0, 0.25, 0.5, 0.75, 1.0],
-                ratio_numerator="envious",
-                show_text_values=True,
-                text_decimals=2,
-                print_=True,
-                export_fig=True,
-                filename_stub=None,
-                filter_constant_sum=False,
-                color_range=[0.35, 0.55],
-            )
+        visualize_inequality_aversion_bot_competition(
+            fig_lay=fig_lay,
+            file_paths=demo_real_file_paths,
+            param_strong=0.75,
+            param_weak=0.25,
+            temperature=1.0,
+            param_self_values=[0.0, 0.25, 0.5, 0.75, 1.0],
+            param_altr_values=[0.0, 0.25, 0.5, 0.75, 1.0],
+            ratio_numerator="envious",
+            show_text_values=True,
+            text_decimals=2,
+            print_=True,
+            export_fig=True,
+            filename_stub=None,
+            filter_constant_sum=False,
+            color_range=[0.35, 0.55],
+        )
 
 
 if __name__ == "__main__":

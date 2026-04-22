@@ -287,7 +287,7 @@ def all_player_uuids(file_paths: FilePaths, experiment_num: int | None, only_hum
 
     player_uuids = []
     for exper_num in experiment_numbers:
-        with open(os.path.join(ROOT, 'processed', file_paths['file_names'][
+        with open(os.path.join(file_paths['processed'], file_paths['file_names'][
             f'player_pairs_exper{exper_num}']), "r", encoding='utf-8') as file:
             raw_data: dict = json.load(file)     
             player_info: dict = raw_data.get('player_info', {})
@@ -1203,8 +1203,12 @@ def all_histories_raw(column_names: ColumnNames, file_paths: FilePaths) -> List[
     Load all data from all experiments. DEPRICATED Used to load raw data, which is no longer on this repo.
     """
     experiments = [1, 2, 3]
-    pre_dfs = [dataframe(ROOT, file_paths[
-        "file_names"][f"raw_data_exper{exper}"]) for exper in experiments]
+    "Try processed/ first, fall back to raw_data/ (some CSVs live in processed/ rather than raw_data/)."
+    pre_dfs = []
+    for exper in experiments:
+        fname = file_paths["file_names"][f"raw_data_exper{exper}"]
+        df = dataframe(file_paths["processed"], fname) or dataframe(file_paths["raw_data"], fname)
+        pre_dfs.append(df)
     df1 = preprocessing1(df = pre_dfs[0], column_names = column_names, file_paths = file_paths, create_new_file = False)
     df2 = preprocessing2(df = pre_dfs[1], column_names = column_names, file_paths = file_paths, create_new_file = False)
     df3 = preprocessing3(df = pre_dfs[2], column_names = column_names, file_paths = file_paths, create_new_file = False)
