@@ -1,109 +1,6 @@
 from visualization import *
 
 "=========================================================================================="
-"========================= Canonical Utility Function Specifications ======================="
-"=========================================================================================="
-
-CANONICAL_UTILITY_SPECS: dict[str, dict] = {
-    "Fehr–Schmidt (1999) inequity aversion": {
-        "conditional_welfare_mode": False,
-        "reference_dependent_altruism": False,
-        "min_max_rawlsian_leontief": False,
-        "use_exponential_parameters": False,
-        "apply_exponents_to_payoffs": False,
-        "single_exponential_parameter": True,
-        "single_payoffs_not_differences": True,
-        "payoff_ratios_not_differences": False,
-        "reference_dependent_utility": False,
-        "use_negativity_parameters": False,
-        "negativity_social_comparison": True,
-        "fix_self_interest_parameter": True,
-        "include_social_comparison": True,
-        "include_altruism_term": False,
-    },
-    "Bolton–Ockenfels ERC (2000)": {
-        "conditional_welfare_mode": False,
-        "reference_dependent_altruism": False,
-        "min_max_rawlsian_leontief": False,
-        "use_exponential_parameters": False,
-        "apply_exponents_to_payoffs": False,
-        "single_exponential_parameter": True,
-        "single_payoffs_not_differences": False,
-        "payoff_ratios_not_differences": True,
-        "reference_dependent_utility": False,
-        "use_negativity_parameters": False,
-        "negativity_social_comparison": False,
-        "fix_self_interest_parameter": True,
-        "include_social_comparison": True,
-        "include_altruism_term": False,
-    },
-    "Charness–Rabin (2002) conditional welfare": {
-        "conditional_welfare_mode": True,
-        "reference_dependent_altruism": False,
-        "min_max_rawlsian_leontief": False,
-        "use_exponential_parameters": False,
-        "apply_exponents_to_payoffs": False,
-        "single_exponential_parameter": True,
-        "single_payoffs_not_differences": True,
-        "payoff_ratios_not_differences": False,
-        "reference_dependent_utility": False,
-        "use_negativity_parameters": False,
-        "negativity_social_comparison": False,
-        "fix_self_interest_parameter": False,
-        "include_social_comparison": False,
-        "include_altruism_term": False,
-    },
-    "Andreoni–Miller (2002) CES (warm glow)": {
-        "conditional_welfare_mode": False,
-        "reference_dependent_altruism": False,
-        "min_max_rawlsian_leontief": False,
-        "use_exponential_parameters": True,
-        "apply_exponents_to_payoffs": False,
-        "single_exponential_parameter": True,
-        "single_payoffs_not_differences": True,
-        "payoff_ratios_not_differences": False,
-        "reference_dependent_utility": False,
-        "use_negativity_parameters": False,
-        "negativity_social_comparison": False,
-        "fix_self_interest_parameter": True,
-        "include_social_comparison": False,
-        "include_altruism_term": True,
-    },
-    "Engelmann–Strobel (2004) maximin‑efficiency": {
-        "conditional_welfare_mode": False,
-        "reference_dependent_altruism": False,
-        "min_max_rawlsian_leontief": True,
-        "use_exponential_parameters": False,
-        "apply_exponents_to_payoffs": False,
-        "single_exponential_parameter": True,
-        "single_payoffs_not_differences": False,
-        "payoff_ratios_not_differences": False,
-        "reference_dependent_utility": False,
-        "use_negativity_parameters": False,
-        "negativity_social_comparison": False,
-        "fix_self_interest_parameter": True,
-        "include_social_comparison": False,
-        "include_altruism_term": False,
-    },
-    "Messick–McClintock (1968) SVO linear": {
-        "conditional_welfare_mode": False,
-        "reference_dependent_altruism": False,
-        "min_max_rawlsian_leontief": False,
-        "use_exponential_parameters": False,
-        "apply_exponents_to_payoffs": False,
-        "single_exponential_parameter": True,
-        "single_payoffs_not_differences": True,
-        "payoff_ratios_not_differences": False,
-        "reference_dependent_utility": False,
-        "use_negativity_parameters": False,
-        "negativity_social_comparison": False,
-        "fix_self_interest_parameter": True,
-        "include_social_comparison": False,
-        "include_altruism_term": True,
-    },
-}
-
-"=========================================================================================="
 "========= Model Validation: Comparing Bayesian and Alternative Cognitive Models =========="
 "=========================================================================================="
 
@@ -1218,7 +1115,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         • utility_setting_varieties: Optional[List[UtilitySettings]]; If provided, this exact list of utility
             configurations is used instead of generating all valid configurations via
             gnrl.generate_utility_settings. Each entry must pass gnrl.is_valid_utility_settings or a
-            ValueError is raised. Pass None (the default) to run the full comparison across all 476 forms.
+            ValueError is raised. Pass None (the default) to run the full comparison across all 480 forms.
 
     Returns:
         • df: pd.DataFrame; Dataframe summarizing the IC metrics (loss, AIC, BIC) for each utility configuration.
@@ -2871,7 +2768,7 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
     dup_sigs: dict[tuple, list[int]] = {}
     for mid, sig in zip(df_models["model_id"], df_models["__signature__"]):
         if sig in sig_to_model_id:
-            "Track duplicates to catch structural problems (shouldn’t happen for 476 unique forms)"
+            "Track duplicates to catch structural problems (shouldn’t happen for 480 unique forms)"
             dup_sigs.setdefault(sig, []).append(int(mid))
         else:
             sig_to_model_id[sig] = int(mid)
@@ -5514,7 +5411,7 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
 "=========================================================================================="
 
 def population_parameter_distribution_df(general_settings: dict[str, Any], file_paths: dict[str, str], player_role: str = 'predictor', 
-                 use_initial_params: bool | None = None, create_new_file: bool | None = None) -> pd.DataFrame:
+                                         use_initial_params: bool | None = None, create_new_file: bool | None = None) -> pd.DataFrame:
     """
     Build a tidy DataFrame of fitted parameter values across all players and their counterparts.
 

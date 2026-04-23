@@ -21,7 +21,7 @@ The central thesis is:
 - they seem to track **graded uncertainty** over latent motives such as self-interest, altruism, envy, and guilt
 - doing that well requires a richer utility representation than classic low-dimensional social-preference models
 
-The result is a **Utility-Bayesian Model (UBM)** plus a large empirical search over **476 utility functions** to determine which utility representation best supports belief updating.
+The result is a **Utility-Bayesian Model (UBM)** plus a large empirical search over **480 utility functions** to determine which utility representation best supports belief updating.
 
 ---
 
@@ -45,7 +45,7 @@ The paper argues that prior work is limited in three big ways:
 The paper’s real methodological claim is that you need these **together**:
 
 1. **Randomized payoff structures** across a broad multidimensional space  
-2. **Near-comprehensive comparison of 476 utility forms**  
+2. **Near-comprehensive comparison of 480 utility forms**  
 3. **Explicit elicitation of predictions** to measure beliefs more cleanly  
 4. **Bayesian cognitive modeling** of belief updating across repeated interactions  
 
@@ -95,7 +95,7 @@ V_{ij} f_{\text{other}}(A)
 Ʒ_{ij} f_{\text{guilt}}(A)
 $$
 
-where the $f$-terms change across the **476 candidate functional forms**.
+where the $f$-terms change across the **480 candidate functional forms**.
 
 ### **3.3 Choice rule**
 The chooser’s probability of selecting option $A$ is modeled with a SoftMax:
@@ -302,7 +302,7 @@ The paper’s central representational claim is:
 
 ---
 
-## **8) Why 476 utility functions were compared**
+## **8) Why 480 utility functions were compared**
 
 Because the Bayesian likelihood depends on the utility function, the paper treats utility-form choice as an empirical problem.
 
@@ -378,7 +378,7 @@ Mostly neutral:
 - **single payoffs vs differences**
 
 Important caveat:
-these are average effects across the whole 476-model space; some settings can help in restricted subspaces even if they hurt overall.
+these are average effects across the whole 480-model space; some settings can help in restricted subspaces even if they hurt overall.
 
 ---
 
@@ -618,7 +618,7 @@ Its deepest claim is:
 > people do not merely predict others’ actions — they infer a latent moral geometry behind those actions.
 
 The UBM formalizes that idea.  
-The 476-model IC analysis makes utility choice empirical.  
+The 480-model IC analysis makes utility choice empirical.  
 The final 7-parameter space turns vague talk about “human nature” into something much closer to a measurable coordinate system.
 
 That is why this project matters.

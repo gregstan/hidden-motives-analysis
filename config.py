@@ -668,3 +668,9 @@ valid_analysis_types = [
     "across_dyad_many_predictors_one_chooser",
     "across_analysis_modes",
 ]
+
+def _load_canonical_utility_specs() -> dict[str, dict]:
+    with open(ROOT / "canonical_utility_settings.json", "r", encoding="utf-8") as _f:
+        return json.load(_f)
+
+CANONICAL_UTILITY_SPECS: dict[str, dict] = _load_canonical_utility_specs()

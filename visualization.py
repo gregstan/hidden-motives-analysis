@@ -5,7 +5,6 @@ import hashlib
 "============================== Illustrating Belief Updates ==============================="
 "=========================================================================================="
 
-
 def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str | int, player_role: PlayerRole, general_settings: GeneralSettings, 
                                   utility_settings: UtilitySettings, file_paths: FilePaths, fig_lay: FigLay, n_rounds: int = 5, dark_zero_lines: bool = True) -> None:
     """

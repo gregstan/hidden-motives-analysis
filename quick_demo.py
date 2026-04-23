@@ -10,19 +10,19 @@ analysis_options = {
     'light_mode': True,           # True: fast/small versions. False: full scale (some sections take hours or months).
 
     # ── No external data required ────────────────────────────────────────────────────────
-    'run_model_demos':              True,  # All 476 utility equations, Bayesian core checks, make_param_info.
-    'run_nesting_tests':            True,  # Model nesting adjacency; equivalence and embedding sanity checks.
+    'run_model_demos':              False,  # All 480 utility equations, Bayesian core checks, make_param_info.
+    'run_nesting_tests':            False,  # Model nesting adjacency; equivalence and embedding sanity checks.
 
     # ── Synthetic simulation data ────────────────────────────────────────────────────────
-    'run_simulation':               True,  # Parameter recovery simulation (core paper result, Figures 5–6).
-    'run_particle_filter_test':     True,  # Particle filter vs full-grid posterior fidelity check.
+    'run_simulation':               False,  # Parameter recovery simulation (core paper result, Figures 5–6).
+    'run_particle_filter_test':     False,  # Particle filter vs full-grid posterior fidelity check.
     'run_recovery_by_k':            True,  # Recovery accuracy across model complexity levels (k params).
     'run_update_speed_analysis':    True,  # Belief update speed regression over simulated dyads.
     'visualize_belief_updates':     True,  # Interactive 3D Bayesian update plots (uses simulation data).
 
     # ── Requires raw experiment data ─────────────────────────────────────────────────────
     'run_model_comparison':         False, # Alternative model contest + typological model comparison.
-    'run_ic_analysis':              False, # IC utility comparison: 5 forms in light mode, all 476 in full.
+    'run_ic_analysis':              False, # IC utility comparison: 5 forms in light mode, all 480 in full.
     'run_parameter_distribution':   False, # Population parameter distributions and correlations.
     'run_inequality_aversion':      False, # Inequality aversion bot competition heatmaps.
 }
@@ -48,7 +48,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     Covers all major analytical components of the paper in manuscript order: the utility
     model and equations, Bayesian inference machinery, model nesting infrastructure,
     parameter recovery simulations, particle filter validation, belief-update visualization,
-    alternative model comparison, IC utility function comparison across 476 forms,
+    alternative model comparison, IC utility function comparison across 480 forms,
     population parameter distributions, and inequality aversion analysis.
 
     Arguments:
@@ -179,7 +179,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
         print(f"\ngenerate_utility_settings → {len(all_utility_setting_varieties)} valid utility configurations")
 
         "Print the utility equation string for every configuration."
-        print("\nAll utility equations via build_utility_equation (all 476 forms):")
+        print("\nAll utility equations via build_utility_equation (all 480 forms):")
         for equation_idx, utility_setting_variety in enumerate(all_utility_setting_varieties):
             equation_str = build_utility_equation(utility_settings=utility_setting_variety)
             print(f"  Equation {equation_idx:03d}: {equation_str}")
@@ -201,7 +201,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
 
         "Verify that utility() and build_utility_equation() produce identical choice probabilities."
         n_verification_games = 20 if light_mode else 625
-        print(f"\nRunning verify_utility_vs_string_equation on {n_verification_games} games across all 476 forms...")
+        print(f"\nRunning verify_utility_vs_string_equation on {n_verification_games} games across all 480 forms...")
         verify_utility_vs_string_equation(
             utility_function=utility,
             utility_function_str=build_utility_equation,
@@ -382,7 +382,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             evenly_space_altruism    = True,
             utility_settings_by_k    = None,
             general_settings         = general_settings,
-            file_paths               = demo_file_paths,
+            file_paths               = {**demo_file_paths, "bic_aic": file_paths["bic_aic"]},
             fig_lay                  = fig_lay,
             param_bds                = param_bds,
             analysis_experiment_num  = 0,
@@ -548,10 +548,10 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             )
 
     "=========================================================================================="
-    "======= Section 9: Information Criterion Utility Function Comparison (476 Models) ========"
+    "======= Section 9: Information Criterion Utility Function Comparison (480 Models) ========"
     "=========================================================================================="
     """
-    Manuscript context: Section 4 (near-comprehensive IC comparison across 476 utility forms).
+    Manuscript context: Section 4 (near-comprehensive IC comparison across 480 utility forms).
     Functions exercised: gnrl.identify_redundant_utility_functions, gnrl.equation_to_settings,
     information_criterion_analysis, plot_ic_scores_delta_bic, plot_ic_robustness_analysis,
     utility_setting_contribution_analysis, extract_rankings_of_canonical_utility_functions.
@@ -559,7 +559,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
 
     if analysis_options['run_ic_analysis']:
-        mode_label = "5 representative forms (light)" if light_mode else "all 476 forms (FULL — may take weeks)"
+        mode_label = "5 representative forms (light)" if light_mode else "all 480 forms (FULL — may take weeks)"
         print("\n" + _section_header(f"SECTION 9: IC utility function comparison [{mode_label}]"))
 
         exper3_pairs_path = (
@@ -590,7 +590,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
 
             """
             In light mode, select one representative form for each k level from k=1 to k=9.
-            In full mode, pass None so information_criterion_analysis generates all 476.
+            In full mode, pass None so information_criterion_analysis generates all 480.
             """
             if light_mode:
                 all_varieties_by_k = gnrl.generate_utility_settings(

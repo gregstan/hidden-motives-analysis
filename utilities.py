@@ -1312,11 +1312,13 @@ def generate_utility_settings(utility_settings: dict[str, bool], sort_by_k: bool
     return valid_combos
 
 
-def identify_redundant_utility_functions(
-        utility_settings: UtilitySettings,
-        build_equation_function: callable,
-        file_paths: dict[str, str]
-    ) -> pd.DataFrame:
+def select_utility_settings_subset() -> List[UtilitySettings]:
+    """
+    
+    """
+
+
+def identify_redundant_utility_functions(utility_settings: UtilitySettings, build_equation_function: callable, file_paths: dict[str, str]) -> pd.DataFrame:
     """
     Finds redundant utility functions (identical equations) and reports which settings
     cause the redundancy.
@@ -1430,10 +1432,7 @@ def identify_redundant_utility_functions(
     return df
 
 
-def count_free_parameters(
-    utility_settings: UtilitySettings,
-    general_settings: Optional[Dict[str, Any]] = None
-) -> int:
+def count_free_parameters(utility_settings: UtilitySettings, general_settings: Optional[Dict[str, Any]] = None) -> int:
     """
     Convenience wrapper that returns the number of *free mean* parameters by default.
     Covariance params are intentionally excluded here (IC counting often focuses on means).
@@ -1525,12 +1524,8 @@ def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str
     return utility_settings
 
 
-def parents_children_of(
-    utility_settings: Union[UtilitySettings, BoolTuple],
-    return_children: bool = True,
-    return_parents: bool = True,
-    general_settings: Optional[Dict[str, Any]] = None
-) -> Dict[str, Optional[List[BoolTuple]]]:
+def parents_children_of(utility_settings: Union[UtilitySettings, BoolTuple], return_children: bool = True, 
+                        return_parents: bool = True, general_settings: Optional[Dict[str, Any]] = None) -> Dict[str, Optional[List[BoolTuple]]]:
     """
     Returns immediate neighbors (by one *pivot* change, allowing dependent fixes).
     Child/Parent is defined by Δk = k(neighbor) - k(focal), which may be > 1 (e.g., exponent toggles).

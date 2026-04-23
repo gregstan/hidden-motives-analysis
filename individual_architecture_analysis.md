@@ -1,597 +1,464 @@
-# `individual_architecture_analysis.md`
-
 # Individual Utility-Architecture Analysis
 
-> **Purpose:** build the machinery needed to answer a new question that sits directly underneath the paper’s “shared coordinate system” claim:
->
-> **Do participants differ mainly by their parameter values inside one shared utility architecture, or do different participants require different utility-function architectures?**
-
-This file is written as instructions for the coding agent working inside the **Inferring Hidden Motives** codebase. The agent should also read:
-
-- `ihm_starter_pack.md` — high-level conceptual and technical overview of the paper.
-- `model_recovery_simulation.md` — model-recovery and **Average Model Policy Distance** plan.
-
-This file focuses on a new individual-level extension of the 476-model utility-function IC analysis.
+> **Coding-agent brief for the *Inferring Hidden Motives* repository**  
+> **Purpose:** determine whether participants differ mainly by **parameter values inside one shared utility architecture** or whether different participants require **different utility-function architectures**.  
+> **Primary audience:** an AI coding agent with access to the repo but no prior conceptual context.  
+> **Implementation priority:** first extract and reuse existing per-participant × utility-function fits. Do **not** refit all models unless extraction fails or a later train/test analysis requires it.
 
 ---
 
-## 0. Implementation principle
+## 0. Why this analysis matters
 
-> **Reuse existing code aggressively.**
+The paper currently argues that the best-fitting utility function provides a shared psychological coordinate system: a common space in which people’s social preferences can be located. That claim is powerful, but it raises a deeper question:
 
-Before writing new machinery, inspect the existing codebase for functions that already do any of the following:
+> **Is the winning utility function a genuinely shared psychological architecture, or is it a population-level compromise over people who are better described by different utility architectures?**
 
-- generate the 476 utility forms;
-- evaluate a utility function on binary dictator-game payoffs;
-- compute SoftMax choice probabilities;
-- compute raw NLL;
-- fit utility parameters with simulated annealing and/or L-BFGS-B;
-- run the existing IC analysis;
-- save per-model losses, parameters, AIC, BIC, and ranks;
-- handle chooser and predictor roles;
-- retrieve model metadata, including `k`, 14 Boolean utility settings, model IDs, equations, parent-child relations, and sibling relations;
-- compute or retrieve **Average Model Policy Distance**;
-- generate the exhaustive 625 payoff grid.
+This analysis directly tests that question.
 
-Do **not** reimplement any of this unless the codebase truly lacks a reusable component. This project already contains a large amount of carefully tested machinery, especially around utility forms, nesting, and IC analysis. The goal is to extend and reorganize that machinery, not duplicate it.
+There are two possible worlds.
 
----
+### World A — shared architecture, different parameters
 
-## 1. Scientific motivation
-
-The current paper compares **476 candidate utility functions** and identifies a best-fitting seven-parameter utility architecture. That winning form separates self-interest, altruism, envy, guilt, and nonlinear payoff sensitivity, and it supports the paper’s claim that the resulting parameter estimates form a shared psychological coordinate system.
-
-But the current IC analysis is primarily a population-level or shared-form analysis. That leaves a major question open:
-
-> **Is the winning seven-parameter form a genuinely shared architecture, or is it a population-level compromise over people with different utility architectures?**
-
-This analysis is designed to answer that.
-
-### The core theoretical contrast
-
-There are two competing pictures of individual differences:
-
-#### **A. Shared architecture, different parameters**
-
-Everyone is well described by the same utility form, but people differ in their parameter values.
-
-Example:
+Everyone is described by the same functional form, but people differ in their parameter values.
 
 ```text
-Participant 1: same 7-parameter utility form, high self-interest, low guilt
-Participant 2: same 7-parameter utility form, moderate self-interest, high guilt
-Participant 3: same 7-parameter utility form, low self-interest, high altruism
+Participant 1: same utility architecture, high self-interest, low guilt
+Participant 2: same utility architecture, moderate self-interest, high guilt
+Participant 3: same utility architecture, low self-interest, high altruism
 ```
 
-This supports the paper’s “shared coordinate system” interpretation.
+If this world is true, the paper’s shared-coordinate-system claim becomes much stronger.
 
-#### **B. Different architectures, different parameters**
+### World B — different architectures, different parameters
 
-Different participants are better described by meaningfully different utility forms.
-
-Example:
+Different people are better described by meaningfully different utility forms.
 
 ```text
-Participant 1: self-interest + altruism model
-Participant 2: self-interest + social-comparison model
-Participant 3: nonlinear envy/guilt model
-Participant 4: reference-dependent model
+Participant 1: self-interest + altruism architecture
+Participant 2: self-interest + social-comparison architecture
+Participant 3: nonlinear envy/guilt architecture
+Participant 4: reference-dependent architecture
 ```
 
-This would suggest that people differ not only in **where** they fall within a parameter space, but in the **structure of the space itself**.
+If this world is true, the paper discovers something even richer: **functional phenotypes**. People differ not just in where they sit in a shared space, but in what kind of space describes them.
 
-### Why this is worth doing
+### World C — random scatter / underidentification
 
-Before we had a behavioral distance metric between utility forms, individual-level utility-form fitting would have produced a hard-to-interpret list of winners:
+Participants’ top models may scatter all over the model universe without forming stable, predictive, interpretable clusters.
 
-```text
-participant_001 -> model_037
-participant_002 -> model_411
-participant_003 -> model_089
-...
-```
+This does **not** strongly support different functional architectures. It may mean the per-participant data are too noisy, that many models are behaviorally near-equivalent, or that individual-level model selection overfits.
 
-That is not very meaningful by itself.
+The key distinction is:
 
-Now, with **Average Model Policy Distance**, we can ask whether those models occupy the same region of behavioral model space, form stable clusters, or scatter randomly. That makes individual-level utility-architecture analysis scientifically interpretable.
-
-The key output is not merely “which model won for each participant.” The key output is:
-
-> **How many distinct utility architectures are needed to describe participant-level heterogeneity without overfitting?**
+> **Stable, predictive, interpretable clusters support functional-form heterogeneity. Random scatter does not.**
 
 ---
 
-## 2. High-level analysis plan
+## 1. The conceptual object: participants as model clouds
 
-The analysis has five layers.
+Each participant has a fit score for every utility function.
 
-```text
-Layer 1 — Determine whether per-participant model fits already exist.
-Layer 2 — Fit or retrieve participant × model losses and parameters.
-Layer 3 — Convert each participant’s model support into a BIC-weighted cloud over utility forms.
-Layer 4 — Use model-policy distances to embed and cluster participant model clouds.
-Layer 5 — Build a functional-architecture compression curve: how many utility architectures are needed?
-```
-
-The most important final outputs are:
-
-1. **Predictive Functional-Form Heterogeneity Index** — does allowing participant-specific utility forms improve held-out prediction beyond a shared architecture?
-2. **Functional-Architecture Compression Curve** — how many utility architectures are needed to capture most of the individualized-form advantage?
-3. **Participant model-cloud geometry** — do participants cluster around one architecture, a few stable architecture families, or random noise?
-4. **Feature-level summaries** — which Boolean utility settings distinguish participant clusters or codebook architectures?
-
----
-
-## 3. First task: inspect what already exists
-
-Before building new code, inspect the outputs and internal data structures of the existing IC analysis.
-
-The critical question is:
-
-> **Does the existing IC pipeline already fit parameters separately for each participant and each utility function, or does it fit one population-level parameter vector per utility function?**
-
-There are several possible situations.
-
-### Case 1 — Per-participant fits already exist
-
-The existing IC analysis may already store participant-level fitted parameters or participant-level NLL contributions for every model.
-
-Look for outputs like:
+For participant `i` and utility model `m`:
 
 ```text
-participant_id
-role
-model_id
-utility_function_id
-params
-nll
-raw_nll
-penalized_nll
-aic
-bic
-k
-rank
+BIC_i_m
 ```
 
-or nested objects like:
+A naive analysis would represent each participant by their single best model. That would be too brittle. Individual-level data are noisier than population-level data, so exact top-model identity may bounce around.
 
-```python
-results[model_id][participant_id][role]
-```
-
-If these exist, do **not** refit everything. Build the individual-architecture analysis by retrieving and reshaping the existing fits.
-
-### Case 2 — Per-participant losses exist, but parameters do not
-
-If the code stores participant-level NLL contributions for each model but not participant-specific optimized parameters, determine whether those NLLs come from:
-
-- one population-level parameter vector evaluated participant by participant, or
-- participant-specific fitted parameter vectors.
-
-If the NLLs are based on population-level parameters, they are not sufficient for this analysis.
-
-### Case 3 — Only population-level fits exist
-
-If each utility function has only one fitted parameter vector for the whole sample, then implement participant-level fitting.
-
-Start with a pilot version before running the full analysis.
-
----
-
-## 4. Data scope
-
-Use the **human-human experiment** data for this analysis.
-
-The relevant experiment has:
-
-- roughly `n = 73` participants;
-- repeated binary dictator games;
-- randomized payoffs drawn from `{1, 2, 3, 4, 5}`;
-- both chooser and predictor roles;
-- roughly `~120` responses per participant;
-- the full payoff grid contains `5^4 = 625` possible binary dictator-game structures.
-
-### Use both roles for the main analysis
-
-The main participant-level architecture analysis should fit **both chooser and predictor responses per participant** to increase the available data per participant.
-
-However, do **not** force chooser and predictor parameters to be numerically identical.
-
-The preferred main specification is:
-
-> **same utility form for both roles, separate role-specific parameter vectors.**
-
-For participant `i` and model `m`:
+Instead, convert model support into weights. For each participant:
 
 $$
-NLL_{i,m}
-=
-NLL^{chooser}_{i,m}(\theta^{chooser}_{i,m})
-+
-NLL^{predictor}_{i,m}(\theta^{predictor}_{i,m})
-$$
-
-where:
-
-- $\theta^{chooser}_{i,m}$ is fitted only to chooser responses;
-- $\theta^{predictor}_{i,m}$ is fitted only to predictor responses;
-- both parameter vectors use the same utility-function architecture `m`.
-
-This asks:
-
-> Does this participant’s own choice behavior and their beliefs about others seem to require the same utility architecture?
-
-### Sensitivity analyses
-
-Also support, if feasible:
-
-1. chooser-only architecture fitting;
-2. predictor-only architecture fitting;
-3. combined-role fitting with separate role-specific parameters.
-
-The combined-role version is the main analysis. Chooser-only and predictor-only versions are useful checks.
-
----
-
-## 5. Participant-level IC calculations
-
-For every participant `i` and every utility function `m`, compute or retrieve:
-
-```text
-participant_id
-model_id
-role
-k
-n_valid_responses
-raw_nll
-penalized_nll_if_used
-best_params
-optimization_status
-```
-
-Then construct combined-role participant-level scores.
-
-### 5.1 Raw NLL
-
-Use **raw unpenalized NLL** for reported fit and held-out prediction.
-
-If the optimizer uses an L2 penalty internally, subtract the penalty before reporting model fit, consistent with the existing IC logic.
-
-### 5.2 BIC for separate role-specific parameters
-
-Because the main analysis fits separate chooser and predictor parameter vectors, the default BIC should sum role-specific BIC contributions:
-
-$$
-BIC_{i,m}
-=
-2NLL^{chooser}_{i,m}
-+
-k_m \log(n^{chooser}_i)
-+
-2NLL^{predictor}_{i,m}
-+
-k_m \log(n^{predictor}_i)
-$$
-
-where:
-
-- $k_m$ is the number of free parameters in model `m`;
-- $n^{chooser}_i$ is participant `i`’s number of valid chooser responses;
-- $n^{predictor}_i$ is participant `i`’s number of valid predictor responses.
-
-If either role has too few valid responses for a participant, handle that participant carefully:
-
-- either exclude the role for that participant;
-- or exclude the participant from the combined-role analysis;
-- but record the rule clearly.
-
-### 5.3 Alternative combined-`n` BIC sensitivity
-
-Optionally compute a stricter combined-parameter BIC:
-
-$$
-BIC^{combined}_{i,m}
-=
-2NLL_{i,m}
-+
-(2k_m)\log(n^{total}_i)
-$$
-
-This is a useful sensitivity check, but the role-summed BIC above is preferred because each role-specific parameter vector is fitted to its own role-specific data.
-
-### 5.4 Delta-BIC
-
-For each participant:
-
-$$
-\Delta BIC_{i,m}
-=
-BIC_{i,m} - \min_{m'} BIC_{i,m'}
-$$
-
-The top model for a participant is the model with $\Delta BIC = 0$.
-
-But do not represent participants only by their top model. Individual-level data are noisier than population-level data, so top-model identity can be unstable.
-
----
-
-## 6. BIC-weighted model clouds
-
-Each participant should be represented as a **probability cloud over utility forms**, not as a single winning model.
-
-Compute BIC weights:
-
-$$
-w_{i,m}
-=
+w_{i,m}=
 \frac{\exp(-0.5\Delta BIC_{i,m})}
 {\sum_{m'}\exp(-0.5\Delta BIC_{i,m'})}
 $$
 
+where:
+
+$$
+\Delta BIC_{i,m}=BIC_{i,m}-\min_{m'} BIC_{i,m'}
+$$
+
 Interpretation:
 
-- $\Delta BIC = 0$ gets maximal support.
-- $\Delta BIC = 2$ gets about $e^{-1} \approx .37$ of the best model’s unnormalized support.
-- $\Delta BIC = 10$ gets about $e^{-5} \approx .0067$ of the best model’s unnormalized support.
+- the best model gets the largest weight;
+- models close in BIC get meaningful support;
+- models far away get tiny support;
+- each participant becomes a **BIC-weighted cloud over utility-function space**.
 
-### Implementation notes
+This is the key idea. Participants are not single points at first. They are clouds of attraction over utility architectures.
+
+## 2. Elastic-band intuition
+
+The model-space map contains utility functions as points. Each participant is pulled toward those utility-function points by BIC weights.
+
+- strong BIC weight = strong elastic band;
+- weak BIC weight = weak elastic band;
+- if one model dominates, the participant sits near that model;
+- if several nearby models dominate, the participant sits in that basin;
+- if distant models all have support, the participant is diffuse / underidentified.
+
+This metaphor is useful for visualization, but quantitative distances should be computed using the full model-distance matrix, not only the 2D plot.
+
+---
+
+# Part I — Extract participant × model × role fits
+
+## 3. First task: inspect existing IC outputs
+
+The current IC analysis appears to save per-player, per-role fits for every utility function. If so, this analysis may be dramatically easier than refitting all models.
+
+Look for structures like:
+
+```python
+minimum_params_and_losses[utility_setting_key][player_uuid]["loss"]["chooser"]
+minimum_params_and_losses[utility_setting_key][player_uuid]["loss"]["predictor"]
+minimum_params_and_losses[utility_setting_key][player_uuid]["params"]["chooser"]
+minimum_params_and_losses[utility_setting_key][player_uuid]["params"]["predictor"]
+```
+
+In the current `information_criterion_analysis(...)`, these may be saved as `minvec` inside per-model IC JSON files.
+
+### Important
+
+If these per-participant losses and parameter vectors already exist, **do not refit**. Extract and reorganize them.
+
+## 4. Temporary legacy source for debugging
+
+Large precomputed fit files may not be in the new repo. During debugging, use the old local files:
+
+```text
+C:\Users\Gregory Stanley\Desktop\U of M\Research Archive\Multiplayer\ABM_Simulation\Judgment_Game\Inputs\Iter_Binary_Dictator\player_fits
+```
+
+Rules:
+
+1. Do not commit large fit files.
+2. Check whether old fit-file format matches the current codebase.
+3. If minor compatibility differences exist, write a compatibility loader.
+4. Mark compatibility code clearly:
+
+```python
+"TODO: Legacy compatibility path. Delete this block after the new participant_model_role_losses.csv extraction is proven to work with the current repo outputs."
+```
+
+The old code is in:
+
+```text
+ABM_Simulation > Iter_Binary_Dictator.py
+```
+
+Use it only if needed to decode legacy file structure.
+
+## 5. Extraction deliverable
+
+Create:
+
+```text
+processed/participant_model_role_losses.csv
+```
+
+Suggested columns:
+
+```text
+utility_idx
+utility_bitstring
+utility_setting_key
+player_uuid
+player_role
+loss_nll
+n_data
+params_json
+k_params
+AIC
+BIC
+source_file
+source_version_optional
+```
+
+This file should be the bridge between the old IC fitting machinery and the new individual-architecture analysis.
+
+## 6. Use both roles by default
+
+The main analysis should use both chooser and predictor responses per participant to increase information.
+
+But do **not** force chooser and predictor parameters to be identical.
+
+Preferred specification:
+
+> **same functional form, separate role-specific parameter vectors**
+
+For participant `i` and model `m`:
+
+$$
+NLL_{i,m}=NLL^{chooser}_{i,m}+NLL^{predictor}_{i,m}
+$$
+
+with separate parameters:
+
+```text
+theta_chooser_i_m
+theta_predictor_i_m
+```
+
+This asks:
+
+> Does this participant’s choice behavior and belief/prediction behavior gravitate toward the same architecture, while allowing the numerical parameter values to differ by role?
+
+### Sensitivity analyses
+
+If cheap, also compute:
+
+```text
+chooser-only architecture analysis
+predictor-only architecture analysis
+combined-role architecture analysis
+```
+
+Primary analysis:
+
+```text
+combined chooser + predictor, separate role-specific parameters
+```
+
+---
+
+# Part II — Participant-level BIC, weights, and clouds
+
+## 7. Participant-level BIC
+
+Use raw unpenalized NLL for reporting. If the optimizer used a penalty internally, subtract it before reporting fit, consistent with the IC analysis.
+
+Because chooser and predictor parameters are separate, use role-summed BIC:
+
+$$
+BIC_{i,m}
+=
+2NLL^{chooser}_{i,m}+k_m\log(n^{chooser}_i)
++
+2NLL^{predictor}_{i,m}+k_m\log(n^{predictor}_i)
+$$
+
+where:
+
+- `k_m` = number of free parameters in model `m` for one role;
+- `n_chooser_i` = participant `i`’s valid chooser responses;
+- `n_predictor_i` = participant `i`’s valid predictor responses.
+
+If a role has too little data, handle it explicitly and document the rule.
+
+### Optional stricter BIC sensitivity
+
+A stricter alternative is:
+
+$$
+BIC^{combined}_{i,m}=2NLL_{i,m}+(2k_m)\log(n^{total}_i)
+$$
+
+Compute this as a sensitivity check if easy. Prefer the role-summed BIC for the main analysis because each role-specific parameter vector is fitted to role-specific data.
+
+## 8. Delta-BIC and weights
+
+For each participant:
+
+$$
+\Delta BIC_{i,m}=BIC_{i,m}-\min_m BIC_{i,m}
+$$
+
+BIC weights:
+
+$$
+w_{i,m}=
+\frac{\exp(-0.5\Delta BIC_{i,m})}
+{\sum_{m'}\exp(-0.5\Delta BIC_{i,m'})}
+$$
 
 Use log-sum-exp for numerical stability.
 
-Save both:
+Save:
 
 ```text
-bic_weight_all_models
-bic_weight_delta_le_10_only_optional
+processed/participant_model_bic_weights.csv
 ```
 
-For most calculations, use all models with numerical stabilization. For visualization, it is often clearer to show only models with nontrivial support, such as $\Delta BIC \leq 10$ or cumulative weight <= .95.
+Suggested columns:
 
-### Effective number of plausible models
+```text
+player_uuid
+utility_idx
+utility_bitstring
+BIC
+ΔBIC
+bic_weight
+rank
+k_params
+loss_nll_combined
+loss_nll_chooser
+loss_nll_predictor
+n_data_chooser
+n_data_predictor
+```
 
-For each participant, compute:
+## 9. Effective number of plausible models
+
+For each participant:
 
 $$
-N^{eff}_i
-=
-\frac{1}{\sum_m w_{i,m}^2}
+N^{eff}_i=\frac{1}{\sum_m w_{i,m}^2}
 $$
 
 Interpretation:
 
-- $N^{eff} \approx 1$: one architecture dominates.
-- large $N^{eff}$: many architectures remain plausible for this participant.
+| `N_eff` | Meaning |
+|---:|---|
+| near 1 | one architecture dominates |
+| moderate | several nearby architectures are plausible |
+| large | architecture is diffuse / underidentified |
 
-This helps distinguish meaningful participant-level architecture differences from underidentification.
-
-### Feature-inclusion probabilities
-
-Each of the 476 models has 14 Boolean utility settings. For each participant and each setting `s`, compute:
-
-$$
-P_i(s = 1)
-=
-\sum_m w_{i,m}\,\mathbb{1}(s_m = 1)
-$$
-
-This gives a soft participant-level estimate of which utility features are supported.
-
-Examples:
+Save:
 
 ```text
-P_i(altruism included)
-P_i(social comparison included)
-P_i(envy/guilt split)
-P_i(exponents included)
-P_i(single versus individual exponents)
-P_i(reference dependence)
-P_i(payoff ratios)
+processed/participant_architecture_summary.csv
 ```
 
-These are often more interpretable than a participant’s exact winning model ID.
+## 10. Feature-inclusion probabilities
+
+For each participant and each Boolean utility setting `s`:
+
+$$
+P_i(s=1)=\sum_m w_{i,m} I(s_m=1)
+$$
+
+This gives participant-level support for features such as:
+
+```text
+include_altruism_term
+include_social_comparison
+negativity_social_comparison
+use_exponential_parameters
+single_exponential_parameter
+reference_dependent_utility
+payoff_ratios_not_differences
+min_max_rawlsian_leontief
+```
+
+These feature probabilities are often more interpretable than exact model IDs.
 
 ---
 
-## 7. Average Model Policy Distance
+# Part III — Model-space distances and participant-cloud distances
 
-This analysis depends on a distance matrix between utility forms.
+## 11. Use Average Model Policy Distance
 
-Use the **Average Model Policy Distance** machinery described in `model_recovery_simulation.md`. If that file has already been implemented, call those functions rather than reimplementing them here.
+This analysis depends on the model-model distance matrix described in `model_recovery_simulation.md`.
 
-### 7.1 What the distance means
+Do not reimplement AMPD here. Call the shared distance functions.
 
-For two utility forms `m` and `n`, Average Model Policy Distance estimates how differently they behave as choice policies over binary dictator-game payoff structures and sampled parameter vectors.
+AMPD says how behaviorally different two utility functions are as choice policies over payoff structures and parameter draws.
 
-A utility form is not just an equation. It induces a policy:
+Primary distance matrix:
 
-$$
-p_m(A \mid x, \theta)
-$$
+```text
+D_models[utility_idx_a, utility_idx_b]
+```
 
-where:
+Default metric:
 
-- `x` is a binary dictator-game payoff structure;
-- `θ` is a parameter vector;
-- `p_m(A | x, θ)` is the probability that model `m` chooses Option A.
+```text
+normalized Jensen-Shannon divergence averaged over payoff structures and parameter draws
+```
 
-Average Model Policy Distance compares these policies across payoff structures and parameter draws.
+## 12. Participant-cloud distance
 
-### 7.2 Primary symmetric distance metric: normalized JSD
+Given:
 
-For general model-space geometry, use **normalized Jensen-Shannon divergence** as the primary symmetric distance.
+- `W`: participant × model matrix of BIC weights;
+- `D_models`: model × model AMPD matrix;
 
-For two Bernoulli probabilities $p$ and $q$:
-
-$$
-H(p)
-=
--[p\log(p)+(1-p)\log(1-p)]
-$$
+compute participant distances as:
 
 $$
-r
-=
-\frac{p+q}{2}
+D_{participants}=W D_{models} W^T
 $$
 
-$$
-JSD(p,q)
-=
-H(r)-\frac{1}{2}H(p)-\frac{1}{2}H(q)
-$$
-
-Normalize by $\log 2$:
+Elementwise:
 
 $$
-D_{JS}(p,q)=\frac{JSD(p,q)}{\log 2}
+D(i,j)=\sum_m\sum_n w_{i,m}w_{j,n}D(m,n)
 $$
-
-Then average across games and parameter draws.
 
 Interpretation:
 
-- `0` = identical choice probabilities;
-- `1` = maximally different deterministic policies;
-- values in between = graded behavioral difference.
+> If we randomly draw one plausible model from participant `i`’s cloud and one plausible model from participant `j`’s cloud, how far apart are those models on average?
 
-### 7.3 Cache pairwise distances
+### Self-distance note
 
-The full pairwise model distance matrix has:
+If a participant’s model cloud is diffuse, `D(i,i)` may not be zero, because two independent draws from that same cloud can land on different models. This self-distance is interpretable as within-participant architecture uncertainty.
 
-$$
-\frac{476 \times 475}{2}=113{,}050
-$$
+For embedding algorithms, save a version with the diagonal forced to zero.
 
-unique pairs.
-
-This is much cheaper than optimization, but still worth caching.
-
-The distance function should support:
-
-```python
-get_or_compute_model_policy_distance(
-    model_a,
-    model_b,
-    metric="normalized_jsd",
-    choice_temperature=None,
-    n_games=625,
-    n_iters=250,
-    parameter_sampler="reference_uniform",
-    use_cache=True,
-    cache_path=None,
-    general_settings=None,
-)
-```
-
-The exact signature may differ, but it must support loading precomputed distances from a CSV/parquet file **only when settings match**.
-
-The cache should store metadata such as:
+Save:
 
 ```text
-model_a_id
-model_b_id
-metric
-choice_temperature
-n_games
-n_iters
-parameter_sampler
-seed
-payoff_grid_mode
-distance
-created_at
-code_version_or_git_hash_optional
+processed/participant_cloud_distance_expected.csv
+processed/participant_cloud_distance_for_embedding.csv
 ```
 
-If settings do not match, recompute rather than silently returning an incompatible distance.
+## 13. Model-space MDS and participant placement
 
----
+Use the model-model AMPD matrix to embed utility functions into 2D or 3D.
 
-## 8. Participant-cloud distances
-
-Once every participant has BIC weights over models and every pair of models has a policy distance, compute the distance between participants as the expected distance between their model clouds.
-
-Let:
-
-- $w_{i,m}$ = participant `i`’s BIC weight on model `m`;
-- $D(m,n)$ = Average Model Policy Distance between model `m` and model `n`.
-
-Then participant-participant distance is:
-
-$$
-D(i,j)
-=
-\sum_m \sum_n w_{i,m} w_{j,n} D(m,n)
-$$
-
-Efficient matrix form:
-
-$$
-D_{participants} = W D_{models} W^T
-$$
-
-where:
-
-- `W` is an `n_participants × n_models` weight matrix;
-- `D_models` is the `n_models × n_models` model-distance matrix.
-
-### Quality checks
-
-Verify:
+Save:
 
 ```text
-D(i,i) is near 0 for participants whose model weights are concentrated on one model.
-D(i,j) == D(j,i) within numerical tolerance.
-All distances are finite.
-All distances are nonnegative.
+processed/model_space_mds_coordinates.csv
 ```
 
-Note: if participants have diffuse model clouds, `D(i,i)` using the expected distance between two independent draws from the same cloud need not be exactly zero. That self-distance can be interpreted as within-participant model uncertainty. For embedding, it may be preferable to set the diagonal to zero after computing the matrix.
-
-Save both:
+Columns:
 
 ```text
-participant_cloud_distance_expected.csv
-participant_cloud_distance_for_embedding.csv  # diagonal forced to zero
-```
-
----
-
-## 9. Model-space and participant-space embeddings
-
-### 9.1 Model-space MDS
-
-Use the model-model distance matrix to embed the 476 utility forms into 2D or 3D.
-
-Methods:
-
-- classical MDS if the distance matrix behaves well;
-- metric MDS if needed;
-- UMAP optional as exploratory visualization;
-- hierarchical clustering/dendrogram optional.
-
-Save coordinates:
-
-```text
-model_id
+utility_idx
 mds1
 mds2
 mds3_optional
-k
-bic_rank_population
-delta_bic_population
-S1...S14
+k_params
+BIC_rank_population
+ΔBIC_population
+utility_bitstring
+setting columns
 ```
 
-Use this to visualize where the empirical winner and top models sit in the behavioral model landscape.
+### Participants in model space
 
-### 9.2 Participant-space MDS
+Each participant can be plotted in the same MDS space as a weighted centroid:
 
-Use the participant-participant distance matrix to embed participants.
+$$
+z_i=\sum_m w_{i,m}z_m
+$$
 
-Save coordinates:
+where `z_m` is model `m`’s MDS coordinate.
+
+This matches the elastic-band intuition: participant points are pulled toward utility-function points by BIC weights.
+
+### But be careful
+
+The centroid is a visualization. The quantitative participant distances should use the full distance matrix formula, not only 2D coordinates.
+
+## 14. Participant-space MDS
+
+Use `participant_cloud_distance_for_embedding.csv` to embed participants directly.
+
+Save:
 
 ```text
-participant_id
+processed/participant_architecture_mds_coordinates.csv
+```
+
+Columns:
+
+```text
+player_uuid
 mds1
 mds2
 mds3_optional
@@ -605,71 +472,61 @@ Useful plot:
 
 ```text
 participant MDS point cloud
-color = cluster assignment or dominant architecture feature
+color = cluster assignment or dominant feature
 size = certainty, e.g. inverse N_eff
 ```
 
-### 9.3 Participant centroids in model-space
-
-If model-space coordinates exist, each participant can also be represented as a weighted centroid in model-space:
-
-$$
-z_i
-=
-\sum_m w_{i,m} z_m
-$$
-
-where $z_m$ is model `m`’s MDS coordinate.
-
-This is useful for visualization, but remember that MDS coordinates are only a low-dimensional approximation of the original distance matrix. For quantitative participant distances, use the full expected-distance formula above.
-
 ---
 
-## 10. Predictive Functional-Form Heterogeneity Index
+# Part IV — Predictive Functional-Form Heterogeneity Index
 
-This is the first main inferential result.
+## 15. What `H_form` asks
 
-It asks:
+`H_form` answers one central question:
 
-> **Does allowing participants to have their own utility architectures improve held-out prediction beyond a common architecture?**
+> **Does allowing participants to have their own utility architectures improve prediction beyond one common architecture?**
 
-Define three held-out losses.
+This is the teeter-totter score:
 
-### 10.1 Common-form loss
+- same form, different parameters;
+- versus different forms, different parameters.
 
-`NLL_common`: held-out NLL when all participants use one shared utility architecture, but each participant has their own fitted role-specific parameters.
+## 16. Held-out prediction is the strongest version
 
-The common architecture can be:
+The cleanest version uses train/test splits.
 
-1. the empirical population-level BIC winner, or
-2. the best single architecture selected inside the training folds.
+Why? Because individualized utility functions will almost always improve in-sample fit. The question is whether they improve **held-out prediction** enough to justify the loss of parsimony.
 
-For the fairest predictive test, use the best training-selected `K = 1` architecture as the main `NLL_common`. Also report the population-winner version as a sensitivity check.
+### Common-form model
 
-### 10.2 Individual-form loss
+All participants use one shared utility architecture, but each participant has their own role-specific parameters.
 
-`NLL_individual`: held-out NLL when each participant can use their own best utility architecture, selected from training data only.
-
-For participant `i`:
+Loss:
 
 ```text
-best_model_i = argmin_m training_BIC_i,m
-heldout_loss_i = test_NLL_i,best_model_i
+NLL_common
 ```
 
-Then:
+The common form can be:
 
-$$
-NLL_{individual}
-=
-\sum_i heldout\_loss_i
-$$
+1. the population-level IC winner;
+2. the best single form selected on training data.
 
-Also optionally compute a BIC-weighted model-average version if the codebase supports averaging predictive probabilities over models.
+Use the training-selected `K=1` model as the fairest primary test. Report the population-winner version as a sensitivity check.
 
-### 10.3 Chance loss
+### Individual-form model
 
-`NLL_chance`: held-out NLL for a random-choice model that predicts `p = .5` for every binary response.
+Each participant gets their own best architecture selected on training data.
+
+Loss:
+
+```text
+NLL_individual
+```
+
+### Chance model
+
+Random-choice model predicting `p = .5` for every binary response.
 
 For `n_test` binary responses:
 
@@ -677,9 +534,7 @@ $$
 NLL_{chance}=n_{test}\log 2
 $$
 
-### 10.4 Heterogeneity index
-
-Compute:
+## 17. Heterogeneity index
 
 $$
 H_{form}
@@ -690,56 +545,73 @@ $$
 
 Interpretation:
 
-- `0`: individualized functional forms add no predictive value beyond one shared form.
-- `0.05`: individualized forms recover 5% of the predictive information missed by the common form.
-- `0.50`: individualized forms recover half of the gap between common architecture and chance.
-- `1`: the common-form model performs roughly like chance relative to individualized forms.
-- negative values: individualized forms performed worse than the common form on held-out data.
+| `H_form` | Meaning |
+|---:|---|
+| `0` | individualized architectures add no predictive value beyond one shared architecture |
+| `.05` | individualized forms recover 5% of the predictive information missed by the common form |
+| `.50` | individualized forms recover half the gap between common form and chance |
+| `1` | common-form model is roughly chance-like relative to individualized forms |
+| negative | individualized form selection overfit or performed worse than the common architecture |
 
-Save both raw and clipped versions:
+Save both:
 
 ```text
 H_form_raw
 H_form_clipped_0_1
 ```
 
-Do not hide negative values. A negative value is informative: it means individual form selection overfit or failed to improve prediction.
+Do not hide negative values. Negative values are informative.
+
+## 18. First-pass in-sample version
+
+If train/test refitting is not immediately available, compute an **exploratory in-sample** version from existing fits. Label it clearly:
+
+```text
+H_form_in_sample_exploratory
+```
+
+This is useful for deciding whether the analysis is promising, but the held-out version is required for strong claims.
 
 ---
 
-## 11. Functional-Architecture Compression Curve
+# Part V — Functional-Architecture Compression Curve
 
-This is the second main inferential result.
+## 19. What the compression curve asks
 
-It asks:
+`H_form` asks whether individualized forms help.
 
-> **How many utility architectures are needed to capture the predictive benefit of allowing participant-specific functional forms?**
+The compression curve asks:
 
-Think of this as building a small **codebook** of utility architectures.
+> **If individualized forms help, how many distinct utility architectures are needed to capture that benefit?**
 
-- `K = 1`: everyone must use one architecture.
-- `K = N participants`: every participant can effectively have their own architecture.
-- intermediate `K`: participants are assigned to the best architecture among a small set of `K` allowed forms.
+This creates a continuum:
 
-Because utility forms are discrete objects, use **medoids/codebook architectures**, not literal continuous centroids. The word “centroid” is conceptually helpful, but the implemented objects should be actual utility functions.
+| K | Meaning |
+|---:|---|
+| 1 | everyone must use one shared architecture |
+| 2 | participants can be assigned to one of two architectures |
+| 3 | participants can be assigned to one of three architectures |
+| N participants | each participant can effectively have their own architecture |
 
-### 11.1 Definitions
+Because utility functions are discrete objects, call these **architecture codebooks** or **medoids**, not literal centroids. A centroid can be an abstract average point; a medoid is an actual utility function.
+
+## 20. Definitions
 
 Let:
 
-- `S_K` = a selected set of `K` utility forms;
-- `L_i(m)` = held-out NLL for participant `i` using utility form `m`;
-- `Score_i(m)` = training selection score, usually participant-level BIC.
+```text
+S_K = selected set of K utility forms
+L_i(m) = held-out NLL for participant i under model m
+Score_i(m) = training selection score, usually participant-level BIC
+```
 
-Participant `i` is assigned to the best architecture in the codebook using training data:
+Participant assignment:
 
 $$
-a_i(S_K)
-=
-\arg\min_{m \in S_K} Score_i(m)
+a_i(S_K)=\arg\min_{m\in S_K} Score_i(m)
 $$
 
-Then held-out loss for participant `i` under codebook `S_K` is:
+Participant loss under the codebook:
 
 $$
 L_i(S_K)=L_i(a_i(S_K))
@@ -751,80 +623,81 @@ $$
 NLL(K)=\sum_i L_i(S_K)
 $$
 
-### 11.2 Greedy codebook selection
+## 21. Greedy codebook selection
 
-Exact optimization over all possible subsets of `K` models is combinatorially impossible. Use a greedy approximation.
+Exact search over all possible sets of `K` models is impossible. Use a greedy approximation.
 
 Algorithm:
 
 ```text
-Initialize S_1 with the single model that minimizes total training score across participants.
+Initialize S as empty.
 
-For K = 2, 3, ... K_max:
+For K = 1 to K_max:
     For every candidate model not already in S:
-        Temporarily add it to S.
-        Assign each participant to their best model within the temporary codebook using training BIC.
+        Temporarily add candidate to S.
+        Assign each participant to their best model in temporary S using training BIC.
         Compute total training score.
-    Add the model that produces the largest improvement.
-    Save S_K, assignments, training score, and held-out NLL.
+    Permanently add the candidate that gives the biggest improvement.
+    Compute held-out NLL for the resulting assignments.
+    Save S_K, assignments, training score, held-out NLL, and interpretive metadata.
 ```
 
 Pseudocode:
 
 ```python
-def greedy_architecture_codebook(train_scores, test_nll, candidate_model_ids, k_max):
-    S = []
-    history = []
+def greedy_architecture_codebook(
+    train_scores_by_participant_and_model,
+    test_nll_by_participant_and_model,
+    candidate_model_ids,
+    k_max,
+):
+    selected_codebook_model_ids = []
+    codebook_history_rows = []
 
-    for K in range(1, k_max + 1):
-        best_candidate = None
-        best_train_score = np.inf
-        best_assignments = None
+    for current_k in range(1, k_max + 1):
+        best_candidate_model_id = None
+        best_candidate_training_score = np.inf
+        best_candidate_assignments = None
 
-        for m in candidate_model_ids:
-            if m in S:
+        for candidate_model_id in candidate_model_ids:
+            if candidate_model_id in selected_codebook_model_ids:
                 continue
-            S_temp = S + [m]
-            assignments = assign_each_participant_to_best_model(train_scores, S_temp)
-            train_score = total_assigned_score(train_scores, assignments)
 
-            if train_score < best_train_score:
-                best_candidate = m
-                best_train_score = train_score
-                best_assignments = assignments
+            temporary_codebook = selected_codebook_model_ids + [candidate_model_id]
+            participant_assignments = assign_each_participant_to_best_model(
+                train_scores_by_participant_and_model=train_scores_by_participant_and_model,
+                codebook_model_ids=temporary_codebook,
+            )
+            total_training_score = total_assigned_score(
+                train_scores_by_participant_and_model=train_scores_by_participant_and_model,
+                participant_assignments=participant_assignments,
+            )
 
-        S.append(best_candidate)
-        test_loss = total_assigned_test_nll(test_nll, best_assignments)
-        history.append({
-            "K": K,
-            "codebook": list(S),
-            "assignments": best_assignments,
-            "train_score": best_train_score,
-            "test_nll": test_loss,
+            if total_training_score < best_candidate_training_score:
+                best_candidate_model_id = candidate_model_id
+                best_candidate_training_score = total_training_score
+                best_candidate_assignments = participant_assignments
+
+        selected_codebook_model_ids.append(best_candidate_model_id)
+        heldout_nll = total_assigned_test_nll(
+            test_nll_by_participant_and_model=test_nll_by_participant_and_model,
+            participant_assignments=best_candidate_assignments,
+        )
+
+        codebook_history_rows.append({
+            "K": current_k,
+            "codebook_model_ids": list(selected_codebook_model_ids),
+            "participant_assignments": best_candidate_assignments,
+            "train_score": best_candidate_training_score,
+            "heldout_nll": heldout_nll,
         })
 
-    return history
+    return pd.DataFrame(codebook_history_rows)
 ```
 
-### 11.3 Choose `K_max`
+## 22. Compression metrics
 
-Default:
-
-```python
-K_max = min(n_participants, 25)
-```
-
-If computation is cheap and plots remain interpretable, allow `K_max = n_participants`.
-
-The curve often reveals the important pattern by `K <= 10`.
-
-### 11.4 Compression metrics
-
-Compute two related curves.
-
-#### A. H-form as a function of K
-
-For each `K`:
+### 22.1 H-form as a function of K
 
 $$
 H_{form}(K)
@@ -833,413 +706,216 @@ H_{form}(K)
 {NLL_{chance}-NLL(K)}
 $$
 
-Interpretation:
+### 22.2 Architecture advantage captured
 
-- `K = 1` gives `0` by definition.
-- increasing values mean that allowing more architectures improves held-out prediction.
-- if values stay near zero, one shared architecture is enough.
-
-#### B. Architecture advantage captured
-
-This normalizes against the fully individualized endpoint:
+This is the cleaner “how many architectures do we need?” curve:
 
 $$
-A(K)
-=
+A(K)=
 \frac{NLL(1)-NLL(K)}
 {NLL(1)-NLL_{individual}}
 $$
 
 Interpretation:
 
-- `A(1) = 0`.
-- `A(K) = .80` means `K` architectures capture 80% of the predictive benefit of fully individualized architecture selection.
-- `A(K) = 1` means the codebook performs as well as fully individualized form selection.
+| `A(K)` | Meaning |
+|---:|---|
+| `0` | K architectures capture none of the individualized-form advantage |
+| `.80` | K architectures capture 80% of the individualized-form advantage |
+| `1` | K architectures perform as well as fully individualized architecture selection |
 
-This curve directly answers:
+## 23. Complexity penalty and knee detection
 
-> **How many architectures do we need?**
+First, plot the raw compression curve. It is the most transparent scientific object.
 
-### 11.5 Marginal gains and knee detection
-
-Compute marginal gain:
-
-$$
-\Delta A(K)=A(K)-A(K-1)
-$$
-
-Also compute raw held-out improvement:
+Then optionally compute a penalized score:
 
 $$
-\Delta NLL(K)=NLL(K-1)-NLL(K)
+Score(K)=A(K)-\lambda\frac{K-1}{N-1}
 $$
 
-Use multiple knee/stopping criteria:
+This can produce a peak, but `lambda` is a researcher-chosen penalty. Therefore, treat it as secondary.
 
-1. **Marginal-gain threshold:** smallest `K` where adding another architecture improves `A(K)` by less than `.01` or `.02`.
-2. **One-standard-error rule:** across CV folds, choose the smallest `K` whose held-out NLL is within one standard error of the best observed `K`.
-3. **Kneedle/elbow algorithm:** optional automated elbow detection.
-4. **Cluster stability:** prefer `K` values whose participant assignments are stable across folds/bootstrap samples.
-5. **Interpretability:** prefer smaller `K` if the added architectures do not correspond to interpretable utility-setting differences.
+Preferred stopping criteria:
 
-Do not rely on only one knee rule. Save all criteria and let the manuscript decide which to report.
+1. **Marginal-gain threshold**  
+   Stop when `A(K)-A(K-1)` drops below `.01` or `.02`.
+
+2. **One-standard-error rule**  
+   Across CV folds, choose the smallest `K` whose held-out NLL is within one standard error of the best observed `K`.
+
+3. **Kneedle / elbow algorithm**  
+   Optional automated elbow detection.
+
+4. **Cluster stability**  
+   Prefer `K` values whose participant assignments are stable across folds or bootstraps.
+
+5. **Interpretability**  
+   Prefer smaller `K` if added architectures do not correspond to interpretable utility-setting differences.
+
+Do not rely on only one criterion. Save them all.
+
+## 24. What outcomes mean
+
+### Flat after K = 1
+
+One architecture is enough. This supports the shared-coordinate-system story.
+
+### Knee at K = 2 or 3
+
+A small number of utility architectures explain most functional heterogeneity. This suggests functional phenotypes.
+
+### Gradual improvement until high K
+
+Individualization may improve prediction, but without a clean taxonomy. This could reflect idiosyncrasy, overfitting, or insufficient data.
+
+### No held-out improvement
+
+Individual top models may be noisy. Stick with the shared architecture.
 
 ---
 
-## 12. Cross-validation and leakage prevention
+# Part VI — Clustering and visualization
 
-Held-out prediction is essential because individual-level model selection is noisy and can overfit.
+## 25. Participant-space clustering
 
-### 12.1 Default split strategy
+Use the participant-cloud distance matrix.
 
-Use participant-preserving, within-participant splits:
+Methods:
+
+```text
+hierarchical clustering
+k-medoids if available
+spectral clustering optional
+```
+
+Evaluate:
+
+```text
+silhouette score
+bootstrap stability
+adjusted Rand index across resamples
+cluster interpretability by model features
+held-out predictive improvement if available
+```
+
+Do not treat random scatter as evidence for functional-form heterogeneity.
+
+Strong evidence requires:
+
+```text
+stable clusters
+predictive benefit
+interpretable model-feature differences
+```
+
+## 26. Model-space + participant-space plots
+
+### 26.1 Model-space map
+
+Use AMPD to embed utility functions.
+
+Plot:
+
+```text
+utility functions as points
+color = population ΔBIC or major model family
+highlight = population IC winner
+overlay = participant weighted centroids
+```
+
+This visually shows whether participants cluster around the winner or spread across the model universe.
+
+### 26.2 Participant-space map
+
+Use participant-cloud distances.
+
+Plot:
+
+```text
+participants as points
+color = cluster
+size = 1 / N_eff or certainty
+hover = best model, ΔBIC, dominant feature probabilities
+```
+
+### 26.3 Clouds for selected participants
+
+For a few example participants, show their top supported models in model-space.
+
+This helps readers understand the cloud concept.
+
+---
+
+# Part VII — Cross-validation and leakage prevention
+
+## 27. Why train/test matters
+
+Individualized architecture selection can overfit. Held-out prediction is the strongest way to decide whether extra architectural flexibility is worth it.
+
+## 28. Default split strategy
+
+Use within-participant splits:
 
 ```text
 For each participant:
     split chooser responses into train/test
     split predictor responses into train/test
+    preserve role balance when possible
 ```
 
-Use the same folds across models.
+Use training data to select models and fit parameters. Use held-out data only to evaluate NLL.
 
-Recommended default:
+If full refitting is too expensive, build first-pass geometry from existing fits and implement train/test later.
 
-```python
-n_folds = 5
-n_repeats = 5  # if computationally feasible
+## 29. First-pass vs final-pass labels
+
+Be explicit in output names:
+
+```text
+in_sample_exploratory
+cross_validated_confirmatory
 ```
 
-If computation is expensive, start with:
-
-```python
-n_folds = 3
-n_repeats = 1
-```
-
-### 12.2 Train/test rules
-
-For each fold:
-
-1. Fit participant-specific parameters for each model using training responses only.
-2. Compute training NLL and training BIC.
-3. Select participant-specific models and codebook architectures using training scores only.
-4. Evaluate selected models/codebooks on held-out responses only.
-
-Never use held-out loss to select models, choose `K`, or choose codebook architectures.
-
-### 12.3 Static-model assumption
-
-This analysis should use the same static utility-function fitting logic as the IC analysis unless explicitly extending the dynamic UBM.
-
-The purpose is to compare utility architectures, not to re-run the full dynamic Bayesian belief-updating model for every participant and every utility form.
+The in-sample version is useful for exploration. The cross-validated version is necessary for strong claims.
 
 ---
 
-## 13. Clustering participants by architecture
+# Part VIII — Outputs
 
-Use participant-cloud distances to test whether individual utility architectures form stable clusters.
-
-### 13.1 Inputs
-
-Use:
+## 30. Core CSV outputs
 
 ```text
-participant_distance_matrix
-participant MDS coordinates
-BIC-weighted feature probabilities
-best model / top models
-codebook assignments
+processed/participant_model_role_losses.csv
+processed/participant_model_scores.csv
+processed/participant_model_bic_weights.csv
+processed/participant_architecture_summary.csv
+processed/participant_feature_support_probabilities.csv
+processed/participant_cloud_distance_expected.csv
+processed/participant_cloud_distance_for_embedding.csv
+processed/model_space_mds_coordinates.csv
+processed/participant_architecture_mds_coordinates.csv
+processed/architecture_clusters.csv
+processed/H_form_summary.csv
+processed/architecture_compression_curve.csv
 ```
 
-### 13.2 Clustering methods
-
-Support at least two methods:
-
-1. hierarchical clustering using participant-cloud distances;
-2. k-medoids on the participant distance matrix.
-
-Optional:
-
-- Gaussian mixture models on MDS coordinates;
-- spectral clustering;
-- HDBSCAN / density clustering.
-
-### 13.3 Cluster evaluation
-
-For each candidate number of clusters:
+## 31. Core figures
 
 ```text
-silhouette score
-cluster sizes
-bootstrap stability
-adjusted Rand index across folds/repeats
-mean within-cluster distance
-mean between-cluster distance
+visuals/individual_architecture/model_space_with_participant_centroids.html
+visuals/individual_architecture/participant_architecture_mds.html
+visuals/individual_architecture/participant_feature_support_heatmap.html
+visuals/individual_architecture/H_form_bar_or_interval.html
+visuals/individual_architecture/architecture_compression_curve.html
+visuals/individual_architecture/codebook_assignments_by_K.html
 ```
 
-### 13.4 Cluster interpretation
+## 32. Main-text-ready figure idea
 
-For each cluster, summarize:
+A compact main-text figure could have two panels:
 
-- top representative utility forms;
-- BIC-weighted feature inclusion probabilities;
-- average participant parameters under the population-winning model;
-- behavioral summaries, if available;
-- role-specific differences, if chooser-only and predictor-only variants were run.
-
-Feature summary example:
-
-```text
-Cluster 1: high support for altruism + social comparison + envy/guilt split
-Cluster 2: high support for self-interest + exponents, weak support for altruism
-Cluster 3: diffuse support, no stable architecture
-```
-
-### 13.5 Interpretation warning
-
-Random scatter is **not** strong evidence for real functional-form heterogeneity.
-
-Strong evidence for architectural heterogeneity requires:
-
-```text
-stable clusters
-held-out predictive improvement
-interpretable utility-setting differences
-nontrivial separation in model-policy space
-```
-
-If top models scatter but held-out prediction does not improve, the conclusion is likely:
-
-> Individual-level form selection is underidentified or overfits; the shared architecture remains the better-supported summary.
-
----
-
-## 14. Common architecture versus heterogeneous architecture: three-level comparison
-
-Organize the results around three model levels.
-
-### Level 1 — Population/shared form, participant-specific parameters
-
-One utility form is used for everyone, but every participant gets their own parameters.
-
-Primary common-form candidates:
-
-1. empirical population-level seven-parameter winner;
-2. best single architecture selected from training data.
-
-Question:
-
-> How well does one architecture describe everyone when parameter heterogeneity is allowed?
-
-### Level 2 — Small architecture codebook
-
-A small set of `K` utility forms is allowed. Each participant is assigned to the best architecture in the codebook.
-
-Question:
-
-> Does a small number of utility architectures capture most individual differences?
-
-### Level 3 — Individual architecture
-
-Each participant can use their own best-fitting utility form.
-
-Question:
-
-> Does every participant need their own architecture, or does that overfit?
-
-The **functional-architecture compression curve** links these levels.
-
----
-
-## 15. Weighted feature accuracy / feature summaries
-
-Although “weighted feature accuracy” was originally discussed for utility-function recovery simulations, the same logic is useful here for participant-level architecture summaries.
-
-For each participant, compute feature probabilities:
-
-$$
-P_i(s=1)=\sum_m w_{i,m}\,\mathbb{1}(s_m=1)
-$$
-
-For clusters or codebook groups, compute the average:
-
-$$
-P_{cluster}(s=1)=\frac{1}{|C|}\sum_{i\in C}P_i(s=1)
-$$
-
-For codebook assignments, also compute the feature vector of each codebook architecture.
-
-### Optional behaviorally weighted feature summary
-
-If model-policy distances are used to derive behavioral feature weights, define:
-
-$$
-weight_s
-=
-\text{average policy distance between model pairs differing only in setting }s
-$$
-
-Then a participant or cluster’s support for behaviorally important features can be summarized by weighting settings by `weight_s`.
-
-This is optional. The essential feature summaries are the BIC-weighted inclusion probabilities.
-
----
-
-## 16. Main outputs to save
-
-Create a dedicated output directory, e.g.:
-
-```text
-outputs/individual_architecture_analysis/
-```
-
-### 16.1 Core tables
-
-Save these as CSV/parquet.
-
-#### `participant_model_fits.csv`
-
-One row per participant × model × role × fold.
-
-```text
-participant_id
-fold_id
-repeat_id
-role
-model_id
-k
-n_train
-n_test
-train_raw_nll
-test_raw_nll
-train_penalized_nll_if_any
-best_params_json
-optimization_status
-```
-
-#### `participant_model_scores.csv`
-
-One row per participant × model × fold, combined across roles.
-
-```text
-participant_id
-fold_id
-repeat_id
-model_id
-k
-train_nll_total
-test_nll_total
-bic_role_summed
-bic_combined_optional
-delta_bic
-bic_weight
-rank_bic
-rank_train_nll
-```
-
-#### `participant_feature_support.csv`
-
-One row per participant × fold.
-
-```text
-participant_id
-fold_id
-repeat_id
-S1_prob
-S2_prob
-...
-S14_prob
-N_eff
-best_model_id
-top5_model_ids
-models_delta_bic_le_10
-```
-
-#### `model_policy_distance_matrix.csv`
-
-If not already created elsewhere.
-
-```text
-model_a_id
-model_b_id
-metric
-settings_hash
-distance
-```
-
-#### `participant_cloud_distance_matrix.csv`
-
-Square matrix or long form.
-
-```text
-participant_i
-participant_j
-distance
-fold_id_optional
-repeat_id_optional
-```
-
-#### `architecture_codebook_curve.csv`
-
-One row per `K` × fold/repeat.
-
-```text
-fold_id
-repeat_id
-K
-codebook_model_ids
-train_score
-test_nll
-nll_common
-nll_individual
-nll_chance
-H_form_K
-A_K
-delta_A_K
-delta_NLL_K
-assignments_json
-```
-
-#### `architecture_codebook_summary.csv`
-
-Aggregated across folds/repeats.
-
-```text
-K
-mean_test_nll
-se_test_nll
-mean_H_form_K
-se_H_form_K
-mean_A_K
-se_A_K
-mean_delta_A
-selected_by_one_se_rule
-selected_by_marginal_gain_rule
-selected_by_kneedle_optional
-```
-
-#### `cluster_summary.csv`
-
-```text
-cluster_id
-n_participants
-mean_within_distance
-mean_between_distance
-silhouette
-representative_model_ids
-S1_prob_mean
-...
-S14_prob_mean
-notes_optional
-```
-
----
-
-## 17. Main figures to generate
-
-Generate publication-quality figures, but keep raw data behind every figure.
-
-### Figure 1 — Functional-Architecture Compression Curve
+### Panel A — Architecture compression curve
 
 x-axis:
 
@@ -1247,285 +923,108 @@ x-axis:
 K = number of allowed utility architectures
 ```
 
-y-axis options:
+y-axis:
 
 ```text
-A(K): proportion of individualized-form advantage captured
-H_form(K): predictive functional-form heterogeneity index at K
-held-out NLL
+A(K) or held-out NLL improvement
 ```
 
-Preferred main panel:
+This answers how many forms are needed.
+
+### Panel B — Participant architecture map
+
+Participant-space MDS using BIC-weighted cloud distances.
+
+Color by:
 
 ```text
-A(K) with error bars across folds/repeats
+cluster assignment
 ```
 
-Add vertical markers for selected knees/stopping points.
-
-### Figure 2 — Common vs Individualized Held-Out Prediction
-
-Compare:
+or:
 
 ```text
-common population winner
-best K=1 shared architecture
-best K from compression curve
-fully individualized architecture
-chance
+dominant architecture feature
 ```
 
-Use held-out NLL or normalized improvement.
-
-### Figure 3 — Participant-Space MDS
-
-Plot participants embedded from participant-cloud distances.
-
-Visual encodings:
-
-```text
-color = cluster assignment or codebook assignment
-size = 1 / N_eff or certainty
-shape = optional role/sensitivity indicator
-```
-
-### Figure 4 — Model-Space MDS With Participant Clouds
-
-Plot utility forms in model-policy space.
-
-Overlay:
-
-```text
-population winner
-codebook architectures
-participant weighted centroids
-best models per participant
-```
-
-This visually answers whether participants are concentrated around one architectural basin or spread across several.
-
-### Figure 5 — Feature Support by Cluster or Codebook
-
-Heatmap:
-
-```text
-rows = clusters or codebook architectures
-columns = 14 utility settings
-values = BIC-weighted support / feature inclusion
-```
-
-This makes clusters interpretable.
+This shows whether participants cluster around one shared architecture or split into stable basins.
 
 ---
 
-## 18. Quality checks and diagnostics
+# Part IX — Implementation order
 
-### 18.1 Fitting diagnostics
+## Stage 1 — Extract existing fits
 
-For participant-level fits, report:
+Inspect IC outputs. Build `participant_model_role_losses.csv`.
 
-```text
-number of failed optimizations
-number of boundary solutions
-distribution of train NLL
-train-test gap by model k
-rank stability across folds/repeats
-```
+## Stage 2 — Compute participant BIC weights
 
-### 18.2 BIC-weight diagnostics
+Build combined-role BIC, ΔBIC, BIC weights, `N_eff`, and feature support probabilities.
 
-Check:
+## Stage 3 — Load AMPD matrix
 
-```text
-weights sum to 1 per participant
-no NaN or infinite weights
-reasonable N_eff distribution
-participants with diffuse model clouds are flagged
-```
+Use the shared AMPD infrastructure from `model_recovery_simulation.md`.
 
-### 18.3 Distance diagnostics
+## Stage 4 — Build participant distances
 
-Check:
+Compute `W D W.T` and save participant-cloud distance matrices.
 
-```text
-model distance matrix is symmetric
-model self-distances are zero
-participant embedding distances are finite
-model-distance cache settings match current requested settings
-```
+## Stage 5 — Embeddings and first-pass geometry
 
-### 18.4 Compression-curve diagnostics
+Create model-space MDS, participant-space MDS, participant centroids, and feature-support plots.
 
-The training curve should be monotonic non-increasing as `K` increases.
+## Stage 6 — In-sample exploratory H-form and compression curve
 
-Held-out curves may not be perfectly monotonic because of sampling noise. If held-out loss worsens at higher `K`, that is evidence of overfitting and should be preserved, not smoothed away.
+Use existing fits as a first diagnostic if train/test is not ready.
 
-### 18.5 Leakage checks
+## Stage 7 — Cross-validated H-form and compression curve
 
-No held-out data may be used to:
+Implement train/test splits and evaluate held-out prediction.
 
-```text
-fit parameters
-select individual participant models
-choose codebook architectures
-choose K
-compute BIC weights used for model clouds in training-based prediction
-```
+## Stage 8 — Cluster stability and main-text summaries
 
-Held-out data are only for evaluation.
+Run bootstrap/fold stability, interpret clusters, and create final plots.
 
 ---
 
-## 19. Suggested staged implementation
+# 33. Tests and sanity checks
 
-Do not begin with the full monster analysis. Build in stages.
+1. **Extraction integrity**  
+   Summing per-participant/per-role losses should reproduce population-level IC loss for each model.
 
-### Stage 1 — Inspect and retrieve
+2. **Role handling**  
+   Combined-role loss should equal chooser loss plus predictor loss.
 
-Find out whether the existing IC analysis already stores participant-level fits or losses.
+3. **BIC weights**  
+   Weights should sum to 1 for each participant.
 
-Deliverable:
+4. **N_eff**  
+   `N_eff` should be near 1 when one model dominates.
 
-```text
-short report: existing outputs found, what they contain, what must be recomputed
-```
+5. **Participant distance symmetry**  
+   `D(i,j)` should equal `D(j,i)`.
 
-### Stage 2 — Minimal pilot
+6. **Embedding matrix diagonal**  
+   For embedding, diagonal should be forced to zero.
 
-Run the pipeline on:
+7. **Feature support sanity**  
+   Feature probabilities should lie in `[0,1]`.
 
-```text
-10 participants
-20 utility functions
-1 train/test split
-```
+8. **Codebook monotonicity**  
+   Training loss should not increase as `K` increases.
 
-Include:
+9. **Held-out caution**  
+   Held-out loss can increase with `K`; this is informative and may indicate overfitting.
 
-```text
-participant-level fitting/retrieval
-BIC weights
-participant-cloud distances
-small compression curve
-```
-
-Deliverable:
-
-```text
-pilot outputs + sanity-check figures
-```
-
-### Stage 3 — Full participant × model analysis
-
-Run:
-
-```text
-73 participants × 476 utility forms
-combined chooser+predictor roles
-```
-
-Use reduced optimization settings if necessary, but record them.
-
-Deliverable:
-
-```text
-participant_model_scores.csv
-participant_feature_support.csv
-```
-
-### Stage 4 — Distance and geometry
-
-Compute/load Average Model Policy Distance matrix.
-
-Then compute:
-
-```text
-participant-cloud distance matrix
-model-space MDS
-participant-space MDS
-cluster summaries
-```
-
-### Stage 5 — Cross-validated compression curve
-
-Run codebook selection and held-out evaluation.
-
-Deliverable:
-
-```text
-architecture_codebook_curve.csv
-architecture_codebook_summary.csv
-main figures
-```
-
-### Stage 6 — Sensitivity checks
-
-If time permits:
-
-```text
-chooser-only
-predictor-only
-alternative BIC penalty
-alternative model-policy distance temperature
-alternative distance metric
-alternative K selection rules
-```
+10. **No accidental refitting**  
+   First-pass extraction should not rerun expensive optimization unless explicitly requested.
 
 ---
 
-## 20. Interpretation guide for manuscript writing
+# 34. Final note to the coding agent
 
-The results should be interpreted according to this decision table.
+This analysis is not just a technical add-on. It addresses a deep interpretive question in the paper.
 
-| Result pattern | Interpretation |
-|---|---|
-| `H_form ≈ 0`, compression curve flat after `K=1`, participant clouds near one basin | Strong support for a shared utility architecture; people differ mainly in parameters. |
-| `H_form > 0`, curve reaches knee at `K=2` or `K=3`, clusters stable and interpretable | Evidence for a small number of functional phenotypes. |
-| Top models scatter, but held-out prediction does not improve | Individual-level form selection is likely noisy or underidentified; shared architecture remains preferable. |
-| Held-out prediction improves only gradually up to high `K`, clusters unstable | Possible idiosyncratic architecture differences, but no clean taxonomy. |
-| Participant clusters align with meaningful utility settings and improve prediction | Strong evidence that people differ in utility architecture, not merely parameter values. |
+The current IC analysis identifies a strong population-level utility function. This new analysis asks whether that function is a **shared architecture** or a **population compromise**. If participants cluster tightly around one model family, the seven-parameter coordinate-system claim becomes stronger. If they split into a small number of stable, predictive, interpretable clusters, the paper may reveal functional moral phenotypes. If they scatter without stability or held-out improvement, that also matters: it tells us the current data support population-level architecture better than individual-level architecture selection.
 
-The analysis should not overclaim from scatter alone.
-
-> **Stable, predictive, interpretable clustering is evidence for functional-form heterogeneity. Random dispersion is not.**
-
----
-
-## 21. How this could appear in the paper
-
-If the analysis works cleanly, it can become a concise main-text section, perhaps called:
-
-> **Individual-Level Utility Architecture**
-
-Suggested manuscript claim template:
-
-```text
-We next tested whether the winning seven-parameter utility function describes a shared psychological coordinate system or instead averages over heterogeneous individual utility architectures. For each participant, we fit all 476 utility forms using chooser and predictor responses, represented model uncertainty as BIC-weighted clouds over utility-function space, and evaluated whether small codebooks of utility architectures improved held-out prediction. [Result summary.] These findings suggest that [one shared architecture is sufficient / a small number of stable utility architectures captures meaningful heterogeneity / individual architecture selection is underidentified in the present dataset].
-```
-
-The main text probably needs only:
-
-1. one paragraph explaining the question;
-2. one compression-curve figure;
-3. one participant-space or model-space geometry figure;
-4. one short table summarizing selected architectures/clusters.
-
-Put implementation details, robustness, and alternative clustering methods in the supplement.
-
----
-
-## 22. Final reminder
-
-This analysis is not a decorative add-on. It directly tests the status of the paper’s central coordinate-system claim.
-
-If one architecture is enough, the paper becomes stronger:
-
-> **The seven-parameter model is not merely the best population compromise; it is a shared architecture within which individual differences can be located.**
-
-If a few architectures are needed, the paper becomes more interesting:
-
-> **Human social preferences may vary not only in parameter values, but in functional architecture, revealing multiple moral-motivational phenotypes.**
-
-Either result is scientifically valuable.
-
-Build the analysis so that the conclusion is earned by held-out prediction, model-space geometry, and interpretable utility-feature summaries — not by noisy top-model labels alone.
+Build this carefully. Preserve the distinction between in-sample exploration and held-out prediction. Represent participants as weighted clouds, not brittle top-model labels. Reuse existing IC, utility, nesting, and AMPD infrastructure wherever possible.

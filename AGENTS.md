@@ -54,7 +54,7 @@ Understanding these terms is necessary for reading the code and contributing cor
 | **bayesian_update_grid()** | Single-round posterior update via grid/particle filter |
 | **analysis_mode** | `'bayesian'` or `'mle'`; controls whether the UBM or maximum likelihood is used for fitting |
 | **experiment_num** | 1, 2, or 3 — the three empirical experiments in the paper |
-| **IC analysis** | Information criterion analysis comparing 476 candidate utility functional forms by AIC/BIC |
+| **IC analysis** | Information criterion analysis comparing 480 candidate utility functional forms by AIC/BIC |
 | **model nesting** | The hierarchical relationship where simpler utility forms are special cases of richer ones |
 | **parent / child model** | In nesting: a parent model reduces to its child when extra parameters take special values |
 | **warm-starting** | Initializing optimization from the best previously found parameter values |
@@ -133,7 +133,7 @@ Both share the same utility and optimization infrastructure.
 whether to parallelize, how many bins per dimension, particle filter settings, optimization
 policy, warm-starting strategy, figure export settings, and file write mode.
 
-`utility_settings` is a dict of 13 boolean toggles that selects among 476 possible utility
+`utility_settings` is a dict of 13 boolean toggles that selects among 480 possible utility
 functional forms. Every function that computes utilities receives `utility_settings` as a
 parameter and reads these toggles to decide which terms to activate. This is what enables the
 large-scale IC model comparison without code duplication.
@@ -147,7 +147,7 @@ by `warmstart_policy`. All optimization entrypoints share common infrastructure 
 
 ### IC analysis
 
-`information_criterion_analysis()` iterates over all 476 combinations of `utility_settings`,
+`information_criterion_analysis()` iterates over all 480 combinations of `utility_settings`,
 fits each to data, and computes AIC/BIC. Model-nesting-aware warm-starting (child→parent
 parameter mappings) prevents nesting violations where a richer model appears to fit worse than
 its simpler nested version.
@@ -316,7 +316,7 @@ The file is organized into logical sections in this order:
 | Simulation 1–3 | 4790–8218 | Parameter recovery, convergence, update speed |
 | Illustrating Belief Updates | 8219–9419 | 2D/3D update visualizations, accuracy analysis |
 | Model Validation | 9420–10536 | Typological comparison, model comparison |
-| IC Analysis | 10537–12711 | 476-model utility comparison; nesting-aware fitting |
+| IC Analysis | 10537–12711 | 480-model utility comparison; nesting-aware fitting |
 | Nesting Network & Verification | 12712–15000 | Sanity checks, nesting tests, embedding verification |
 | Parameter Distribution Results | 15001–15861 | Population-level distributions, correlations |
 | Inequality Aversion Analysis | 15862–16224 | Bot competitions, aversion heatmaps |
