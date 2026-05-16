@@ -18,6 +18,35 @@ run_code_settings = {
 def main():
     """Execute main code."""
 
+
+    "Compute (or resume) the AMPD master matrix — settings come from general_settings['ampd_settings']."
+    # mat = compute_ampd_distance_matrix(
+    #     general_settings=general_settings, utility_settings=utility_settings,
+    #     file_paths=file_paths, param_bds=param_bds,
+    # )
+    # pp.pprint(mat)
+
+    "Stage 5 visualizations — all load the AMPD matrix from settings automatically."
+    embedding_df = compute_model_space_embedding(
+        general_settings=general_settings, file_paths=file_paths,
+        n_dimensions=2,
+    )
+    fig = plot_model_space_mds(
+        general_settings=general_settings, file_paths=file_paths, fig_lay=fig_lay,
+    )
+    fig2 = plot_distance_to_winner_vs_delta_bic(
+        general_settings=general_settings, file_paths=file_paths, fig_lay=fig_lay,
+    )
+    coherence = compute_top_model_coherence(
+        general_settings=general_settings, file_paths=file_paths,
+        top_ns=[5, 10, 25, 50],
+    )
+    fig3 = plot_top_model_ampd_heatmap(
+        general_settings=general_settings, file_paths=file_paths, fig_lay=fig_lay,
+        top_n=50,
+    )
+
+    exit()
     if run_code_settings['run_simulation_analyses']:
 
         # sample_ratios = list(np.round(np.linspace(start=0.05, stop=0.95, num=19), decimals=3))

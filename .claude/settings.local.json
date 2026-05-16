@@ -26,7 +26,22 @@
       "Bash(echo \"exit: $?\")",
       "Bash(grep -i \"processed\\\\|raw_data\" echo \"---\" find \"c:/Users/Gregory Stanley/Desktop/U of M/Research Archive/Multiplayer/hidden-motives-analysis\" -maxdepth 3 -name \"*Experiment_2*\" find \"c:/Users/Gregory Stanley/Desktop/U of M/Research Archive/Multiplayer/hidden-motives-analysis\" -maxdepth 3 -name \"*Experiments_1*\")",
       "Bash(git remote *)",
-      "Bash(python '/c/Users/Gregory Stanley/Desktop/U of M/Research Archive/Multiplayer/hidden-motives-analysis/demo_files/player_fits/experiment_0/robot_predictor_Vii~1.0~1.0~_Vij~-0.333~1.0~_t~0.5_n~24~1-11.00.5_14.json')"
+      "Bash(python '/c/Users/Gregory Stanley/Desktop/U of M/Research Archive/Multiplayer/hidden-motives-analysis/demo_files/player_fits/experiment_0/robot_predictor_Vii~1.0~1.0~_Vij~-0.333~1.0~_t~0.5_n~24~1-11.00.5_14.json')",
+      "Bash(New-Item -ItemType Directory -Path \"C:\\\\Users\\\\Gregory Stanley\\\\.claude\\\\skills\\\\kailani\" -Force)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Gregory Stanley\\\\OneDrive\\\\School\\\\Articles\" -Recurse -File | Select-Object -Property FullName, Extension, @{Name=\"SizeKB\";Expression={[math]::Round\\($_.Length/1KB,2\\)}} | ConvertTo-Json)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Gregory Stanley\\\\Desktop\\\\Moral_Psych_Papers\" -Recurse -File)",
+      "Bash(Select-Object FullName, Extension)",
+      "Bash(ConvertTo-Json -Depth 3)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Gregory Stanley\\\\Desktop\\\\Other_Readings\" -Recurse -File | Select-Object -Property FullName, Extension, @{Name=\"SizeKB\";Expression={[math]::Round\\($_.Length/1KB,2\\)}} | ConvertTo-Json)",
+      "Read(//c/Users/Gregory Stanley/Desktop/Moral_Psych_Papers/**)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Gregory Stanley\\\\Desktop\\\\Moral_Psych_Papers\" -Directory | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Gregory Stanley\\\\OneDrive\\\\School\\\\Research\\\\Res Readings\" -Directory | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Gregory Stanley\\\\OneDrive\\\\School\\\\Classes\\\\Theory Building\\\\Lit Review Papers\" -Directory | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Gregory Stanley\\\\OneDrive\\\\School\\\\Classes\\\\Multiplayer Class\\\\Multiplayer Class Readings\" -Directory | ForEach-Object { $_.FullName })",
+      "Read(//c/Users/Gregory Stanley/Documents/Kailani/skills/**)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Gregory Stanley\\.claude\\skills"
     ]
   }
 }

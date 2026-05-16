@@ -1216,106 +1216,922 @@ def is_valid_utility_settings(candidate: UtilitySettings, provide_explanation: b
     return "Success!" if provide_explanation else True
 
 
-def generate_utility_settings(utility_settings: dict[str, bool], sort_by_k: bool = False) -> List[UtilitySettings]:
+def generate_utility_settings(
+    utility_settings: UtilitySettings,
+    general_settings: Optional[GeneralSettings] = None,
+    file_paths: Optional[FilePaths] = None,
+    sort_by_k: bool = False,
+    create_new_file: bool = False,
+    return_df: bool = False,
+    build_equation_function: Optional[Callable] = None,
+    **kwargs: Any,
+) -> Union[List[UtilitySettings], pd.DataFrame]:
     """
-    Generates all valid combinations of utility function settings, subject to the following constraints:
-        • If single_payoffs_not_differences is False, then reference_dependent_utility must be False (irrelevant).
-        • If use_exponential_parameters is False, then single_exponential_parameter must be False (irrelevant).
-        • If include_social_comparison is False, then negativity_social_comparison must be False (irrelevant).
-        • If use_negativity parameters is True, then negativity_social_comparison must be True (irrelevant).
-        • All other boolean flags vary independently.
+    Returns all valid combinations of utility function settings, subject to the structural
+    constraints encoded in `is_valid_utility_settings`. Serves as both the core generator
+    and the retrieval interface for the central utility-function registry
+    (processed/all_utility_functions.csv).
+
+    When called with only `utility_settings` (and optionally `sort_by_k`), the function
+    behaves exactly as before: it generates and returns a list of valid settings dicts.
+    The additional parameters unlock registry-based workflows.
+
+    Arguments:
+        • utility_settings: UtilitySettings
+            A canonical utility settings dict used to seed the Boolean flag universe.
+            All 14 Boolean keys must be present; only their key names matter for generation.
+        • general_settings: GeneralSettings | None
+            Global analysis settings. Passed through to parameter-counting helpers when
+            `sort_by_k=True` or `create_new_file=True`.
+        • file_paths: FilePaths | None
+            Must contain a 'processed' key. When provided and `create_new_file=False`, the
+            function attempts to load the registry CSV before falling back to live generation.
+            When `create_new_file=True`, `file_paths` is required.
+        • sort_by_k: bool (default False)
+            If True and returning a list, sort the list by ascending k_params. This default
+            preserves backward compatibility with existing callers.
+        • create_new_file: bool (default False)
+            If True, rebuild processed/all_utility_functions.csv from scratch and return
+            the resulting DataFrame or list. Requires `file_paths`.
+        • return_df: bool (default False)
+            If True, return a pd.DataFrame. If False, return list[UtilitySettings].
+            Only meaningful when `file_paths` is provided or `create_new_file=True`.
+        • build_equation_function: Callable | None
+            If provided, called with a UtilitySettings dict to produce each model's equation
+            string when building the registry. Ignored when `create_new_file=False`.
+
+    Returns:
+        • list[UtilitySettings] or pd.DataFrame — valid utility settings in requested form.
 
     Meanings of Utility Options:
-        • 'conditional_welfare_mode': 
+        • 'conditional_welfare_mode':
             - If True, weights self and other payoffs differently when ahead versus behind.
             - If False, weights these payoffs the same regardless if ahead or behind.
         • 'reference_dependent_altruism':
             - If True, other's payoffs are weighted differently when one's payoffs are less than a reference point.
-            - If False, other's payoffs are weighted the same regardless if one's payoffs are less than a reference point. 
+            - If False, other's payoffs are weighted the same regardless if one's payoffs are less than a reference point.
         • 'min_max_rawlsian_leontief':
             - If True, uses a Rawlsian of Leontief min-max type functional form.
             - If False, does not use a Rawlsian of Leontief min-max type functional form.
-        • 'use_exponential_parameters':     
+        • 'use_exponential_parameters':
             - If True, all terms have an exponent parameter.
             - If False, all terms lack an exponent parameter.
         • 'apply_exponents_to_payoffs':
             - If True, apply exponents to payoffs before transforming them with differences or ratios.
             - If False, exponents are applied to the bases after payoff differences or ratios have been computed.
-        • 'single_exponential_parameter':   
+        • 'single_exponential_parameter':
             - If True, all terms have the same exponent parameter if they have exponent parameters at all.
             - If False, all terms have unique exponent parmeters if they have exponent parameters at all.
-        • 'single_payoffs_not_differences': 
+        • 'single_payoffs_not_differences':
             - If True, the base of each term is a single payoff, not a difference between two payoffs.
             - If False, the base of each term is a difference between two payoffs, not a single payoff.
         • 'payoff_ratios_not_differences':
             - If True, the base of each term is a ratio between payoffs, not one payoff or a payoff difference.
             - If False, the base of each term is a single payoff or a difference between payoffs.
-        • 'reference_dependent_utility': 
+        • 'reference_dependent_utility':
             - If True, the utility function is reference dependent, meaning single payoffs are compared to a reference point of 3.
             - If False, the utility function is not reference dependent, meaning that the base can be one payoff or a payoff difference.
         • 'use_negativity_parameters':
             - If True, each parameter has a mirror opposite that only influence utility if the base is negative.
             - If False, each term functions the same way regardless of whether the base is positive or negative.
-        • 'negativity_social_comparison': 
+        • 'negativity_social_comparison':
             - If True, the social comparison term has a negativity side even if other terms do not.
             - If False, the social comparison term lacks a negativity side unless all terms have negativity parameters.
         • 'fix_self_interest_parameter':
             - If True, the self-interest parameter is fixed at 1.
-            - If False, the self-interest parameter is free to vary.            
-        • 'include_social_comparison': 
+            - If False, the self-interest parameter is free to vary.
+        • 'include_social_comparison':
             - If True, the social comparison term is included in the equation.
             - If False, the social comparison is excluded from the equation.
-        • 'include_altruism_term': 
+        • 'include_altruism_term':
             - If True, the altruism term is included in the equation.
             - If False, the altruism term is excluded from the equation.
 
     Rules of Utility Options:
-        • If the utility function is reference dependent, then the base is always one payoff minus 
+        • If the utility function is reference dependent, then the base is always one payoff minus
             the reference point of 3, regardless of the 'single_payoffs_not_differences' option.
-        • The social comparison term is always a difference between two payoffs, regardless of whether 
-            or not the utility function is reference dependent or uses single payoffs or payoff differences.               
-        • The social comparison term can have a negativity side even if the other terms lack negativity sides, but 
+        • The social comparison term is always a difference between two payoffs, regardless of whether
+            or not the utility function is reference dependent or uses single payoffs or payoff differences.
+        • The social comparison term can have a negativity side even if the other terms lack negativity sides, but
             if the other terms have negativity sides, then the social comparison term must also have a negativity side.
-        • The terms have unique exponent parameters if and only if they have exponent parameters at all and they do not 
-            have a single exponent parameter. 
-
-    Returns:
-        • A list of dict[ str, bool ], where each dict is a valid set of utility options.
+        • The terms have unique exponent parameters if and only if they have exponent parameters at all and they do not
+            have a single exponent parameter.
     """
-    "All booleans that can vary in principle"
-    bool_flags = {
-        key: [False, True] for key in utility_settings.keys()
-    }
+    "If requested, rebuild the registry CSV from scratch and return."
+    if create_new_file:
+        if file_paths is None:
+            raise ValueError(
+                "file_paths must be provided when create_new_file=True so the registry "
+                "can be written to processed/all_utility_functions.csv."
+            )
+        registry_df = build_utility_function_registry(
+            utility_settings=utility_settings,
+            file_paths=file_paths,
+            general_settings=general_settings,
+            build_equation_function=build_equation_function,
+        )
+        if return_df:
+            return registry_df
+        canonical_flag_order = list(convert_utility_settings(utility_settings=utility_settings, into=dict).keys())
+        return [
+            {col: bool(row[col]) for col in canonical_flag_order}
+            for _, row in registry_df.iterrows()
+        ]
 
-    valid_combos = []
+    "If file_paths is provided, try to load the registry CSV before generating from scratch."
+    if file_paths is not None:
+        registry_csv_path = os.path.join(file_paths["processed"], "all_utility_functions.csv")
+        if os.path.exists(registry_csv_path):
+            "Force utility_bitstring to str so leading zeros are preserved after CSV round-trip."
+            registry_df = pd.read_csv(registry_csv_path, dtype={"utility_bitstring": str})
+            canonical_flag_order = list(convert_utility_settings(utility_settings=utility_settings, into=dict).keys())
+            missing_setting_columns = [col for col in canonical_flag_order if col not in registry_df.columns]
+            if not missing_setting_columns:
+                if return_df:
+                    return registry_df
+                return [
+                    {col: bool(row[col]) for col in canonical_flag_order}
+                    for _, row in registry_df.iterrows()
+                ]
+            print(
+                f"WARNING: Registry CSV is missing setting columns: {missing_setting_columns}. "
+                f"Falling through to live generation."
+            )
+        else:
+            "TODO: Legacy compatibility path. Delete this block after all_utility_functions.csv is proven to replace"
+            "equations_to_setting.json, model_nesting_data.json, and redundant_utility_functions.csv."
+            print(
+                "WARNING: processed/all_utility_functions.csv not found. "
+                "Falling back to live generation. Run generate_utility_settings(..., create_new_file=True) "
+                "to build the registry."
+            )
 
-    "Exhaustively generate all combinations"
+    "Core generation path: exhaustively enumerate all valid flag combinations."
+    bool_flags = {key: [False, True] for key in utility_settings.keys()}
     all_keys = sorted(bool_flags.keys())
     all_value_combos = it.product(*(bool_flags[k] for k in all_keys))
 
+    valid_combos = []
     for combo in all_value_combos:
         candidate = dict(zip(all_keys, combo))
-
         if is_valid_utility_settings(candidate=candidate):
-            "If it passes all constraints, store it"
             valid_combos.append(candidate)
 
     if sort_by_k:
         settings_to_k = []
         for combo in valid_combos:
-            param_keys = parameter_keys_for_utility_settings(utility_settings=combo, general_settings=None)
+            param_keys = parameter_keys_for_utility_settings(
+                utility_settings=combo, general_settings=None
+            )
             settings_to_k.append((combo, len(param_keys)))
-
         sorted_settings_to_k = sorted(settings_to_k, key=lambda x: x[-1])
         valid_combos = [setting_to_k[0] for setting_to_k in sorted_settings_to_k]
 
     return valid_combos
 
 
-def select_utility_settings_subset() -> List[UtilitySettings]:
+def build_utility_function_registry(
+    utility_settings: UtilitySettings,
+    file_paths: FilePaths,
+    general_settings: Optional[GeneralSettings] = None,
+    build_equation_function: Optional[Callable] = None,
+) -> pd.DataFrame:
     """
-    
+    Builds the central utility-function registry and writes it to
+    processed/all_utility_functions.csv. Every valid utility form receives one canonical
+    row with a stable utility_idx, bitstring, parameter count, equation (if available),
+    redundancy information, parent/sibling/child relations, and IC columns (if available).
+
+    Sorting order is k_params ascending, then utility_bitstring ascending. This places
+    simpler models (children) before more complex ones (parents), which supports the
+    warm-starting logic in the IC robustness analysis.
+
+    Arguments:
+        • utility_settings: UtilitySettings
+            A canonical utility settings dict used to seed generation. All 14 Boolean keys
+            must be present; their insertion order defines the canonical bitstring order.
+        • file_paths: FilePaths
+            Must contain 'processed' (output directory). If 'bic_aic' is also present,
+            IC results will be merged from the IC analysis CSV.
+        • general_settings: GeneralSettings | None
+            Passed to parameter-counting helpers. May be None.
+        • build_equation_function: Callable | None
+            If provided, called as build_equation_function(settings_dict) to produce the
+            human-readable equation string for each utility form. When None, the equation
+            column is left blank unless equations can be recovered from an existing IC CSV.
+
+    Returns:
+        • pd.DataFrame: the registry, one row per valid utility form, sorted and indexed.
     """
+    canonical_flag_order: List[str] = list(convert_utility_settings(
+        utility_settings=utility_settings, into=dict
+    ).keys())
+
+    "Enumerate all valid settings using the same core loop as the existing generator."
+    bool_flags = {key: [False, True] for key in utility_settings.keys()}
+    all_keys = sorted(bool_flags.keys())
+    all_value_combos = it.product(*(bool_flags[k] for k in all_keys))
+
+    valid_settings_list: List[UtilitySettings] = []
+    for combo in all_value_combos:
+        candidate = dict(zip(all_keys, combo))
+        if is_valid_utility_settings(candidate=candidate):
+            valid_settings_list.append(candidate)
+
+    print(f"Registry builder: {len(valid_settings_list)} valid utility forms found.")
+
+    "Build one row per valid setting with k_params and utility_bitstring."
+    rows: List[Dict[str, Any]] = []
+    for settings_dict in valid_settings_list:
+        k_params_value = count_free_parameters(
+            utility_settings=settings_dict, general_settings=general_settings
+        )
+        "Bitstring uses the canonical insertion order from convert_utility_settings, then formatted with dashes."
+        raw_bitstring = convert_utility_settings(utility_settings=settings_dict, into=str)
+        utility_bitstring = _format_utility_bitstring(raw_bitstring=raw_bitstring)
+
+        row: Dict[str, Any] = {"k_params": k_params_value, "utility_bitstring": utility_bitstring}
+        for flag_name in canonical_flag_order:
+            row[flag_name] = bool(settings_dict[flag_name])
+        rows.append(row)
+
+    registry_df = pd.DataFrame(rows)
+
+    "Sort by k_params ascending, then utility_bitstring ascending for deterministic indexing."
+    registry_df = registry_df.sort_values(
+        by=["k_params", "utility_bitstring"], ascending=[True, True]
+    ).reset_index(drop=True)
+
+    "Assign stable utility_idx as the row position in the sorted order."
+    registry_df.insert(0, "utility_idx", registry_df.index)
+
+    "Build a bitstring-to-utility_idx lookup for resolving family relations."
+    bitstring_to_utility_idx: Dict[str, int] = dict(
+        zip(registry_df["utility_bitstring"], registry_df["utility_idx"])
+    )
+
+    "Compute equation strings when a builder is provided."
+    if build_equation_function is not None:
+        equation_strings: List[str] = []
+        for _, registry_row in registry_df.iterrows():
+            settings_dict = {col: bool(registry_row[col]) for col in canonical_flag_order}
+            try:
+                equation_string = build_equation_function(settings_dict)
+            except Exception:
+                equation_string = ""
+            equation_strings.append(equation_string)
+        registry_df["equation"] = equation_strings
+    else:
+        registry_df["equation"] = ""
+
+    "Redundancy columns are populated after the IC merge below, once equations are available."
+    registry_df["redundant_with"] = ""
+    registry_df["differing_settings"] = ""
+
+    """
+    Compute parent, sibling, and child relations via the same O(n²) pairwise approach used in
+    model_nesting_adjacency_matrices. Single-pivot enumeration with _apply_minimal_dependent_fixes
+    is unreliable here because trailing implications in that function can cascade additional flag
+    changes beyond the intended pivot, causing the direct single-flag neighbor to be missed. The
+    pairwise approach delegates all relation logic to classify_pair_relation, which is the canonical
+    implementation and the source of truth for what constitutes a valid parent/child/sibling pair.
+    """
+    settings_list: List[UtilitySettings] = [
+        {col: bool(registry_row[col]) for col in canonical_flag_order}
+        for _, registry_row in registry_df.iterrows()
+    ]
+    n_models = len(settings_list)
+
+    parents_by_idx: Dict[int, List[int]] = {i: [] for i in range(n_models)}
+    siblings_by_idx: Dict[int, List[int]] = {i: [] for i in range(n_models)}
+    children_by_idx: Dict[int, List[int]] = {i: [] for i in range(n_models)}
+
+    for row_i in range(n_models):
+        for col_j in range(row_i + 1, n_models):
+            relation_i_to_j, relation_j_to_i, setting_flipped = classify_pair_relation(
+                model_1=settings_list[row_i],
+                model_2=settings_list[col_j],
+                utility_settings=utility_settings,
+                general_settings=general_settings,
+            )
+
+            "Flipping these mode-level flags produces neither relationship, consistent with model_nesting_adjacency_matrices."
+            if setting_flipped in ("min_max_rawlsian_leontief", "conditional_welfare_mode"):
+                continue
+
+            idx_i = int(registry_df.iloc[row_i]["utility_idx"])
+            idx_j = int(registry_df.iloc[col_j]["utility_idx"])
+
+            if relation_i_to_j == "parent":
+                children_by_idx[row_i].append(idx_j)
+                parents_by_idx[col_j].append(idx_i)
+            elif relation_i_to_j == "child":
+                parents_by_idx[row_i].append(idx_j)
+                children_by_idx[col_j].append(idx_i)
+            elif relation_i_to_j == "sibling":
+                siblings_by_idx[row_i].append(idx_j)
+                siblings_by_idx[col_j].append(idx_i)
+
+    registry_df["parents"] = [str(sorted(parents_by_idx[i])) for i in range(n_models)]
+    registry_df["siblings"] = [str(sorted(siblings_by_idx[i])) for i in range(n_models)]
+    registry_df["children"] = [str(sorted(children_by_idx[i])) for i in range(n_models)]
+
+    "Initialize IC columns as NaN; populated later by information_criterion_analysis or by IC merge below."
+    for ic_column_name in ("n_data", "pvar", "param_norm_sd", "loss_nll",
+                            "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank"):
+        registry_df[ic_column_name] = float("nan")
+
+    "Initialize AMPD distance columns as NaN; populated in Stage 3–4."
+    for distance_column_name in ("ampd_to_best_rand", "ampd_to_best_real", "policy_regret_norm"):
+        registry_df[distance_column_name] = float("nan")
+
+    "Attempt to merge existing IC results from bic_aic/ if the directory and CSV exist."
+    if "bic_aic" in file_paths:
+        ic_csv_path = os.path.join(
+            file_paths["bic_aic"], "All_Utility_Forms_IC_Analysis_Experiment3.csv"
+        )
+        if os.path.exists(ic_csv_path):
+            registry_df = _merge_ic_results_into_registry(
+                registry_df=registry_df,
+                ic_csv_path=ic_csv_path,
+                canonical_flag_order=canonical_flag_order,
+                populate_equation_from_ic=(build_equation_function is None),
+            )
+            print("Registry builder: IC results merged successfully.")
+        else:
+            print(
+                f"Registry builder: IC CSV not found at {ic_csv_path}. "
+                "IC columns left blank; run information_criterion_analysis to populate them."
+            )
+
+    """
+    Compute redundancy columns now that equations are fully populated (either from
+    build_equation_function or from the IC merge above). Any rows with a blank equation
+    are treated as uniquely identifying — they will not be reported as redundant with anything.
+    """
+    non_blank_equation_mask = registry_df["equation"].str.len() > 0
+    if non_blank_equation_mask.any():
+        equation_to_idx_list: Dict[str, List[int]] = {}
+        for _, registry_row in registry_df[non_blank_equation_mask].iterrows():
+            eq = registry_row["equation"]
+            if eq not in equation_to_idx_list:
+                equation_to_idx_list[eq] = []
+            equation_to_idx_list[eq].append(int(registry_row["utility_idx"]))
+
+        redundant_with_entries: List[str] = []
+        differing_settings_entries: List[str] = []
+        for _, registry_row in registry_df.iterrows():
+            eq = registry_row["equation"]
+            if eq == "" or eq not in equation_to_idx_list:
+                redundant_with_entries.append("")
+                differing_settings_entries.append("")
+                continue
+            sharing_same_equation = tuple(sorted(equation_to_idx_list[eq]))
+            redundant_with_entries.append(str(sharing_same_equation))
+
+            "Find which Boolean settings differ among all models that share this equation."
+            group_rows = registry_df[registry_df["utility_idx"].isin(sharing_same_equation)]
+            differing_flags: List[str] = []
+            for flag_name in canonical_flag_order:
+                if group_rows[flag_name].nunique() > 1:
+                    differing_flags.append(flag_name)
+            differing_settings_entries.append(str(tuple(differing_flags)))
+
+        registry_df["redundant_with"] = redundant_with_entries
+        registry_df["differing_settings"] = differing_settings_entries
+
+    "Arrange columns in the canonical order specified in model_recovery_simulation.md."
+    ic_columns = [
+        "n_data", "pvar", "param_norm_sd", "loss_nll",
+        "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank",
+    ]
+    family_columns = ["parents", "siblings", "children"]
+    distance_columns = ["ampd_to_best_rand", "ampd_to_best_real", "policy_regret_norm"]
+    all_ordered_columns = (
+        ["utility_idx", "utility_bitstring", "k_params"]
+        + canonical_flag_order
+        + ["redundant_with", "differing_settings"]
+        + ic_columns
+        + family_columns
+        + distance_columns
+        + ["equation"]
+    )
+    present_ordered_columns = [col for col in all_ordered_columns if col in registry_df.columns]
+    registry_df = registry_df[present_ordered_columns]
+
+    "Write the registry CSV."
+    registry_csv_path = os.path.join(file_paths["processed"], "all_utility_functions.csv")
+    try:
+        registry_df.to_csv(registry_csv_path, index=False, encoding="utf-8-sig")
+        print(f"Registry written: {registry_csv_path}  ({len(registry_df)} rows, "
+              f"{registry_df['k_params'].max():.0f} max k_params)")
+    except (PermissionError, OSError) as write_error:
+        print(f"WARNING: Could not write registry to {registry_csv_path}: {write_error}")
+
+    return registry_df
+
+
+def _merge_ic_results_into_registry(
+    registry_df: pd.DataFrame,
+    ic_csv_path: str,
+    canonical_flag_order: List[str],
+    populate_equation_from_ic: bool = False,
+) -> pd.DataFrame:
+    """
+    Merges IC analysis results from an existing bic_aic CSV into the central registry.
+    Matches rows by boolean utility settings expressed as a bitstring (canonical flag order),
+    not by the legacy idx column. This is robust to ordering differences between the IC CSV
+    and the new registry.
+
+    Arguments:
+        • registry_df: pd.DataFrame
+            The registry DataFrame to update. Modified on a copy; original is not mutated.
+        • ic_csv_path: str
+            Path to the IC analysis CSV (e.g., All_Utility_Forms_IC_Analysis_Experiment3.csv).
+        • canonical_flag_order: list[str]
+            Ordered list of Boolean setting column names, defining the bitstring bit order.
+        • populate_equation_from_ic: bool (default False)
+            If True and the registry's 'equation' column is blank, copy equation strings
+            from the IC CSV into the registry.
+
+    Returns:
+        • pd.DataFrame: a copy of registry_df with IC columns populated where matches exist.
+    """
+    try:
+        ic_df = pd.read_csv(ic_csv_path)
+    except Exception as read_error:
+        print(f"WARNING: Could not read IC CSV at {ic_csv_path}: {read_error}")
+        return registry_df
+
+    """
+    Build a formatted bitstring for each IC row using column names (order-independent).
+    The dashed format (XXXX-XXXX-XXXX-XX) must match the registry's utility_bitstring column
+    so the merge lookup finds the correct rows.
+    """
+    def _ic_row_to_bitstring(ic_row: pd.Series) -> str:
+        raw = "".join("1" if bool(ic_row[flag]) else "0" for flag in canonical_flag_order)
+        return _format_utility_bitstring(raw_bitstring=raw)
+
+    ic_df["utility_bitstring"] = ic_df.apply(_ic_row_to_bitstring, axis=1)
+
+    "The IC CSV uses 'loss' as the NLL column; the registry uses 'loss_nll'."
+    if "loss" in ic_df.columns and "loss_nll" not in ic_df.columns:
+        ic_df = ic_df.rename(columns={"loss": "loss_nll"})
+
+    ic_merge_column_names = [
+        col for col in (
+            "n_data", "pvar", "param_norm_sd", "loss_nll",
+            "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank",
+        )
+        if col in ic_df.columns
+    ]
+    if populate_equation_from_ic and "equation" in ic_df.columns:
+        ic_merge_column_names.append("equation")
+
+    "Build a lookup from bitstring to IC row values."
+    ic_lookup: Dict[str, Dict[str, Any]] = (
+        ic_df.set_index("utility_bitstring")[ic_merge_column_names].to_dict(orient="index")
+    )
+
+    registry_df = registry_df.copy()
+    matched_count = 0
+    for registry_row_idx in registry_df.index:
+        bitstring = registry_df.at[registry_row_idx, "utility_bitstring"]
+        if bitstring in ic_lookup:
+            for col in ic_merge_column_names:
+                registry_df.at[registry_row_idx, col] = ic_lookup[bitstring][col]
+            matched_count += 1
+
+    unmatched_registry_count = len(registry_df) - matched_count
+    unmatched_ic_count = len(ic_df) - matched_count
+    print(
+        f"IC merge: {matched_count} matched, "
+        f"{unmatched_registry_count} registry rows unmatched, "
+        f"{unmatched_ic_count} IC rows unmatched."
+    )
+
+    return registry_df
+
+
+def select_utility_settings_subset(
+    n_models: Optional[int] = None,
+    hand_picked_subset: Optional[List[Union[int, UtilitySettings]]] = None,
+    selection_mode: str = "random",
+    file_paths: Optional[FilePaths] = None,
+    general_settings: Optional[GeneralSettings] = None,
+    utility_settings: Optional[UtilitySettings] = None,
+    include_model_idxs: Optional[List[Union[int, UtilitySettings]]] = None,
+    exclude_model_idxs: Optional[List[Union[int, UtilitySettings]]] = None,
+    required_settings: Optional[UtilitySettings] = None,
+    required_k_params: Optional[List[int]] = None,
+    parents_of: Optional[List[Union[int, UtilitySettings]]] = None,
+    siblings_of: Optional[List[Union[int, UtilitySettings]]] = None,
+    children_of: Optional[List[Union[int, UtilitySettings]]] = None,
+    distance_matrix_path: Optional[str] = None,
+    random_seed: Optional[int] = None,
+) -> List[UtilitySettings]:
+    """
+    Returns a filtered and/or diversity-selected subset of the 480 valid utility forms,
+    drawing from the central registry (processed/all_utility_functions.csv).
+
+    Selection modes:
+        'random'            — uniform random sample.
+        'random_by_k'       — equal allocation across k_params levels, then random within each.
+        'random_by_setting' — coverage sample: ensures both True and False values appear for
+                              each Boolean flag before filling remaining slots randomly.
+        'hamming'           — max-min greedy: repeatedly adds the model whose minimum Hamming
+                              distance to the already-selected set is greatest.
+        'ampd'              — max-min greedy using a precomputed AMPD distance matrix
+                              (requires distance_matrix_path; computed in Stage 3–4).
+
+    For 'hamming' and 'ampd', if no forced seed is provided, the empirical IC winner
+    (lowest AIC_rank) is used as the initial seed; ties broken by utility_idx.
+
+    Arguments:
+        • n_models: int | None
+            How many models to return. If None or greater than the filtered candidate
+            count, all surviving candidates are returned without downsampling.
+        • hand_picked_subset: list[int | UtilitySettings] | None
+            If provided, this pool is used instead of the full registry. Each element
+            may be a utility_idx (int) or a UtilitySettings dict. Filters
+            (required_settings, required_k_params, exclude_model_idxs) still apply.
+            If n_models is None or >= len(hand_picked_subset), all are returned.
+        • selection_mode: str
+            One of 'random', 'random_by_k', 'random_by_setting', 'hamming', 'ampd'.
+        • file_paths: FilePaths | None
+            Must contain key 'processed' pointing to the directory holding
+            all_utility_functions.csv.
+        • general_settings: GeneralSettings | None
+            Passed through; not used internally but accepted for forward compatibility.
+        • utility_settings: UtilitySettings | None
+            Used to derive canonical flag order if provided; otherwise inferred from
+            the registry columns.
+        • include_model_idxs: list[int | UtilitySettings] | None
+            Models that must appear in the output regardless of the selection mode.
+            Excluded models take priority over forced inclusions.
+        • exclude_model_idxs: list[int | UtilitySettings] | None
+            Models that must never appear in the output.
+        • required_settings: UtilitySettings | None
+            A partial UtilitySettings dict. Only models matching every specified
+            Boolean flag value pass the filter. Omitted flags are unconstrained.
+        • required_k_params: list[int] | None
+            Only models whose k_params is in this list pass the filter. If None,
+            all k values are eligible.
+        • parents_of: list[int | UtilitySettings] | None
+            Restricts candidates to models listed as parents of the specified models
+            in the registry's 'parents' column.
+        • siblings_of: list[int | UtilitySettings] | None
+            Restricts candidates to models listed as siblings of the specified models.
+        • children_of: list[int | UtilitySettings] | None
+            Restricts candidates to models listed as children of the specified models.
+        • distance_matrix_path: str | None
+            Path to a precomputed distance matrix CSV (row/column headers = utility_idx).
+            Required when selection_mode='ampd'.
+        • random_seed: int | None
+            Seed for reproducibility of random and stratified modes.
+
+    Returns:
+        • list[UtilitySettings] — one dict per selected model, in selection order.
+    """
+    import random as _random
+
+    if file_paths is None or "processed" not in file_paths:
+        raise ValueError(
+            "select_utility_settings_subset requires file_paths['processed'] "
+            "pointing to the directory containing all_utility_functions.csv."
+        )
+
+    registry_df = pd.read_csv(
+        os.path.join(file_paths["processed"], "all_utility_functions.csv"),
+        dtype={"utility_bitstring": str},
+    )
+
+    "Derive canonical flag order from utility_settings if provided; else infer from registry columns."
+    non_flag_columns: set = {
+        "utility_idx", "utility_bitstring", "k_params",
+        "redundant_with", "differing_settings",
+        "n_data", "pvar", "param_norm_sd", "loss_nll",
+        "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank",
+        "parents", "siblings", "children",
+        "ampd_to_best_rand", "ampd_to_best_real", "policy_regret_norm",
+        "equation",
+    }
+    if utility_settings is not None:
+        canonical_flag_order = list(
+            convert_utility_settings(utility_settings=utility_settings, into=dict).keys()
+        )
+    else:
+        canonical_flag_order = [col for col in registry_df.columns if col not in non_flag_columns]
+
+    def _parse_idx_list(cell_value: Any) -> List[int]:
+        """Parse a stringified Python list like '[3, 17, 42]' into a list of ints."""
+        s = str(cell_value).strip("[]")
+        return [int(x.strip()) for x in s.split(",") if x.strip()] if s else []
+
+    def _resolve_to_idx(model_ref: Union[int, UtilitySettings]) -> int:
+        """Convert a utility_idx int or a UtilitySettings dict to a utility_idx int."""
+        if isinstance(model_ref, int):
+            return model_ref
+        settings_dict = convert_utility_settings(utility_settings=model_ref, into=dict)
+        raw_bit = convert_utility_settings(utility_settings=settings_dict, into=str)
+        fmt_bit = _format_utility_bitstring(raw_bitstring=raw_bit)
+        match = registry_df[registry_df["utility_bitstring"] == fmt_bit]
+        if len(match) == 0:
+            raise ValueError(f"UtilitySettings not found in registry: {model_ref}")
+        return int(match.iloc[0]["utility_idx"])
+
+    "Build the initial candidate pool by applying required_settings and required_k_params filters."
+    candidate_df = registry_df.copy()
+    if required_settings is not None:
+        required_dict = convert_utility_settings(utility_settings=required_settings, into=dict)
+        for flag_name, flag_value in required_dict.items():
+            if flag_name in candidate_df.columns:
+                candidate_df = candidate_df[candidate_df[flag_name] == flag_value]
+
+    if required_k_params is not None:
+        candidate_df = candidate_df[candidate_df["k_params"].isin(required_k_params)]
+
+    "Restrict to family members of specified focal models when any family filter is given."
+    family_filter_idxs: Optional[Set[int]] = None
+
+    for family_column, focal_model_list in (
+        ("parents", parents_of),
+        ("siblings", siblings_of),
+        ("children", children_of),
+    ):
+        if focal_model_list is None:
+            continue
+        relation_idxs: Set[int] = set()
+        for focal_model_ref in focal_model_list:
+            focal_idx = _resolve_to_idx(model_ref=focal_model_ref)
+            focal_row = registry_df[registry_df["utility_idx"] == focal_idx]
+            if len(focal_row):
+                relation_idxs.update(
+                    _parse_idx_list(cell_value=focal_row.iloc[0][family_column])
+                )
+        family_filter_idxs = (
+            (family_filter_idxs & relation_idxs) if family_filter_idxs is not None else relation_idxs
+        )
+
+    if family_filter_idxs is not None:
+        candidate_df = candidate_df[candidate_df["utility_idx"].isin(family_filter_idxs)]
+
+    "Apply exclusions; excluded models are removed from the candidate pool."
+    exclude_idxs: Set[int] = set()
+    if exclude_model_idxs is not None:
+        exclude_idxs = {_resolve_to_idx(model_ref=m) for m in exclude_model_idxs}
+    candidate_df = candidate_df[~candidate_df["utility_idx"].isin(exclude_idxs)]
+
+    "Forced inclusions are added to the output regardless of selection mode (exclusions take priority)."
+    forced_include_idxs: List[int] = []
+    if include_model_idxs is not None:
+        for model_ref in include_model_idxs:
+            forced_idx = _resolve_to_idx(model_ref=model_ref)
+            if forced_idx not in exclude_idxs:
+                forced_include_idxs.append(forced_idx)
+
+    def _idx_list_to_settings(utility_idx_list: List[int]) -> List[UtilitySettings]:
+        """Convert a list of utility_idx values to a list of UtilitySettings dicts."""
+        rows = registry_df[registry_df["utility_idx"].isin(utility_idx_list)]
+        rows = rows.set_index("utility_idx").loc[
+            [i for i in utility_idx_list if i in rows["utility_idx"].values]
+        ]
+        return [{col: bool(row[col]) for col in canonical_flag_order} for _, row in rows.iterrows()]
+
+    "Handle hand_picked_subset: it replaces the full candidate pool."
+    if hand_picked_subset is not None:
+        hand_picked_idxs = [_resolve_to_idx(model_ref=m) for m in hand_picked_subset]
+        valid_candidate_idxs = set(candidate_df["utility_idx"])
+        hand_picked_idxs = [i for i in hand_picked_idxs if i in valid_candidate_idxs]
+        if n_models is None or n_models >= len(hand_picked_idxs):
+            selected_idxs = hand_picked_idxs
+        else:
+            selected_idxs = hand_picked_idxs[:n_models]
+        for forced_idx in forced_include_idxs:
+            if forced_idx not in selected_idxs:
+                selected_idxs.append(forced_idx)
+        return _idx_list_to_settings(utility_idx_list=selected_idxs)
+
+    "If n_models is None or >= candidate count, return all candidates plus forced inclusions."
+    all_candidate_idxs: List[int] = list(candidate_df["utility_idx"])
+    if n_models is None or n_models >= len(all_candidate_idxs):
+        selected_idxs = list(set(all_candidate_idxs) | set(forced_include_idxs))
+        return _idx_list_to_settings(utility_idx_list=selected_idxs)
+
+    if random_seed is not None:
+        _random.seed(random_seed)
+
+    "Initialize the selected set with forced inclusions and compute how many more are needed."
+    selected_set: List[int] = list(dict.fromkeys(forced_include_idxs))
+    remaining_candidates: List[int] = [
+        i for i in all_candidate_idxs if i not in set(selected_set)
+    ]
+    n_to_select = n_models - len(selected_set)
+
+    if n_to_select <= 0:
+        return _idx_list_to_settings(utility_idx_list=selected_set[:n_models])
+
+    if selection_mode == "random":
+        additional = _random.sample(
+            population=remaining_candidates, k=min(n_to_select, len(remaining_candidates))
+        )
+        selected_set.extend(additional)
+
+    elif selection_mode == "random_by_k":
+        """Sample with equal allocation across k_params levels, then fill remaining slots randomly."""
+        remaining_df = candidate_df[candidate_df["utility_idx"].isin(remaining_candidates)]
+        k_groups: Dict[int, List[int]] = {
+            k_val: list(group["utility_idx"])
+            for k_val, group in remaining_df.groupby("k_params")
+        }
+        n_k_levels = len(k_groups)
+        per_k = max(1, n_to_select // n_k_levels)
+        sampled_from_k: List[int] = []
+        for k_val, group_idxs in k_groups.items():
+            sampled_from_k.extend(
+                _random.sample(population=group_idxs, k=min(per_k, len(group_idxs)))
+            )
+        _random.shuffle(sampled_from_k)
+        selected_set.extend(sampled_from_k[:n_to_select])
+        if len(selected_set) < n_models:
+            still_needed = n_models - len(selected_set)
+            leftover = [i for i in remaining_candidates if i not in set(selected_set)]
+            selected_set.extend(
+                _random.sample(population=leftover, k=min(still_needed, len(leftover)))
+            )
+
+    elif selection_mode == "random_by_setting":
+        """Coverage sample: for each Boolean flag, pick at least one True model and one False model
+        before filling remaining slots randomly. This maximizes flag-level diversity."""
+        covered: Set[int] = set(selected_set)
+        coverage_picks: List[int] = []
+        remaining_df = candidate_df[candidate_df["utility_idx"].isin(remaining_candidates)]
+        for flag_name in canonical_flag_order:
+            for flag_value in (True, False):
+                if len(covered) + len(coverage_picks) - len(selected_set) >= n_to_select:
+                    break
+                eligible = remaining_df[
+                    (remaining_df[flag_name] == flag_value) &
+                    (~remaining_df["utility_idx"].isin(covered))
+                ]["utility_idx"].tolist()
+                if eligible:
+                    pick = _random.choice(eligible)
+                    coverage_picks.append(pick)
+                    covered.add(pick)
+        selected_set.extend(coverage_picks[:n_to_select])
+        if len(selected_set) < n_models:
+            still_needed = n_models - len(selected_set)
+            leftover = [i for i in remaining_candidates if i not in set(selected_set)]
+            selected_set.extend(
+                _random.sample(population=leftover, k=min(still_needed, len(leftover)))
+            )
+
+    elif selection_mode in ("hamming", "ampd"):
+        if selection_mode == "ampd":
+            if distance_matrix_path is None:
+                raise ValueError(
+                    "selection_mode='ampd' requires a precomputed AMPD distance matrix CSV. "
+                    "Provide distance_matrix_path, or use selection_mode='hamming' as a "
+                    "structural-distance proxy until the AMPD matrix is computed (Stage 3–4)."
+                )
+            dist_matrix = pd.read_csv(distance_matrix_path, index_col=0)
+            dist_matrix.index = dist_matrix.index.astype(int)
+            dist_matrix.columns = dist_matrix.columns.astype(int)
+
+            def _get_distance(idx_a: int, idx_b: int) -> float:
+                return float(dist_matrix.loc[idx_a, idx_b])
+
+        else:
+            bits_by_idx: Dict[int, str] = dict(
+                zip(registry_df["utility_idx"], registry_df["utility_bitstring"].str.replace("-", ""))
+            )
+
+            def _get_distance(idx_a: int, idx_b: int) -> float:
+                ba, bb = bits_by_idx[idx_a], bits_by_idx[idx_b]
+                return float(sum(a != b for a, b in zip(ba, bb)))
+
+        "Seed the max-min greedy search: use forced includes if available, else the IC winner."
+        if not selected_set:
+            ic_available = candidate_df[candidate_df["AIC_rank"].notna()]
+            if len(ic_available):
+                seed_idx = int(ic_available.loc[ic_available["AIC_rank"].idxmin(), "utility_idx"])
+            else:
+                seed_idx = _random.choice(remaining_candidates)
+            selected_set.append(seed_idx)
+            remaining_candidates = [i for i in remaining_candidates if i != seed_idx]
+
+        n_to_select = n_models - len(selected_set)
+        for _ in range(n_to_select):
+            if not remaining_candidates:
+                break
+            "Add the candidate whose minimum distance to the current selected set is largest."
+            best_candidate: Optional[int] = None
+            best_min_dist: float = -1.0
+            for cand_idx in remaining_candidates:
+                min_dist_to_selected = min(
+                    _get_distance(cand_idx, sel_idx) for sel_idx in selected_set
+                )
+                if min_dist_to_selected > best_min_dist:
+                    best_min_dist = min_dist_to_selected
+                    best_candidate = cand_idx
+            if best_candidate is not None:
+                selected_set.append(best_candidate)
+                remaining_candidates.remove(best_candidate)
+
+    else:
+        raise ValueError(
+            f"Unknown selection_mode: {selection_mode!r}. "
+            f"Valid modes: 'random', 'random_by_k', 'random_by_setting', 'hamming', 'ampd'."
+        )
+
+    return _idx_list_to_settings(utility_idx_list=selected_set)
+
+
+def compute_hamming_distance_matrix(
+    file_paths: FilePaths,
+    utility_settings: Optional[UtilitySettings] = None,
+    create_new_file: bool = False,
+) -> pd.DataFrame:
+    """
+    Computes the pairwise Hamming distance matrix over all valid utility forms in the
+    central registry and caches it to processed/. The matrix is symmetric, has a zero
+    diagonal, and contains integer values in [0, 14] (one per Boolean flag position).
+
+    The cache filename encodes the number of models so that a matrix computed on a
+    different registry version does not silently overwrite or shadow the current one:
+        processed/model_distance_hamming__n_models={M}.csv
+
+    Row and column labels are utility_idx values (integers). The matrix can be reloaded
+    by select_utility_settings_subset (hamming mode) and all downstream geometry analyses.
+
+    Arguments:
+        • file_paths: FilePaths
+            Must contain key 'processed' pointing to the directory that holds
+            all_utility_functions.csv and where the distance matrix is cached.
+        • utility_settings: UtilitySettings | None
+            Used to derive canonical flag order when provided. If None, the flag order
+            is inferred from the registry columns (non-metadata columns).
+        • create_new_file: bool (default False)
+            If False and a cached matrix exists for the current registry size, that
+            file is loaded and returned. If True, the matrix is recomputed and the
+            cache is overwritten.
+
+    Returns:
+        • pd.DataFrame — square symmetric matrix indexed and columned by utility_idx.
+            All values are non-negative integers; diagonal is zero.
+    """
+    registry_df = pd.read_csv(
+        os.path.join(file_paths["processed"], "all_utility_functions.csv"),
+        dtype={"utility_bitstring": str},
+    )
+    n_models = len(registry_df)
+    cache_path = os.path.join(
+        file_paths["processed"], f"model_distance_hamming__n_models={n_models}.csv"
+    )
+
+    "Return cached matrix when available and not overridden."
+    if not create_new_file and os.path.exists(cache_path):
+        hamming_df = pd.read_csv(cache_path, index_col=0)
+        hamming_df.index = hamming_df.index.astype(int)
+        hamming_df.columns = hamming_df.columns.astype(int)
+        print(f"Hamming matrix loaded from cache: {cache_path}  ({n_models}×{n_models})")
+        return hamming_df
+
+    "Extract raw 14-bit strings (dashes removed) indexed by utility_idx for fast comparison."
+    utility_idx_values: List[int] = list(registry_df["utility_idx"].astype(int))
+    raw_bits_by_position: List[str] = [
+        bits.replace("-", "") for bits in registry_df["utility_bitstring"]
+    ]
+
+    "Compute the full upper triangle of pairwise Hamming distances."
+    distance_matrix: List[List[int]] = [
+        [0] * n_models for _ in range(n_models)
+    ]
+    for i in range(n_models):
+        bits_i = raw_bits_by_position[i]
+        for j in range(i + 1, n_models):
+            bits_j = raw_bits_by_position[j]
+            dist = sum(a != b for a, b in zip(bits_i, bits_j))
+            distance_matrix[i][j] = dist
+            distance_matrix[j][i] = dist
+
+    hamming_df = pd.DataFrame(
+        data=distance_matrix,
+        index=utility_idx_values,
+        columns=utility_idx_values,
+    )
+
+    "Sanity checks: symmetry, zero diagonal, integer values, range [0, 14]."
+    assert (hamming_df == hamming_df.T).all().all(), "Hamming matrix is not symmetric."
+    assert (hamming_df.values.diagonal() == 0).all(), "Hamming matrix diagonal is not zero."
+    assert hamming_df.max().max() <= 14, "Hamming distance exceeds 14 (number of flags)."
+
+    hamming_df.to_csv(cache_path)
+    print(
+        f"Hamming matrix computed and cached: {cache_path}  "
+        f"({n_models}×{n_models}, max distance={int(hamming_df.max().max())})"
+    )
+    return hamming_df
 
 
 def identify_redundant_utility_functions(utility_settings: UtilitySettings, build_equation_function: callable, file_paths: dict[str, str]) -> pd.DataFrame:
@@ -1441,8 +2257,8 @@ def count_free_parameters(utility_settings: UtilitySettings, general_settings: O
         utility_settings=utility_settings,
         general_settings=general_settings,
     )
-    "Strips covariance keys if present; this helper does not add them."
-    return len([key for key in keys if not key.endswith('_cov')])
+    "Count only free mean parameters; strip _std and _cov keys that grid/MCMC modes append."
+    return len([key for key in keys if not key.endswith('_std') and not key.endswith('_cov')])
 
 
 def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str) -> UtilitySettings:
@@ -1518,10 +2334,29 @@ def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str
         utility_settings['reference_dependent_utility'] = False
     if not utility_settings['use_exponential_parameters']:
         utility_settings['single_exponential_parameter'] = False
-    if utility_settings['use_negativity_parameters']:
+    "Only force negativity_social_comparison=True when social comparison is actually present."
+    "The original rule was unconditional, which created invalid candidates (include_social_comparison=False"
+    "with negativity_social_comparison=True) and silently broke sibling detection."
+    if utility_settings['use_negativity_parameters'] and utility_settings['include_social_comparison']:
         utility_settings['negativity_social_comparison'] = True
 
     return utility_settings
+
+
+def _format_utility_bitstring(raw_bitstring: str) -> str:
+    """
+    Formats a 14-character raw bitstring into XXXX-XXXX-XXXX-XX for human readability
+    and Excel safety (the dashes prevent Excel from interpreting the value as an integer
+    and silently stripping leading zeros).
+
+    Arguments:
+        • raw_bitstring: str
+            A 14-character string of '0' and '1' characters in canonical flag order.
+
+    Returns:
+        • str — formatted as 'XXXX-XXXX-XXXX-XX' (groups of 4-4-4-2, separated by dashes).
+    """
+    return f"{raw_bitstring[0:4]}-{raw_bitstring[4:8]}-{raw_bitstring[8:12]}-{raw_bitstring[12:14]}"
 
 
 def parents_children_of(utility_settings: Union[UtilitySettings, BoolTuple], return_children: bool = True, 

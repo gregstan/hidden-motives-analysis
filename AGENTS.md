@@ -152,6 +152,53 @@ fits each to data, and computes AIC/BIC. Model-nesting-aware warm-starting (chil
 parameter mappings) prevents nesting violations where a richer model appears to fit worse than
 its simpler nested version.
 
+### CSV-from-settings pattern
+
+**This is a fundamental repo convention — preserve it in all new functions.**
+
+Functions that produce or consume named CSV files resolve the filename from the globally
+accessible settings dicts (`general_settings`, `utility_settings`, `param_bds`) rather than
+requiring the caller to construct paths or load DataFrames manually. Callers pass
+`general_settings` and `file_paths`; the function derives the exact filename from the settings
+that were used to produce the file, opens it, and returns the result.
+
+This pattern is used throughout the IC analysis (`bic_aic/` CSVs), model nesting
+(`processed/model_nesting_adjacency_*.csv`), and all Stage 5+ analyses. The AMPD matrix is
+the clearest example:
+
+```python
+"Caller (main.py) — no path construction, no DataFrame loading"
+fig = plot_model_space_mds(
+    general_settings=general_settings, file_paths=file_paths, fig_lay=fig_lay,
+)
+
+"Inside plot_model_space_mds — auto-resolves the matrix from settings"
+if distance_matrix_df is None:
+    distance_matrix_df = _load_ampd_matrix_from_settings(general_settings, file_paths)
+```
+
+**AMPD-specific helpers** (in `analysis.py`, defined just before the Stage 5 section):
+
+- `_load_ampd_matrix_from_settings(general_settings, file_paths)` — builds the canonical
+  AMPD master matrix path from `general_settings['ampd_settings']`, checks it exists, loads
+  it, casts index/columns to `int`, and returns the DataFrame.
+- `_ampd_distance_name(general_settings)` — returns the `distance_name` label string (e.g.
+  `"ampd_uniform_shared"`) derived from the same settings.
+- `_build_ampd_cache_path(file_paths, metric, ...)` — builds the actual file path; the two
+  helpers above call this internally.
+
+**CSV encoding**: All `to_csv()` calls must use `encoding='utf-8-sig'`. This BOM variant
+ensures Unicode characters in column names and cell values (Greek letters, Unicode math
+symbols such as Vᵢᵢ, Vᵢⱼ, Ʌᵢᵢ, τ, etc.) survive a round-trip through Excel, Windows file
+dialogs, and pd.read_csv() without corruption.
+
+**`general_settings['ampd_settings']`** is a nested dict (added in `config.py`) with keys:
+`metric`, `n_games`, `n_iters`, `parameter_sampling_mode`, `parameter_pairing_mode`,
+`player_roles`, `random_seed`. All AMPD-specific parameters in `compute_ampd_distance_matrix`
+default to `None`; when `None`, the function reads the value from this dict. The settings
+dict is the single source of truth so that `compute_ampd_distance_matrix` and every
+downstream Stage 5+ function always agree on which file to read and write.
+
 ---
 
 ## 6. Coding style — read this carefully

@@ -10,7 +10,7 @@ for _k in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS",
 import numpy as np, pandas as pd, itertools as it, plotly.graph_objects as go, multiprocessing as mp, \
     datetime as dt, hashlib, warnings, inspect, random, pprint, json, math, copy, time, glob, ast, re
 from typing import Callable, Sequence, Optional, TypedDict, \
-    Literal, Iterable, Dict, List, Tuple, Union, Any
+    Literal, Iterable, Dict, List, Set, Tuple, Union, Any
 from scipy.optimize import SR1, minimize, dual_annealing, differential_evolution, \
     OptimizeResult, Bounds, NonlinearConstraint # type: ignore
 from scipy.stats import multivariate_normal
@@ -466,7 +466,7 @@ write_mode = 'overwrite'
 learning_rate = 0.8
 sample_ratio = 0.05
 export_fig = True
-dark_mode = False
+dark_mode = True
 
 warmstart_policy = {
     "enabled": True,
@@ -519,6 +519,15 @@ general_settings: GeneralSettings = {
     'export_fig': export_fig,
     'write_mode': write_mode,
     'dark_mode': dark_mode,
+    'ampd_settings': {
+        'metric':                   'normalized_jsd',
+        'n_games':                  625,
+        'n_iters':                  5,      # set to 250 for full-precision runs
+        'parameter_sampling_mode':  'uniform',
+        'parameter_pairing_mode':   'shared',
+        'player_roles':             None,
+        'random_seed':              None,
+    },
 }
 
 utility_settings: UtilitySettings = {
