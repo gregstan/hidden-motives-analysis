@@ -46,9 +46,6 @@ DyadKey = str | tuple[PlayerUUID, PlayerUUID] | list[PlayerUUID]
 BoolTuple = Tuple[bool, ...]
 
 ParameterBounds = dict[str, tuple[int | float, int | float]]
-GeneralSettings = dict[str, str | int | float | bool]
-UtilitySettings = dict[str, bool]
-
 FigLay = dict[str, Any]
 ColumnNames = dict[str, list[str] | dict[str, str]]
 
@@ -56,9 +53,6 @@ ParamKeys = list[str]
 ParamBounds = list[tuple[int | float]]
 ParamGuesses = Callable[[], Dict[str, float]]
 ParamCovar = list[str]
-ParamInfo = dict[
-    str, ParamKeys | ParamBounds | ParamGuesses | ParamCovar
-]
 
 CovMat = NDArray[np.float64] | None
 CovMatDict = dict[str, dict[str, dict[str, CovMat]]] | None
@@ -126,6 +120,101 @@ class UniformGuesser:
     def __call__(self) -> list[float]:
         rng = random.Random(self.seed) if self.seed is not None else random
         return [rng.uniform(lo, hi) for (lo,hi) in self.bounds]
+
+
+class UtilitySettings(TypedDict):
+    conditional_welfare_mode: bool
+    reference_dependent_altruism: bool
+    min_max_rawlsian_leontief: bool
+    use_exponential_parameters: bool
+    apply_exponents_to_payoffs: bool
+    single_exponential_parameter: bool
+    single_payoffs_not_differences: bool
+    payoff_ratios_not_differences: bool
+    reference_dependent_utility: bool
+    use_negativity_parameters: bool
+    negativity_social_comparison: bool
+    fix_self_interest_parameter: bool
+    include_social_comparison: bool
+    include_altruism_term: bool
+
+
+class WarmstartPolicy(TypedDict):
+    enabled: bool
+    schedule: str
+    cold_iters: int
+    explore_iters: int
+    temperature_low: float
+    temperature_high: float
+    disable_dual_annealing_when_warm: bool
+
+
+class OptimizationPolicy(TypedDict, total=False):
+    n_random_starts: int
+    maxiter_global: int
+    maxiter_local: int
+    maxfun_global: int
+    maxfun_local: int
+    run_trust_constr: bool
+    dual_annealing_seed: int | None
+    trust_maxiter: int
+    trust_gtol: float
+    trust_xtol: float
+    trust_verbose: bool
+    local_methods: list[str]
+
+
+class AmpdSettings(TypedDict, total=False):
+    metric: str
+    n_games: int
+    n_iters: int
+    parameter_sampling_mode: str
+    parameter_pairing_mode: str
+    player_roles: list[str] | None
+    random_seed: int | None
+
+
+class GeneralSettings(TypedDict, total=False):
+    update_method: str
+    analysis_mode: str
+    analysis_unit: str
+    experiment_num: int
+    loss_funct_type: str
+    track_evolution: bool
+    create_new_file: bool
+    run_in_parallel: bool
+    include_covariance: bool
+    softmax_temperature: float
+    optimization_method: str
+    confidence_weighted: bool
+    use_particle_filter: bool
+    guess_params_randomly: bool
+    temperature_is_param: bool
+    n_bins_per_dimension: int
+    optimization_policy: OptimizationPolicy
+    fit_roles_together: bool
+    use_initial_params: bool
+    warmstart_policy: WarmstartPolicy
+    penalty_weight: float
+    learning_rate: float
+    sample_ratio: float
+    export_fig: bool
+    write_mode: str
+    dark_mode: bool
+    ampd_settings: AmpdSettings
+
+
+class ParamCovarInfo(TypedDict):
+    keys: list[str]
+    bounds: list[tuple[float, float]]
+    guesses: list[float]
+
+
+class ParamInfo(TypedDict, total=False):
+    keys: list[str]
+    bounds: list[tuple[int | float, int | float]]
+    guesses: Any  # UniformGuesser (callable) or list[float]
+    covar: ParamCovarInfo
 
 
 def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, general_settings: Optional[Dict[str, Any]] = None) -> List[str]:
@@ -522,7 +611,7 @@ general_settings: GeneralSettings = {
     'ampd_settings': {
         'metric':                   'normalized_jsd',
         'n_games':                  625,
-        'n_iters':                  5,      # set to 250 for full-precision runs
+        'n_iters':                  30,      # set to 250 for full-precision runs
         'parameter_sampling_mode':  'uniform',
         'parameter_pairing_mode':   'shared',
         'player_roles':             None,
@@ -561,6 +650,7 @@ txtfam = "Calibri"
 
 fig_lay: FigLay = {
     "template": "plotly_dark" if dark_mode else "plotly_white",
+    "base_hue": 200,
     "font": dict(family=txtfam, color=txt_color, size=24),
     "tickfont": dict(family=txtfam, color=txt_color, size=30),
     "titlefont_size": 48, "title_x": 0.5, "title_y": 0.96, "scale": ("x", 1),

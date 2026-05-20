@@ -2,6 +2,35 @@ from simulation import *
 import hashlib
 
 "=========================================================================================="
+"================================== Visualization Helpers ================================="
+"=========================================================================================="
+
+def _hsla(hue: int, saturation_percent: int = 100, lightness_percent: int = 50, alpha: float = 0.9) -> str:
+    """
+    Returns an hsla() color string compatible with Plotly and CSS.
+
+    The standard color scheme for this codebase uses a fixed base_hue from fig_lay and
+    increments the hue by 20 degrees for each additional series in a multi-series figure.
+    Saturation (100%), lightness (50%), and alpha remain fixed across a set of series unless
+    deliberately varied for emphasis. Example:
+
+        base_hue = fig_lay.get('base_hue', 200)
+        for series_index, series_label in enumerate(series_labels):
+            color = _hsla(hue=base_hue + 20 * series_index)
+
+    Arguments:
+        • hue: int; Color hue in degrees [0, 360].
+        • saturation_percent: int; Saturation in percent [0, 100]. Default 100.
+        • lightness_percent: int; Lightness in percent [0, 100]. Default 50.
+        • alpha: float; Opacity in [0, 1]. Default 0.9.
+
+    Returns:
+        • str; e.g. 'hsla(200, 100%, 50%, 0.9)'
+    """
+    return f"hsla({hue % 360}, {saturation_percent}%, {lightness_percent}%, {alpha})"
+
+
+"=========================================================================================="
 "============================== Illustrating Belief Updates ==============================="
 "=========================================================================================="
 

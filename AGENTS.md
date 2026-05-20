@@ -152,6 +152,51 @@ fits each to data, and computes AIC/BIC. Model-nesting-aware warm-starting (chil
 parameter mappings) prevents nesting violations where a richer model appears to fit worse than
 its simpler nested version.
 
+### Pipeline robustness: call generating functions, not raw `pd.read_csv`
+
+**This is a fundamental repo convention — preserve it in all new functions.**
+
+Any function that depends on a CSV produced by another function in this codebase must call
+that generating function (with `create_new_file=False`) rather than calling `pd.read_csv`
+on the output path directly.  The generating function knows whether its output is complete
+and will finish computation or load from cache as appropriate.  A bare `pd.read_csv` call
+cannot detect or recover from an incomplete, stale, or missing file — it will either crash
+with a parse error or silently return wrong data.
+
+```python
+"Good — call the generating function; it handles caching and completeness checks"
+combined_fits_df = extract_participant_model_combined_fits(
+    general_settings=general_settings,
+    file_paths=file_paths,
+    create_new_file=False,
+)
+
+"Bad — bypasses the generating function's completeness checks and caching logic"
+combined_fits_df = pd.read_csv(
+    os.path.join(file_paths['processed'], 'participant_model_combined_fits.csv'),
+    encoding='utf-8-sig',
+)
+```
+
+When the generating function has already been called earlier in the same pipeline run,
+passing `create_new_file=False` means the second call is essentially free — it reads from
+the in-memory cache path without recomputing.
+
+**Corollary — never write a degenerate output file**: if a computation produces an empty
+DataFrame (zero rows), do not write it to disk.  An empty CSV causes `pd.read_csv` to
+throw `EmptyDataError` in every downstream function.  Check `df.empty` before calling
+`to_csv` and print a clear diagnostic if the check fails.
+
+```python
+"Good — guard before writing"
+if result_df.empty:
+    print("Warning: computation produced 0 rows — output CSV not written.")
+    return result_df
+result_df.to_csv(output_path, index=False, encoding='utf-8-sig')
+```
+
+---
+
 ### CSV-from-settings pattern
 
 **This is a fundamental repo convention — preserve it in all new functions.**
@@ -187,10 +232,13 @@ if distance_matrix_df is None:
 - `_build_ampd_cache_path(file_paths, metric, ...)` — builds the actual file path; the two
   helpers above call this internally.
 
-**CSV encoding**: All `to_csv()` calls must use `encoding='utf-8-sig'`. This BOM variant
-ensures Unicode characters in column names and cell values (Greek letters, Unicode math
-symbols such as Vᵢᵢ, Vᵢⱼ, Ʌᵢᵢ, τ, etc.) survive a round-trip through Excel, Windows file
-dialogs, and pd.read_csv() without corruption.
+**CSV encoding — non-negotiable rule**: Every `to_csv()` call in this codebase must include
+`encoding='utf-8-sig'`, without exception. This BOM variant ensures that Unicode characters
+in column names and cell values — Greek letters, mathematical Unicode symbols such as
+Vᵢᵢ, Vᵢⱼ, Ʌᵢᵢ, τ, 𝑘, Δ, etc. — survive a round-trip through Excel, Windows file
+dialogs, and `pd.read_csv()` without corruption or replacement characters. **A `to_csv()` call
+without `encoding='utf-8-sig'` is always a bug in this codebase.** When adding any new CSV
+write, treat the encoding argument as mandatory, not optional.
 
 **`general_settings['ampd_settings']`** is a nested dict (added in `config.py`) with keys:
 `metric`, `n_games`, `n_iters`, `parameter_sampling_mode`, `parameter_pairing_mode`,
@@ -210,19 +258,27 @@ conventions.
 ### Long, descriptive variable names
 
 Variable and argument names should be long and self-documenting. Avoid abbreviations beyond
-established domain shorthand (e.g., `dv`, `nll`, `uuid`). Mathematical primitives in
-tight computation loops are acceptable exceptions (e.g., `x`, `y` in a lambda).
+established domain shorthand (e.g., `dv`, `nll`, `uuid`). **Single-letter variable names are
+never acceptable — no exceptions.** This applies to loop indices (`i`, `j`, `k`, `n`),
+matrix shorthands (`W`, `D`, `H`, `B`), and any other context. Short names are hard to
+search and rename reliably. Use a descriptive suffix if you need to follow a mathematical
+convention (e.g., `gram_matrix_B`, `centering_matrix_J`, `n_entities`).
 
 ```python
 "Good"
 chooser_posterior_mean_estimates = ...
 fitted_parameter_values_for_all_dyads = ...
 loss_for_current_parameter_guess = ...
+for participant_idx, player_uuid in enumerate(all_player_uuids):  ...
+gram_matrix_B = -0.5 * (centering_matrix_J @ squared_distances @ centering_matrix_J)
 
 "Bad — do not write these"
 est = ...
 fitted_params = ...
 loss = ...
+for i, uuid in enumerate(uuids):  ...
+W = ...   # weight matrix
+B = ...   # gram matrix
 ```
 
 ### Docstrings with bullet-point argument lists
@@ -322,6 +378,124 @@ index_tuples = [param_vector_to_index(v) for v in parameter_vectors]
 "Step 2: build grid."
 ```
 
+### HSLA color scheme for multi-series figures
+
+All multi-series figures in this codebase use a consistent HSLA-based color scheme built around
+`_hsla()` in `visualization.py`. The system mirrors the pattern established in the companion
+responsibility-shielding project.
+
+**The rule:** when a figure has N series (bars, violin plots, scatter traces, vertical markers,
+etc.), each series gets a hue that is `base_hue + 20 × series_index` degrees. Saturation,
+lightness, and alpha stay fixed across series unless deliberately varied for visual emphasis
+(e.g., a darker border vs. a lighter fill).
+
+```python
+"Standard pattern — iterate series and offset hue by 20° each time"
+base_hue = fig_lay.get('base_hue', 200)
+for series_index, series_label in enumerate(series_labels):
+    fill_color = _hsla(hue=base_hue + 20 * series_index, alpha=0.55)
+    line_color = _hsla(hue=base_hue + 20 * series_index, alpha=1.00)
+```
+
+**`_hsla(hue, saturation_percent=100, lightness_percent=50, alpha=0.9)`** — defined in
+`visualization.py`. Returns a Plotly/CSS-compatible `'hsla(H, S%, L%, a)'` string. Hue is
+automatically modulo-360'd, so `_hsla(hue=380)` is the same as `_hsla(hue=20)`.
+
+**`base_hue`** — stored in `fig_lay` (default 200, a medium blue). Every plot function reads
+it from `fig_lay.get('base_hue', 200)` so the whole figure set shifts together when the
+researcher changes the base color.
+
+**Varying lightness and alpha for fill vs. outline** is the standard way to give a series depth
+without breaking the hue ladder:
+```python
+fill  = _hsla(hue=base_hue + 20 * idx, lightness_percent=55, alpha=0.45)
+line  = _hsla(hue=base_hue + 20 * idx, lightness_percent=35, alpha=1.00)
+point = _hsla(hue=base_hue + 20 * idx, alpha=0.65)
+```
+
+Do not use named CSS colors, raw hex strings, or `rgba()` strings for any color in a figure —
+always go through `_hsla()` so that the color scheme stays cohesive and is trivially adjustable
+via `base_hue`. The `rgba()` format is permanently banned from plot code; grey neutrals are
+expressed as `_hsla(hue=0, saturation_percent=0, lightness_percent=<L>, alpha=<a>)` where
+L≈63 for medium grey and L≈78 for light grid lines.
+
+### Terminal output is for third-party readers
+
+All text printed to the terminal must be interpretable by someone with no prior knowledge of
+this project's internal structure — a collaborator, a reviewer, or a future maintainer reading
+the output cold. This means:
+
+- **No internal shorthand** like `[Stage 9]`, `[S5]`, or `[run_ampd]`. These labels are
+  meaningless to anyone outside the immediate development context. Use a short noun phrase
+  that describes what is being computed, e.g., `"Architecture compression curve:"` or
+  `"AMPD behavioral-distance matrix:"`.
+- **No undocumented abbreviations** in message text. Write `utility index` not `utility_idx`,
+  `population IC winner` not `IC winner`, `candidate filtering` not just `filtering`.
+- **Warnings must be self-explanatory.** A message like `"Warning: could not load AMPD matrix
+  ({exc}); AMPD columns will be NaN."` tells the reader what was attempted, what failed, and
+  what the consequence is — all without needing to know what AMPD stands for internally.
+
+The guiding question is: *if a collaborating researcher saw this line in a terminal log a year
+from now, would they understand what was happening without opening the source file?*
+
+### Progress printing in long-running functions
+
+Any function that is expected to run for more than a few seconds should print
+periodic progress feedback so the researcher can monitor status without having to
+instrument the code themselves. Good feedback includes: what is currently being
+computed, how far along the loop is, and — when estimable — the remaining wall time.
+
+The AMPD matrix computation (`compute_ampd_distance_matrix`) and the IC analysis
+(`information_criterion_analysis`) are the canonical examples of this pattern. Study
+them before adding progress printing to a new function. Key conventions:
+
+- Print a startup banner that shows the total work to be done (number of pairs,
+  players, models, etc.) and the output file path.
+- Inside the main loop, print after every *N*th iteration (controlled by a
+  `print_every_x_pairs` or similar argument), not on every iteration.
+- Each progress line should include: iteration count, completion percentage, elapsed
+  time, and estimated time remaining (ETA). Compute ETA as
+  `elapsed * (total - done) / done`.
+- Print a completion banner at the end (total time, output file, row count, etc.).
+
+```python
+"Good — AMPD-style progress line"
+elapsed = time.time() - start_time
+eta_seconds = elapsed * (n_total_pairs - n_pairs_done) / n_pairs_done
+print(
+    f"  Pair {n_pairs_done}/{n_total_pairs}  "
+    f"({100 * n_pairs_done / n_total_pairs:.1f}%)  "
+    f"elapsed {elapsed:.0f}s  ETA {eta_seconds:.0f}s"
+)
+```
+
+### Inner helper functions
+
+Helper functions that are **only called by one parent function** must be defined as
+inner functions (closures) within that parent, not at module level. This keeps the
+module namespace clean and makes clear that the helper is not part of any public API.
+
+```python
+"Good — _compute_weights is only used inside fit_player, so it lives inside"
+def fit_player(data: pd.DataFrame) -> Dict[str, float]:
+    def _compute_weights(likelihoods: np.ndarray) -> np.ndarray:
+        return likelihoods / likelihoods.sum()
+    weights = _compute_weights(likelihoods=raw_likelihoods)
+    ...
+
+"Bad — _compute_weights is promoted to module level unnecessarily"
+def _compute_weights(likelihoods: np.ndarray) -> np.ndarray:
+    return likelihoods / likelihoods.sum()
+
+def fit_player(data: pd.DataFrame) -> Dict[str, float]:
+    weights = _compute_weights(likelihoods=raw_likelihoods)
+    ...
+```
+
+The exception: helpers shared by two or more functions stay at module level (or at
+the nearest common enclosing scope). Before moving any `_`-prefixed function inside
+a parent, grep to confirm it has exactly one call site.
+
 ### Design philosophy
 
 The overriding goal is **maximum readability with minimum working memory overhead**. A reader
@@ -368,3 +542,30 @@ The file is organized into logical sections in this order:
 | Parameter Distribution Results | 15001–15861 | Population-level distributions, correlations |
 | Inequality Aversion Analysis | 15862–16224 | Bot competitions, aversion heatmaps |
 | Run Code | 16225–end | `run_code_settings` flags + `main()` |
+
+---
+
+## 9. Plans folder
+
+Detailed implementation plans are stored in [`plans/`](plans/) at the project root.
+
+**When to save a plan**: Any plan with more than ~3 stages or with stage-level
+implementation specs (function signatures, column names, mathematical formulas,
+multi-step algorithms) should be saved here so it can be recovered after context
+compression.
+
+**How to save a plan**: Copy the plan document wholesale — do not rewrite or
+summarize it. The Claude internal plans directory (`~/.claude/plans/`) is the
+authoritative source during a session; when that plan has been approved and is about
+to be executed, copy the file byte-for-byte to `plans/<descriptive_name>.md`. The
+project copy serves as the permanent record; the Claude copy is ephemeral.
+
+**Naming convention**: Use `snake_case` with a short descriptive label, e.g.,
+`participant_fit_extraction_and_realistic_ampd.md`. Match what the plan actually
+describes, not the internal Claude task slug.
+
+Current plans:
+
+| File | Contents |
+|------|----------|
+| [`participant_fit_extraction_and_realistic_ampd.md`](plans/participant_fit_extraction_and_realistic_ampd.md) | Stage 6 extraction of per-participant × per-model fits from IC JSON; `participant_sampled` AMPD mode |

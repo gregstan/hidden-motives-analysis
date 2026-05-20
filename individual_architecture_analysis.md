@@ -15,6 +15,488 @@ This file focuses on a new individual-level extension of the full-model utility-
 
 ---
 
+Here’s a copy-pasteable front section you can place near the beginning of `individual_architecture_analysis.md`. I wrote it as exposition first, implementation implications second, with minimal math and no insider phrasing.
+
+This is grounded in the current project context: the repo implements the UBM, IC analysis, utility-function enumeration, 625-payoff grid, `make_param_info`, and AMPD-related machinery.   
+
+---
+
+# Individual Utility-Architecture Analysis: Conceptual Overview
+
+> **Core question:**
+> Do participants differ mainly because they have different *parameter values* inside one shared utility function, or because different participants are better described by different *utility-function architectures*?
+
+This analysis extends the main IHM paper by testing a key assumption behind the population-level utility-function results.
+
+The IHM paper begins with the problem of **inferring hidden motives**. In repeated binary dictator games, participants observe others choosing between payoff allocations and try to infer the social preferences behind those choices: self-interest, altruism, envy, guilt, nonlinear payoff sensitivity, and related motives. The **Utility Bayesian Model** (UBM) formalizes this as a Bayesian learning problem. A predictor begins with uncertain beliefs about a chooser’s latent social-preference parameters. After observing each choice, the predictor updates those beliefs and uses them to predict future choices.
+
+The UBM needs a utility function inside its likelihood term. That utility function says, given a parameter vector and a payoff structure, how attractive Option A is compared to Option B. The existing Information Criterion (IC) analysis searches over the full utility-function universe and identifies the best-fitting population-level utility form. Once that population-winning form is selected, the paper reports parameter distributions in that shared model space: how much people value their own payoffs, others’ payoffs, advantageous inequality, disadvantageous inequality, nonlinear payoffs, and so on.
+
+That is the paper’s **coordinate-system** idea:
+
+> Once we know the right utility architecture, every individual can be located somewhere inside that shared psychological space.
+
+But this interpretation rests on a major assumption:
+
+> **Participants share the same utility-function form and differ only in parameter values.**
+
+The individual architecture analysis tests that assumption.
+
+---
+
+## The Teeter-Totter: One Architecture vs. Many Architectures
+
+There are two extremes.
+
+At one extreme, we use **one common utility architecture** for everyone. This is maximally parsimonious. It says that all participants live inside the same utility-function space, and individual differences are captured by different parameter values within that space.
+
+At the other extreme, we allow **every participant to have their own best-fitting utility architecture**. This maximizes flexibility and fit, but risks overfitting, noise, and loss of interpretability. A result like this would be hard to understand:
+
+> Participant 1 is best described by model 233.
+> Participant 2 is best described by model 17.
+> Participant 3 is best described by model 402.
+> …
+
+That list is not scientifically meaningful unless we know whether those utility functions are behaviorally similar or radically different.
+
+The goal is not to blindly choose one extreme. The goal is to measure the tradeoff between **parsimony** and **individual variation**.
+
+That is the purpose of the **Utility-Architecture Compression Analysis**.
+
+---
+
+## Utility-Architecture Compression Analysis
+
+The compression analysis asks:
+
+> **How many distinct utility architectures are needed to describe the participant population?**
+
+Let `K` be the number of utility architectures we allow ourselves to use.
+
+* `K = 1` means one shared architecture for everyone.
+* `K = N` means every participant can have their own best-fitting architecture.
+* Intermediate values, like `K = 2`, `K = 3`, or `K = 4`, mean we are using a small **codebook** of utility architectures.
+
+The analysis slides `K` between those extremes and tracks predictive improvement. If allowing more architectures produces a large improvement at first but then quickly levels off, that suggests a small number of utility-architecture families may capture most meaningful individual differences.
+
+Possible outcomes:
+
+### **Outcome 1: One shared architecture is enough**
+
+If the curve barely improves after `K = 1`, then the population-winning utility function is probably a genuine shared coordinate system. Participants differ mainly in parameter values, not in functional form.
+
+### **Outcome 2: A small number of stable architecture families**
+
+If the curve improves sharply at `K = 2` or `K = 3` and then levels off, then the data may support a small number of functional phenotypes. For example, one cluster of participants may require social-comparison terms, while another may be well captured by self-interest and altruism alone.
+
+### **Outcome 3: Gradual improvement without a clear structure**
+
+If fit improves gradually all the way toward `K = N`, then individual architecture may be too idiosyncratic or underidentified to summarize cleanly. This does **not** necessarily mean every person has a psychologically distinct architecture. It may mean the participant-level data are noisy, sparse, or insufficiently diagnostic.
+
+### **Outcome 4: Scatter without predictive gain**
+
+If participant-specific architectures look scattered but do not improve held-out prediction, then the scatter is probably not meaningful. It is likely overfitting or underidentification.
+
+The strongest evidence for individual utility-architecture differences would be:
+
+> **stable, predictive, interpretable clusters**
+> not merely scattered top-model IDs.
+
+---
+
+## Why We Need a Similarity Metric Between Utility Functions
+
+Before we can ask whether participants cluster into architecture families, we need to know how similar the utility functions are.
+
+A model ID is just a label. Model 233 and model 17 might be close cousins, or they might be completely different behavioral theories. Symbolic differences alone are not enough. Two models can look different algebraically but behave almost identically across the payoff grid. Conversely, two models can differ by only one setting but generate very different choice policies.
+
+So we need a behavioral similarity metric.
+
+That metric is **Average Model Policy Distance**.
+
+---
+
+## AMPD: Average Model Policy Distance
+
+**AMPD measures the average difference in behavior between two utility models in the same situation given the same parameters.**
+
+More concretely:
+
+1. Take two utility functions: Model A and Model B.
+2. Draw one full canonical parameter vector.
+3. Give that same parameter vector to both models.
+4. Let each model use whichever parameters it needs and ignore the rest.
+5. Run both models across the same payoff structures, usually the full set of `625` payoff structures from `{1, 2, 3, 4, 5}^4`.
+6. Record each model’s choice probability for every game.
+7. Measure the divergence between those choice probabilities.
+8. Repeat this process many times with new random parameter draws.
+9. Average the divergences.
+
+The key rule is:
+
+> **Within a single AMPD iteration, both models receive the same parameter vector.**
+
+Across iterations, the parameter vector changes. But within an iteration, the two models are evaluated under matched conditions.
+
+This matters because self-distance must be zero:
+
+```text
+AMPD(model_x, model_x) = 0
+```
+
+If Model X is compared with itself under the same payoffs and the same parameters, it should behave identically. If self-distance is nonzero, the function is not measuring pure model-policy distance. It is measuring something else: variability between two independently sampled agents from the same model family.
+
+That alternative quantity may be useful someday, but it is not the primary AMPD needed for model-space geometry.
+
+---
+
+## Why Sample All Nine Parameters?
+
+Different utility functions use different parameter subsets. Some use self-interest and altruism. Some include envy and guilt. Some include exponents. Some fix self-interest. Some use conditional welfare or min-max forms.
+
+To compare models fairly, each AMPD iteration samples a full canonical parameter vector containing all possible parameters. Then each model takes what it needs.
+
+For example:
+
+* A model without altruism ignores the altruism parameter.
+* A model without social comparison ignores envy/guilt parameters.
+* A model with one exponent uses the relevant exponent.
+* A model with three exponents uses all three.
+* A model with fixed self-interest ignores the free self-interest parameter.
+
+This creates a shared reference coordinate system for comparing model behavior.
+
+It is not claiming that every parameter has exactly the same psychological meaning in every model family. Conditional-welfare models, for example, may use parameters somewhat differently than standard additive models. But the shared-vector approach gives us the cleanest practical definition of behavioral similarity:
+
+> Given the same reference parameter draw and the same payoff situation, how differently do these utility architectures behave?
+
+---
+
+## Uniform vs. Realistic Parameter Sampling
+
+AMPD can be computed under different parameter-sampling regimes.
+
+### **Uniform AMPD**
+
+Uniform AMPD samples parameter values broadly from their allowed bounds.
+
+This asks:
+
+> Across the broad theoretical parameter space, how similar are these utility functions?
+
+Uniform AMPD is more theory-neutral. It does not assume that the empirically observed participant distribution is the only meaningful region of parameter space.
+
+### **Realistic AMPD**
+
+Realistic AMPD samples parameter values from empirical parameter distributions, using the fitted population distributions from the current results. If a model requires a parameter not present in the empirical distribution, that missing parameter is sampled from its allowed bounds.
+
+This asks:
+
+> In the region of parameter space humans appear to occupy, how similar are these utility functions?
+
+Realistic AMPD may be more psychologically relevant for interpreting participant architecture. Uniform AMPD may be better for general model-space cartography. Both are worth computing.
+
+---
+
+## JSD, Cross-Entropy, and Why the Metric Depends on the Question
+
+AMPD is primarily a **symmetric model-similarity metric**. Neither utility function is treated as the truth. We are asking how different their induced choice policies are.
+
+For that purpose, normalized **Jensen–Shannon divergence** is useful because it is:
+
+* symmetric,
+* bounded,
+* interpretable as a distance-like divergence between probability distributions,
+* appropriate for building distance matrices,
+* appropriate for MDS embeddings and clustering.
+
+So normalized JSD is the primary metric for model-space geometry.
+
+Cross-entropy and negative log-likelihood serve a different purpose. They are directional. They answer:
+
+> If this model is trying to predict some target behavior, how surprised is it by the observed response?
+
+That is the right logic when one side is treated as ground truth, such as:
+
+* human choices,
+* human predictions,
+* synthetic data generated by a known model,
+* held-out test responses.
+
+So the clean division is:
+
+> **JSD for symmetric model-to-model similarity.**
+> **Cross-entropy / NLL for directional prediction.**
+
+---
+
+## From Utility Functions to a Model-Space Map
+
+Once we compute AMPD between every pair of utility functions, we have a full utility-function similarity matrix.
+
+This matrix can be used to embed the utility functions in a lower-dimensional space using MDS. In that space:
+
+* each point is a utility function,
+* nearby points are behaviorally similar,
+* distant points are behaviorally different.
+
+This model-space map lets us interpret the IC analysis more intelligently.
+
+For example, suppose the top 25 BIC-ranked models all occupy the same small region of AMPD space. That means the population IC winner is not an isolated accident. It is the best representative of a broader behavioral family.
+
+But suppose the top-ranked models split into two distant regions. That would mean the data support multiple behaviorally distinct explanations. That would be scientifically interesting and might motivate future experiments designed to distinguish those families.
+
+The model-space map turns a flat ranking table into a landscape.
+
+---
+
+## From Model Points to Participant Clouds
+
+For each participant, we can compute or extract a fit score for every utility function.
+
+This gives each participant a row like:
+
+```text
+participant_i × utility_model_m → BIC_i,m
+```
+
+Lower BIC means that utility architecture fits that participant better.
+
+But we should not represent each participant only by their top-ranked model. Individual-level model selection is noisy because each participant has far fewer observations than the full population. A participant’s best model may be unstable, while their broader region of plausible models may be meaningful.
+
+So we convert each participant’s model-specific BIC values into weights.
+
+Models with low ΔBIC get high weight. Models with high ΔBIC get low weight.
+
+Now each participant becomes a **BIC-weighted cloud over utility-function space**.
+
+This is the conceptual move:
+
+> Participants are not points.
+> Participants are clouds over utility architectures.
+
+The cloud tells us which regions of model space are plausible for that participant.
+
+---
+
+## Clouds, Centroids, and Elastic Bands
+
+Once utility functions are embedded in MDS space, each utility function is like a planet.
+
+Each participant has elastic bands connecting them to those planets. The strength of each elastic band is the participant’s BIC weight for that model.
+
+* If one model dominates, the participant is pulled close to that model.
+* If several nearby models are plausible, the participant sits near that local region.
+* If many distant models are plausible, the participant’s cloud is diffuse.
+
+For visualization, we can summarize the participant cloud as a weighted centroid in MDS space. But the centroid is only a visual shorthand. The scientifically honest object is the full cloud of model weights.
+
+This distinction matters.
+
+A participant with a tight cloud near one model family is architecturally well-identified. A participant with a diffuse cloud is not necessarily psychologically strange. They may simply not have enough diagnostic data to identify a utility architecture.
+
+---
+
+## What `H_form` Does
+
+`H_form` is the simplest predictive test of whether individual utility architectures matter.
+
+It asks:
+
+> **How much predictive improvement do we gain by allowing participants to have their own utility-function forms, compared to forcing everyone to use one common form?**
+
+The comparison is between three reference points.
+
+### **1. Common architecture**
+
+Everyone uses the same utility-function form, but each participant gets their own fitted parameters.
+
+This tests the “shared coordinate system” hypothesis.
+
+### **2. Individual architecture**
+
+Each participant can use their own best-fitting utility-function form and their own fitted parameters.
+
+This tests the “different people may need different architectures” hypothesis.
+
+### **3. Chance**
+
+A chance model predicts `0.5` for every binary response.
+
+This gives the denominator needed to make the improvement interpretable.
+
+`H_form` is useful because it does not just say whether individual architectures fit better in raw NLL. It asks whether the improvement is meaningful relative to a chance baseline.
+
+Interpretation:
+
+* `H_form ≈ 0`: individual utility forms add little or nothing beyond one common architecture.
+* `H_form > 0`: participant-specific utility forms improve prediction.
+* `H_form < 0`: participant-specific forms generalize worse, likely due to overfitting or instability.
+* large `H_form`: utility-function heterogeneity is doing meaningful predictive work.
+
+Ideally, `H_form` should be computed with held-out prediction. If the same data are used to select the individual form and evaluate it, the individualized model will usually look better simply because it is more flexible. Cross-validation is what separates genuine predictive value from overfitting.
+
+---
+
+## Utility-Architecture Compression Analysis
+
+`H_form` compares two extremes:
+
+```text
+K = 1          one common architecture
+K = N          one architecture per participant
+```
+
+The compression analysis asks the next question:
+
+> **If individual architectures help, how many architectures are enough?**
+
+Instead of jumping directly from one architecture to full individualization, we allow a codebook of `K` architectures.
+
+At each value of `K`, the analysis selects `K` actual utility functions as representative architectures. These are better thought of as **medoids** than centroids, because they are real utility functions, not abstract average points.
+
+Each participant is assigned to the codebook model that predicts them best. Then we measure predictive performance.
+
+As `K` increases, prediction should improve. But the scientific question is how quickly it improves and where it levels off.
+
+Possible patterns:
+
+* If `K = 1` performs nearly as well as larger `K`, one common utility architecture is enough.
+* If `K = 2` or `K = 3` captures most of the improvement, participants may fall into a small number of functional phenotypes.
+* If performance improves gradually all the way to `K = N`, then there may be idiosyncratic heterogeneity without a clean taxonomy.
+* If improvement appears in-sample but disappears under cross-validation, then the extra architectures are probably overfitting.
+
+This analysis directly quantifies the tradeoff between parsimony and individual variation.
+
+---
+
+## Data Adequacy: Did We Collect Enough Data?
+
+A secondary question is whether the dataset contains enough information to answer the individual architecture question.
+
+This can be evaluated by simulation and/or resampling.
+
+The simulation version creates synthetic participants under known assumptions, varies the number of participants and/or games per participant, and asks when key metrics stabilize. For example, we can track whether architecture recovery, AMPD-based participant clustering, `H_form`, or the compression curve reaches a stable region as synthetic sample size increases.
+
+The tricky part is choosing realistic synthetic parameters. There are two defensible approaches:
+
+### **Empirical-realistic simulation**
+
+Sample synthetic participant parameters from the empirical population parameter distributions estimated from the current data. This makes the simulation psychologically grounded, but it inherits assumptions from the fitted model.
+
+### **Uniform / broad stress-test simulation**
+
+Sample parameters broadly from allowed bounds. This is more theory-neutral, but may generate participants unlike real humans.
+
+Both are useful. If the analysis stabilizes under both, that is reassuring. If it stabilizes only under one, that tells us something about the dependence of the result on parameter assumptions.
+
+The data-adequacy question should be treated as a calibration layer, not the main analysis. The central question is still whether real participants are best described by one shared architecture or multiple architectures.
+
+---
+
+## The Three Validation Questions
+
+This project now has three related but distinct validation questions.
+
+### **1. Parameter recovery**
+
+Given a known utility form, can the optimizer recover the true parameters used to generate synthetic data?
+
+This validates the parameter-fitting machinery.
+
+### **2. Utility-form recovery**
+
+Given synthetic data generated from a known utility function, can the IC pipeline recover the true utility form, or at least a behaviorally similar / nested-equivalent form?
+
+This validates the utility-function model-selection machinery.
+
+### **3. Individual architecture analysis**
+
+Given real human data, are participants best described by one shared utility architecture, a small number of architecture families, or many idiosyncratic forms?
+
+This is not just validation. It is a substantive analysis of individual differences.
+
+AMPD is useful across these questions because it gives us a way to say whether two utility forms are behaviorally similar, even when their symbolic equations differ.
+
+---
+
+## What This Analysis Can Reveal
+
+The results should be interpreted through several possible outcomes.
+
+### **One shared basin**
+
+Participant clouds cluster near the population-winning utility function. `H_form` is near zero. The compression curve shows little improvement after `K = 1`.
+
+**Interpretation:**
+The population-winning utility function is a strong shared coordinate system. Individual differences are mostly parameter differences.
+
+### **A few stable architecture clusters**
+
+Participant clouds split into a small number of stable, interpretable regions. `H_form` is positive. The compression curve levels off at small `K`.
+
+**Interpretation:**
+Participants may differ not only in parameter values but in utility architecture. This would suggest functional phenotypes of social preference.
+
+### **Diffuse scatter without predictive improvement**
+
+Participant top models vary widely, but model clouds are diffuse and individualized forms do not improve held-out prediction.
+
+**Interpretation:**
+Individual-level architecture is likely underidentified or noisy. The population model remains the better-supported summary.
+
+### **Diffuse scatter with predictive improvement**
+
+Individualized forms improve prediction, but there are no stable clusters.
+
+**Interpretation:**
+There may be idiosyncratic architecture differences, but the dataset may not support a clean taxonomy.
+
+---
+
+## Practical Guidance for the Coding Agent
+
+The implementation should preserve the conceptual distinctions above.
+
+Most importantly:
+
+> **Do not treat a participant’s fitted parameter vector as their architecture.**
+> Architecture is about which utility functional forms fit that participant.
+
+A participant should be represented as a BIC-weighted cloud over utility functions, not merely as their top-ranked model.
+
+Similarly:
+
+> **Do not compute AMPD with independently sampled parameters for the two models in a pair.**
+
+Primary AMPD must use the same full parameter vector for both models within each iteration. Otherwise, self-distance becomes nonzero and the matrix stops being a model-similarity matrix.
+
+Also:
+
+> **Do not make dynamic Bayesian updating part of AMPD.**
+
+AMPD should compare static utility-to-choice policies. If dynamic updating is included, the distance becomes partly about assumptions of the UBM, priors, learning trajectories, and observation histories. That is a different analysis. AMPD should isolate the behavioral similarity of utility architectures themselves.
+
+Finally:
+
+> **The main scientific target is not a pretty MDS plot.**
+
+The MDS plot is a visualization tool. The real questions are:
+
+1. Are the top IC models behaviorally coherent?
+2. Are participant model clouds concentrated near one architecture or multiple regions?
+3. Does allowing individualized architectures improve held-out prediction?
+4. How many architectures are needed to capture that improvement?
+5. Are any clusters stable and interpretable?
+
+If the answer is “one shared architecture,” that strengthens the paper’s coordinate-system claim. If the answer is “a small number of architecture families,” that may reveal a deeper taxonomy of social-preference computation. Either result is scientifically valuable.
+
+The point is to turn a possible limitation of the population-level IC analysis into a direct empirical question:
+
+> **Is the population-winning utility function a universal coordinate system, or the first approximation to a richer map of human motivational architecture?**
+
+---
+
 ## 0. Implementation principle
 
 > **Reuse existing code aggressively.**

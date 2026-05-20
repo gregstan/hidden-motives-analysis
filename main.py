@@ -18,32 +18,120 @@ run_code_settings = {
 def main():
     """Execute main code."""
 
+    # "Stage 6 — Extract per-participant per-model combined fit table."
+    # combined_fits_df = extract_participant_model_combined_fits(
+    #     general_settings=general_settings,
+    #     file_paths=file_paths,
+    #     create_new_file=False,
+    # )
+    # pp.pprint(combined_fits_df.head())
+    # pp.pprint(combined_fits_df.groupby("player_uuid")["BIC_weight"].sum())
 
-    "Compute (or resume) the AMPD master matrix — settings come from general_settings['ampd_settings']."
+    # "Stage 7 — Participant cloud distances and architecture embedding."
+    # participant_centroids_df = compute_participant_model_space_centroids(
+    #     general_settings=general_settings,
+    #     file_paths=file_paths,
+    # )
+    # pp.pprint(participant_centroids_df.head())
+
+    # cloud_distance_matrices = compute_participant_cloud_distances(
+    #     general_settings=general_settings,
+    #     file_paths=file_paths,
+    # )
+    # pp.pprint(cloud_distance_matrices["energy"].iloc[:5, :5])
+
+    # participant_embedding_df = compute_participant_architecture_embedding(
+    #     general_settings=general_settings,
+    #     file_paths=file_paths,
+    #     n_dimensions=2,
+    # )
+    # pp.pprint(participant_embedding_df.head())
+
+    # participant_feature_support_df = compute_participant_feature_support(
+    #     general_settings=general_settings,
+    #     file_paths=file_paths,
+    # )
+    # pp.pprint(participant_feature_support_df.head())
+
+    # plot_participant_architecture_mds(
+    #     general_settings=general_settings,
+    #     file_paths=file_paths,
+    #     fig_lay=fig_lay,
+    #     color_by="model_weight_entropy",
+    # )
+
+    # exit()
+
+    # "Compute (or resume) the AMPD master matrix — settings come from general_settings['ampd_settings']."
     # mat = compute_ampd_distance_matrix(
     #     general_settings=general_settings, utility_settings=utility_settings,
-    #     file_paths=file_paths, param_bds=param_bds,
+    #     file_paths=file_paths, param_bds=param_bds, parameter_sampling_mode="uniform",
     # )
     # pp.pprint(mat)
 
-    "Stage 5 visualizations — all load the AMPD matrix from settings automatically."
-    embedding_df = compute_model_space_embedding(
-        general_settings=general_settings, file_paths=file_paths,
-        n_dimensions=2,
+    # "Stage 5 visualizations — all load the AMPD matrix from settings automatically."
+    # compute_model_space_embedding(
+    #     general_settings=general_settings, file_paths=file_paths, n_dimensions=2,
+    # )
+    # plot_model_space_mds(
+    #     general_settings=general_settings, file_paths=file_paths, fig_lay=fig_lay,
+    # )
+    # plot_distance_to_winner_vs_delta_bic(
+    #     general_settings=general_settings, file_paths=file_paths, fig_lay=fig_lay,
+    # )
+    # compute_top_model_coherence(
+    #     general_settings=general_settings, file_paths=file_paths, top_ns=[5, 10, 25, 50],
+    # )
+    # plot_top_model_ampd_heatmap(
+    #     general_settings=general_settings, file_paths=file_paths, fig_lay=fig_lay, top_n=50,
+    # )
+
+    # "Stage 6 — Extract per-participant per-model combined fit table."
+    # combined_fits_df = extract_participant_model_combined_fits(
+    #     general_settings=general_settings,
+    #     file_paths=file_paths,
+    #     create_new_file=False,
+    # )
+    # pp.pprint(combined_fits_df.head())
+    # pp.pprint(combined_fits_df.groupby("player_uuid")["BIC_weight"].sum())
+
+    # "Stage 8 — Cross-validated architecture losses (population winner now uses pooled BIC → model 443)."
+    # "Set create_new_file=True to force regeneration with the corrected population winner."
+    # cv_losses_df = compute_cross_validated_architecture_losses(
+    #     general_settings=general_settings,
+    #     file_paths=file_paths,
+    #     utility_settings=utility_settings,
+    #     param_bds=param_bds,
+    #     n_folds=5,
+    #     top_n_candidate_models=20,
+    #     delta_bic_threshold=10.0,
+    #     rng_seed=2025,
+    #     create_new_file=True,
+    # )
+    # pp.pprint(cv_losses_df.head())
+
+    # _, h_form_summary_df = compute_h_form_cross_validated(
+    #     general_settings=general_settings,
+    #     file_paths=file_paths,
+    # )
+    # pp.pprint(h_form_summary_df[['player_uuid', 'H_form_mean', 'H_form_std', 'H_form_in_sample']].head(10))
+
+    # plot_h_form_results(
+    #     general_settings=general_settings,
+    #     file_paths=file_paths,
+    #     fig_lay=fig_lay,
+    # )
+
+    "Stage 9 — Population Architecture Compression Curve."
+    curve_df = compute_architecture_compression_curve(
+        general_settings=general_settings,
+        file_paths=file_paths,
+        create_new_file=False,
     )
-    fig = plot_model_space_mds(
-        general_settings=general_settings, file_paths=file_paths, fig_lay=fig_lay,
-    )
-    fig2 = plot_distance_to_winner_vs_delta_bic(
-        general_settings=general_settings, file_paths=file_paths, fig_lay=fig_lay,
-    )
-    coherence = compute_top_model_coherence(
-        general_settings=general_settings, file_paths=file_paths,
-        top_ns=[5, 10, 25, 50],
-    )
-    fig3 = plot_top_model_ampd_heatmap(
-        general_settings=general_settings, file_paths=file_paths, fig_lay=fig_lay,
-        top_n=50,
+    plot_architecture_compression_curve(
+        general_settings=general_settings,
+        file_paths=file_paths,
+        fig_lay=fig_lay,
     )
 
     exit()
