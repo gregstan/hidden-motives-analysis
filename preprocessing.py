@@ -407,9 +407,9 @@ def players_to_dyads(experiment_num: int, file_paths: FilePaths, create_new_file
             result = json.load(file)
         return result
 
-    with open(os.path.join(ROOT, 'processed', file_paths['file_names'][
+    with open(os.path.join(file_paths['processed'], file_paths['file_names'][
         f'player_pairs_exper{experiment_num}']), "r", encoding='utf-8') as file:
-        raw_data = json.load(file)   
+        raw_data = json.load(file)
 
     histories: dict = raw_data['histories']
     dyad_keys = [_dyad_key(dyad_key=key) for key in histories.keys()]

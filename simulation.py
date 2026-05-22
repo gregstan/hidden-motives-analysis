@@ -5,7 +5,25 @@ from bayesian import *
 "=========================================================================================="
 
 global_chooser_id = 0
-def simulated_bot_uuids(n_games: int, params_predictor: dict[str, float], params_chooser: dict[str, float], 
+
+"""
+TODO: Replace simulated_bot_uuids with a content-addressed hash identifier.
+  The current system is brittle: k_of_2=True hardcodes Vᵢᵢ/Vᵢⱼ/_std keys and crashes for
+  any utility model with a different parameter set; k_of_2=False produces filenames that can
+  exceed OS limits. A cleaner design:
+
+      import hashlib, json
+      def stable_bot_id(params: dict, role: str, n_games: int) -> str:
+          payload = json.dumps({'params': sorted(params.items()), 'n': n_games}, sort_keys=True)
+          return f'synthetic_{role}_{hashlib.sha256(payload.encode()).hexdigest()[:12]}'
+
+  Benefits: works for any utility model, never exceeds filename limits, collision-resistant,
+  still uniquely identifies each (params, n_games) combination. Callers that need the raw
+  parameter values should embed them in the game dict (embed_true_params=True), not the ID.
+  Until this is redesigned, pass dyad_id= to create_simulated_dyad to bypass this function.
+"""
+
+def simulated_bot_uuids(n_games: int, params_predictor: dict[str, float], params_chooser: dict[str, float],
                         predictor_id: str | None = None, chooser_id: str | None = None, k_of_2: bool = True) -> tuple[str, str]:
     """
     Constructs human-readable UUID-like strings for artificial chooser–predictor dyads.
@@ -137,8 +155,9 @@ def simulated_bot_uuids(n_games: int, params_predictor: dict[str, float], params
 
 
 def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params_predictor: dict[str, float], general_settings: GeneralSettings,
-                          utility_settings: UtilitySettings, param_bds: ParamBounds, payoff_structures: list[dict[str, int]] | None = None, 
-                          default_utility_settings: bool = True, embed_true_params: bool = False, dynamic_predictor: bool = True) -> dict[DyadKey, DyadGames]:
+                          utility_settings: UtilitySettings, param_bds: ParamBounds, payoff_structures: list[dict[str, int]] | None = None,
+                          default_utility_settings: bool = True, embed_true_params: bool = False, dynamic_predictor: bool = True,
+                          dyad_id: str | None = None) -> dict[DyadKey, DyadGames]:
     """
     Create a single synthetic chooser–predictor dyad with recorded choices and predictions.
 
@@ -173,6 +192,12 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
         • dynamic_predictor: bool;
             If True, runs the full UBM via agent() for predictors, meaning belief updating.
             If False, runs choice() for predictors, meaning no belief updating.
+        • dyad_id: str | None;
+            If provided, used directly as the dyad identifier (chooser_uuid becomes
+            '{dyad_id}_chooser', predictor_uuid becomes '{dyad_id}_predictor'). This
+            bypasses simulated_bot_uuids entirely, which is necessary when the params dict
+            does not contain the specific keys that function assumes (e.g., utility models
+            with more than 2 parameters). Pass None (default) to use the old UUID system.
 
     Returns:
         • dict[DyadKey, DyadGames]
@@ -212,8 +237,12 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
     τ_chooser =   params_chooser.get("τ")
     τ_predictor = params_predictor.get("τ")
 
-    predictor_uuid, chooser_uuid = simulated_bot_uuids(n_games=n_games, params_predictor=params_predictor, 
-                                                       params_chooser=params_chooser, k_of_2=not embed_true_params)
+    if dyad_id is not None:
+        chooser_uuid   = f"{dyad_id}_chooser"
+        predictor_uuid = f"{dyad_id}_predictor"
+    else:
+        predictor_uuid, chooser_uuid = simulated_bot_uuids(n_games=n_games, params_predictor=params_predictor,
+                                                           params_chooser=params_chooser, k_of_2=not embed_true_params)
     dyad_key = f"({predictor_uuid}, {chooser_uuid})"
 
     dyad_games = []

@@ -555,7 +555,7 @@ write_mode = 'overwrite'
 learning_rate = 0.8
 sample_ratio = 0.05
 export_fig = True
-dark_mode = True
+dark_mode = False
 
 warmstart_policy = {
     "enabled": True,

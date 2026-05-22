@@ -2732,7 +2732,7 @@ def run_analysis_bayes(histories_data: Histories, file_paths: FilePaths, param_i
 
     "Prepare output file paths"
     output_file = file_paths["file_names"][f"params_data_exper{experiment_num}_bayes"]
-    aggregate_path = os.path.join(file_paths["param_data"], output_file)
+    aggregate_path = prep.ensure_directory_and_join(file_paths["param_data"], output_file)
     if analysis_unit == 'player':
         output_dir = file_paths['player_fits']
     elif analysis_unit == 'dyad':

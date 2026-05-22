@@ -1,7 +1,8 @@
-import hashlib
+﻿import hashlib
 import time
 from visualization import *
 from visualization import _hsla
+from utilities import compute_hamming_distance_matrix
 
 "=========================================================================================="
 "========= Model Validation: Comparing Bayesian and Alternative Cognitive Models =========="
@@ -1616,7 +1617,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
 
     "Generate or validate the utility configurations to compare."
     if utility_setting_varieties is not None:
-        invalid_settings = [s for s in utility_setting_varieties if not gnrl.is_valid_utility_settings(s)]
+        invalid_settings = [setting for setting in utility_setting_varieties if not gnrl.is_valid_utility_settings(setting)]
         if invalid_settings:
             raise ValueError(
                 f"information_criterion_analysis received {len(invalid_settings)} invalid utility setting(s) "
@@ -5573,7 +5574,7 @@ def average_model_policy_distance(
                 "parents", "siblings", "children",
                 "ampd_to_best_rand", "ampd_to_best_real", "policy_regret_norm", "equation",
             }
-            flag_cols = [c for c in registry_df.columns if c not in non_flag_cols]
+            flag_cols = [col for col in registry_df.columns if col not in non_flag_cols]
             return {col: _parse_csv_bool(row.iloc[0][col]) for col in flag_cols}
         return gnrl.convert_utility_settings(utility_settings=model_ref, into=dict)
 
@@ -5622,8 +5623,8 @@ def average_model_policy_distance(
             guess_seed=None,
         )
         mean_keys_inner = [
-            k for k in param_info_inner["keys"]
-            if not k.endswith("_std") and "_cov" not in k
+            param_key for param_key in param_info_inner["keys"]
+            if not param_key.endswith("_std") and "_cov" not in param_key
         ]
         return {
             key: rng_inner.uniform(float(param_bds[key][0]), float(param_bds[key][1]))
@@ -5657,8 +5658,8 @@ def average_model_policy_distance(
             guess_seed=None,
         )
         mean_keys_inner = [
-            k for k in param_info_inner["keys"]
-            if not k.endswith("_std") and "_cov" not in k
+            param_key for param_key in param_info_inner["keys"]
+            if not param_key.endswith("_std") and "_cov" not in param_key
         ]
         sampled_row = empirical_df_inner.iloc[rng_inner.randint(0, len(empirical_df_inner) - 1)]
         params_inner: Dict[str, float] = {}
@@ -5695,7 +5696,7 @@ def average_model_policy_distance(
             • dict[str, float] — one value per mean parameter (no _std / _cov keys).
         """
         all_mean_keys_inner = [
-            k for k in param_bds if not k.endswith("_std") and "_cov" not in k
+            param_key for param_key in param_bds if not param_key.endswith("_std") and "_cov" not in param_key
         ]
         if parameter_sampling_mode_inner == "participant_sampled" and participant_parameter_pools_inner:
             "Participant-sampled mode: draw each parameter independently from its empirical pool."
@@ -5754,8 +5755,8 @@ def average_model_policy_distance(
             guess_seed=None,
         )
         mean_keys_inner = [
-            k for k in param_info_inner["keys"]
-            if not k.endswith("_std") and "_cov" not in k
+            param_key for param_key in param_info_inner["keys"]
+            if not param_key.endswith("_std") and "_cov" not in param_key
         ]
         return {
             key: (
@@ -5791,8 +5792,8 @@ def average_model_policy_distance(
 
     "Precompute reversed payoff tuples for option B (swap A and B sides)."
     payoff_tuples_B: List[Dict[str, int]] = [
-        {"As": p["Bs"], "Ao": p["Bo"], "Bs": p["As"], "Bo": p["Ao"]}
-        for p in payoff_tuples
+        {"As": payoff["Bs"], "Ao": payoff["Bo"], "Bs": payoff["As"], "Bo": payoff["Ao"]}
+        for payoff in payoff_tuples
     ]
 
     "Load empirical data once if realistic sampling is requested."
@@ -5889,6 +5890,7 @@ def compute_ampd_distance_matrix(
     subset_utility_idxs: Optional[List[int]] = None,
     print_: bool = True,
     print_every_x_pairs: Optional[int] = 1,
+    n_workers: Optional[int] = None,
 ) -> pd.DataFrame:
     """
     Computes and caches the pairwise AMPD distance matrix over all valid utility forms.
@@ -5941,7 +5943,13 @@ def compute_ampd_distance_matrix(
             both models are in this list. The master matrix still covers all 480 models.
         • print_: bool (default True) — whether to print progress.
         • print_every_x_pairs: int | None (default 1) — print a block every N new pairs.
-            None disables per-pair output.
+            None disables per-pair output. Ignored when n_workers > 1 (progress is reported
+            per completed batch instead).
+        • n_workers: int | None (default None) — number of parallel worker processes.
+            None uses cpu_count - 1. Clamped to [1, cpu_count - 1]. When 1, computation
+            runs sequentially (same behavior as before parallelization). When > 1, pairs are
+            grouped by row (idx_i), each row is dispatched as one worker job, and the master
+            merges and saves after each row completes.
 
     Returns:
         • pd.DataFrame — full 480×480 master matrix indexed and columned by utility_idx.
@@ -5980,7 +5988,7 @@ def compute_ampd_distance_matrix(
             Each parameter's pool is sampled independently during AMPD computation.
             """
             all_mean_keys_for_pools = [
-                k for k in param_bds if not k.endswith("_std") and "_cov" not in k
+                param_key for param_key in param_bds if not param_key.endswith("_std") and "_cov" not in param_key
             ]
             pools: Dict[str, List[float]] = {key: [] for key in all_mean_keys_for_pools}
             if print_:
@@ -5997,10 +6005,11 @@ def compute_ampd_distance_matrix(
 
         participant_parameter_pools = _build_participant_pools(ic_json_path_for_pools)
         if print_:
-            pool_summary = {k: len(v) for k, v in participant_parameter_pools.items()}
+            pool_summary = {param_key: len(pool_list) for param_key, pool_list in participant_parameter_pools.items()}
             print(f"Participant parameter pools built: {pool_summary}")
 
-        print_random_param_stats = False  # Set True to inspect empirical parameter distributions; prints and exits.
+        "Set True to inspect empirical parameter distributions; prints and exits."
+        print_random_param_stats = False  
         if print_random_param_stats:
             print(f"\n{'Parameter':<22} {'N':>7}  {'Mean':>10}  {'Std':>10}  {'Min':>10}  {'Max':>10}")
             print("-" * 75)
@@ -6113,7 +6122,7 @@ def compute_ampd_distance_matrix(
         "parents", "siblings", "children",
         "ampd_to_best_rand", "ampd_to_best_real", "policy_regret_norm", "equation",
     }
-    flag_cols = [c for c in registry_df.columns if c not in non_flag_cols]
+    flag_cols = [col for col in registry_df.columns if col not in non_flag_cols]
 
     def _parse_csv_bool(val: Any) -> bool:
         if isinstance(val, str):
@@ -6138,9 +6147,9 @@ def compute_ampd_distance_matrix(
 
     "=== Determine working subset ==="
     if subset_utility_idxs is not None:
-        working_idxs = [i for i in subset_utility_idxs if i in settings_cache]
+        working_idxs = [idx for idx in subset_utility_idxs if idx in settings_cache]
     else:
-        working_idxs = [i for i in all_utility_idxs if i in settings_cache]
+        working_idxs = [idx for idx in all_utility_idxs if idx in settings_cache]
     n_working = len(working_idxs)
 
     n_total_pairs = n_working * (n_working - 1) // 2
@@ -6167,11 +6176,11 @@ def compute_ampd_distance_matrix(
     def _fmt_duration(seconds: float) -> str:
         total_minutes = int(seconds) // 60
         if total_minutes >= 60:
-            h = total_minutes // 60
-            m = total_minutes % 60
-            return f"{h} hours {m} minutes"
-        s = int(seconds) % 60
-        return f"{total_minutes} minutes {s:02d} seconds"
+            hours = total_minutes // 60
+            mins = total_minutes % 60
+            return f"{hours} hours {mins} minutes"
+        secs = int(seconds) % 60
+        return f"{total_minutes} minutes {secs:02d} seconds"
 
     def _save_master(df: pd.DataFrame) -> None:
         try:
@@ -6181,56 +6190,103 @@ def compute_ampd_distance_matrix(
             if print_:
                 print(f"  [master locked — saved backup to {os.path.basename(alt_path)}]")
 
+    """
+    Resolve n_workers. general_settings['run_in_parallel'] is the master switch: if False,
+    always run sequentially regardless of the n_workers argument. Otherwise, clamp the
+    requested worker count to [1, cpu_count - 1] with None meaning cpu_count - 1.
+    """
+    run_in_parallel_flag = general_settings.get('run_in_parallel', True)
+    cpu_count_available  = mp.cpu_count()
+    if not run_in_parallel_flag:
+        n_workers_clamped = 1
+    elif n_workers is None:
+        n_workers_clamped = max(1, cpu_count_available - 1)
+    else:
+        n_workers_clamped = max(1, min(n_workers, cpu_count_available - 1))
+
+    if print_:
+        mode_label = f"{n_workers_clamped} parallel workers" if n_workers_clamped > 1 else "sequential"
+        print(f"AMPD matrix: computing {n_remaining} remaining pairs ({mode_label}).")
+
+    "Build per-row job list: each job is one row (idx_i) with all its uncomputed j partners."
+    row_jobs: List[tuple] = []
+    for i_pos, idx_i in enumerate(working_idxs):
+        pairs_in_row = [
+            (idx_i, working_idxs[j_pos])
+            for j_pos in range(i_pos + 1, n_working)
+            if np.isnan(master_df.loc[idx_i, working_idxs[j_pos]])
+        ]
+        if pairs_in_row:
+            row_jobs.append((
+                pairs_in_row,
+                settings_cache,
+                general_settings,
+                file_paths,
+                param_bds,
+                metric,
+                tau,
+                n_games,
+                n_iters,
+                parameter_sampling_mode,
+                parameter_pairing_mode,
+                player_roles,
+                random_seed,
+                participant_parameter_pools,
+            ))
+
     start_time = time.time()
     pair_count = 0
+    n_jobs = len(row_jobs)
 
-    for i_pos, idx_i in enumerate(working_idxs):
-        row_had_new_work = False
-        for j_pos in range(i_pos + 1, n_working):
-            idx_j = working_idxs[j_pos]
+    def _merge_batch_results(batch_results: list) -> None:
+        """Write a completed worker batch's distances into master_df (symmetric)."""
+        for utility_idx_i, utility_idx_j, dist in batch_results:
+            master_df.loc[utility_idx_i, utility_idx_j] = dist
+            master_df.loc[utility_idx_j, utility_idx_i] = dist
 
-            "Skip already-computed pairs (resume support)."
-            if not np.isnan(master_df.loc[idx_i, idx_j]):
-                continue
-
-            dist = average_model_policy_distance(
-                utility_settings_a=settings_cache[idx_i],
-                utility_settings_b=settings_cache[idx_j],
-                general_settings=general_settings,
-                file_paths=file_paths,
-                param_bds=param_bds,
-                metric=metric,
-                choice_temperature=tau,
-                n_games=n_games,
-                n_iters=n_iters,
-                parameter_sampling_mode=parameter_sampling_mode,
-                parameter_pairing_mode=parameter_pairing_mode,
-                player_roles=player_roles,
-                random_seed=random_seed,
-                participant_parameter_pools=participant_parameter_pools,
-            )
-            master_df.loc[idx_i, idx_j] = dist
-            master_df.loc[idx_j, idx_i] = dist
-            pair_count += 1
-            row_had_new_work = True
-
-            if print_ and print_every_x_pairs is not None and pair_count % print_every_x_pairs == 0:
-                eq_i = equations_cache.get(idx_i, "?")
-                eq_j = equations_cache.get(idx_j, "?")
-                elapsed_secs = time.time() - start_time
-                elapsed_str  = _fmt_duration(elapsed_secs)
-                pairs_per_sec = pair_count / elapsed_secs if elapsed_secs > 0 else 0.0
-                pairs_left    = n_remaining - pair_count
-                eta_str = (
-                    _fmt_duration(pairs_left / pairs_per_sec)
-                    if pairs_per_sec > 0 else "unknown"
-                )
-                print(f"Model {idx_i:0{idx_width}d}: U(A) = {eq_i}")
-                print(f"Model {idx_j:0{idx_width}d}: U(A) = {eq_j}")
-                print(f"AMPD({idx_i:0{idx_width}d}, {idx_j:0{idx_width}d}) = {dist:.5f} - Time elapsed: {elapsed_str} - Est. Remaining: {eta_str}")
-
-        if row_had_new_work:
+    if n_workers_clamped == 1:
+        "Sequential path — preserves per-pair printing for interactive use."
+        for job_idx, row_job_args in enumerate(row_jobs):
+            batch_results = _ampd_pair_worker(row_job_args)
+            _merge_batch_results(batch_results)
             _save_master(master_df)
+            pair_count += len(batch_results)
+
+            if print_ and print_every_x_pairs is not None:
+                elapsed_secs = time.time() - start_time
+                pairs_per_sec = pair_count / elapsed_secs if elapsed_secs > 0 else 0.0
+                pairs_left = n_remaining - pair_count
+                eta_str = _fmt_duration(pairs_left / pairs_per_sec) if pairs_per_sec > 0 else "unknown"
+                for utility_idx_i, utility_idx_j, dist in batch_results:
+                    if pair_count % print_every_x_pairs == 0:
+                        eq_i = equations_cache.get(utility_idx_i, "?")
+                        eq_j = equations_cache.get(utility_idx_j, "?")
+                        print(f"Model {utility_idx_i:0{idx_width}d}: U(A) = {eq_i}")
+                        print(f"Model {utility_idx_j:0{idx_width}d}: U(A) = {eq_j}")
+                        print(
+                            f"AMPD({utility_idx_i:0{idx_width}d}, {utility_idx_j:0{idx_width}d}) = {dist:.5f}"
+                            f"  —  elapsed {_fmt_duration(elapsed_secs)}, ETA {eta_str}"
+                        )
+    else:
+        "Parallel path — dispatch rows as jobs; master merges and saves as each row returns."
+        with mp.Pool(processes=n_workers_clamped) as pool:
+            for completed_job_idx, batch_results in enumerate(
+                pool.imap_unordered(_ampd_pair_worker, row_jobs), 1
+            ):
+                _merge_batch_results(batch_results)
+                _save_master(master_df)
+                pair_count += len(batch_results)
+
+                if print_:
+                    elapsed_secs = time.time() - start_time
+                    pairs_per_sec = pair_count / elapsed_secs if elapsed_secs > 0 else 0.0
+                    pairs_left = n_remaining - pair_count
+                    eta_str = _fmt_duration(pairs_left / pairs_per_sec) if pairs_per_sec > 0 else "unknown"
+                    print(
+                        f"AMPD behavioral-distance matrix: row {completed_job_idx}/{n_jobs} done  "
+                        f"({pair_count}/{n_remaining} pairs, {100 * pair_count / n_remaining:.1f}%)  "
+                        f"elapsed {_fmt_duration(elapsed_secs)}, ETA {eta_str}"
+                    )
 
     "Sanity checks on the working-subset sub-matrix."
     sub = master_df.loc[working_idxs, working_idxs]
@@ -6252,7 +6308,7 @@ def compute_ampd_distance_matrix(
 
 
 "=========================================================================================="
-"================================= Stage 5: Model-Space Geometry =========================="
+"=================================== Model-Space Geometry ================================="
 "=========================================================================================="
 
 
@@ -6262,7 +6318,7 @@ def _load_ampd_matrix_from_settings(
 ) -> pd.DataFrame:
     """
     Loads the AMPD master matrix whose path is determined entirely by
-    general_settings['ampd_settings']. This is the canonical way for Stage 5 functions to
+    general_settings['ampd_settings']. This is the canonical way for model-space geometry functions to
     obtain the distance matrix without requiring the caller to pass it explicitly.
 
     Arguments:
@@ -6442,8 +6498,8 @@ def compute_model_space_embedding(
     """
     Filter to the largest complete submatrix: keep only models whose row has no NaN entries.
     Because compute_ampd_distance_matrix fills both triangles simultaneously, any model with
-    a fully computed row also has a fully computed column, so this single pass is sufficient to
-    guarantee no NaNs in the restricted submatrix. This allows embedding to proceed on a
+    a fully computed row also has a fully computed column, so this single pass is sufficient
+    to guarantee no NaNs in the restricted submatrix. This allows embedding to proceed on a
     partially computed AMPD matrix; re-run with create_new_file=True when more AMPD data is
     available to update the embedding.
     """
@@ -6551,18 +6607,17 @@ def plot_model_space_mds(
             create_new_file=create_new_file,
         )
 
-    delta_bic_col = [c for c in df.columns if c in ("ΔBIC", "ΔBIC", "delta_BIC")]
+    delta_bic_col = [col for col in df.columns if col in ("ΔBIC", "ΔBIC", "delta_BIC")]
     delta_bic_col = delta_bic_col[0] if delta_bic_col else None
 
     flag_cols = [
-        c for c in df.columns
-        if c not in {
+        col for col in df.columns
+        if col not in {
             "utility_idx", "utility_bitstring", "k_params", "redundant_with",
             "differing_settings", "n_data", "pvar", "param_norm_sd", "loss_nll",
-            "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank",
-            "parents", "siblings", "children",
-            "ampd_to_best_rand", "ampd_to_best_real", "policy_regret_norm", "equation",
-            "mds_x", "mds_y", "mds_z", "mds_w",
+            "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank", "parents", 
+            "siblings", "children", "ampd_to_best_rand", "ampd_to_best_real", 
+            "policy_regret_norm", "mds_x", "mds_y", "mds_z", "mds_w", "equation",
         }
     ]
 
@@ -6727,10 +6782,10 @@ def plot_model_space_mds(
         n_total = len(data_traces)
 
         def _vis(on_indices):
-            v = [False] * n_total
-            for i in on_indices:
-                v[i] = True
-            return v
+            vis = [False] * n_total
+            for idx in on_indices:
+                vis[idx] = True
+            return vis
 
         buttons = [
             dict(label="Color: ΔBIC",   method="update",
@@ -6749,7 +6804,9 @@ def plot_model_space_mds(
         fig.update_layout(updatemenus=[dict(
             buttons=buttons, direction="down",
             x=0.01, xanchor="left", y=1.12, yanchor="top",
-            bgcolor=("rgba(50,50,50,0.85)" if "dark" in fig_lay.get("template", "") else "rgba(240,240,240,0.92)"),
+            bgcolor=(_hsla(hue=0, saturation_percent=0, lightness_percent=20, alpha=0.85) 
+                     if "dark" in fig_lay.get("template", "") 
+                     else _hsla(hue=0, saturation_percent=0, lightness_percent=94, alpha=0.92)),
             font=dict(size=20, family=fig_lay.get("font", {}).get("family", "Calibri")),
         )])
 
@@ -6792,7 +6849,7 @@ def plot_distance_to_winner_vs_delta_bic(
     registry_df = _load_registry_with_ic_filter(
         file_paths=file_paths, require_ic_data=require_ic_data,
     )
-    delta_bic_col = [c for c in registry_df.columns if c in ("ΔBIC", "ΔBIC", "delta_BIC")]
+    delta_bic_col = [col for col in registry_df.columns if col in ("ΔBIC", "ΔBIC", "delta_BIC")]
     delta_bic_col = delta_bic_col[0] if delta_bic_col else None
     if delta_bic_col is None:
         raise ValueError("Registry missing ΔBIC column.")
@@ -6913,7 +6970,7 @@ def compute_top_model_coherence(
     registry_df = _load_registry_with_ic_filter(
         file_paths=file_paths, require_ic_data=require_ic_data,
     )
-    delta_bic_col = [c for c in registry_df.columns if c in ("ΔBIC", "ΔBIC", "delta_BIC")]
+    delta_bic_col = [col for col in registry_df.columns if col in ("ΔBIC", "ΔBIC", "delta_BIC")]
     delta_bic_col = delta_bic_col[0] if delta_bic_col else None
 
     "Restrict to models whose AMPD row is fully computed (no NaN in any off-diagonal cell)."
@@ -6926,20 +6983,20 @@ def compute_top_model_coherence(
         valid_df = valid_df.sort_values(delta_bic_col)
 
     results: Dict[int, float] = {}
-    for n in top_ns:
-        top_idxs = list(valid_df["utility_idx"].astype(int).head(n))
+    for n_val in top_ns:
+        top_idxs = list(valid_df["utility_idx"].astype(int).head(n_val))
         n_available = len(top_idxs)
         if n_available < 2:
-            results[n] = float("nan")
+            results[n_val] = float("nan")
             if print_:
-                print(f"  Top {n:3d} model coherence: N/A (only {n_available} fully-computed models available)")
+                print(f"  Top {n_val:3d} model coherence: N/A (only {n_available} fully-computed models available)")
             continue
         sub = distance_matrix_df.loc[top_idxs, top_idxs].values.astype(float)
         upper = sub[np.triu_indices(n_available, k=1)]
-        results[n] = float(np.nanmean(upper))
+        results[n_val] = float(np.nanmean(upper))
         if print_:
-            suffix = f" (top {n_available} of {n} requested — rest not yet computed)" if n_available < n else ""
-            print(f"  Top {n:3d} model coherence: mean pairwise AMPD = {results[n]:.4f}{suffix}")
+            suffix = f" (top {n_available} of {n_val} requested — rest not yet computed)" if n_available < n_val else ""
+            print(f"  Top {n_val:3d} model coherence: mean pairwise AMPD = {results[n_val]:.4f}{suffix}")
     return results
 
 
@@ -6977,7 +7034,7 @@ def plot_top_model_ampd_heatmap(
     registry_df = _load_registry_with_ic_filter(
         file_paths=file_paths, require_ic_data=require_ic_data,
     )
-    delta_bic_col = [c for c in registry_df.columns if c in ("ΔBIC", "ΔBIC", "delta_BIC")]
+    delta_bic_col = [col for col in registry_df.columns if col in ("ΔBIC", "ΔBIC", "delta_BIC")]
     delta_bic_col = delta_bic_col[0] if delta_bic_col else None
 
     """
@@ -7017,14 +7074,14 @@ def plot_top_model_ampd_heatmap(
 
     "Build hover text matrix."
     hover_matrix = []
-    for i, idx_i in enumerate(top_idxs):
+    for idx, idx_i in enumerate(top_idxs):
         row_i = valid_df[valid_df["utility_idx"] == idx_i].iloc[0]
         hover_row = []
-        for j, idx_j in enumerate(top_idxs):
+        for jdx, idx_j in enumerate(top_idxs):
             row_j = valid_df[valid_df["utility_idx"] == idx_j].iloc[0]
             hover_row.append(
                 f"#{int(row_i['BIC_rank'])} vs #{int(row_j['BIC_rank'])}<br>"
-                f"AMPD = {sub[i, j]:.4f}<br>"
+                f"AMPD = {sub[idx, jdx]:.4f}<br>"
                 f"A: {str(eq_by_idx.get(idx_i, '?'))[:60]}<br>"
                 f"B: {str(eq_by_idx.get(idx_j, '?'))[:60]}"
             )
@@ -7257,11 +7314,11 @@ def population_parameter_distribution_histograms(general_settings: dict[str, Any
                       xaxis=dict(range=[-1, 2]))
 
     "Categorize parameters"
-    mean_params = [p for p in group_labels if "σ(" not 
-                   in p and "," not in p and 'τ' not in p]
-    mean_weight_params = [p for p in mean_params if 'γ' not in p]
-    std_params = [p for p in group_labels if "σ(" in p and "," not in p]
-    cov_params = [p for p in group_labels if "," in p]
+    mean_params = [param for param in group_labels if "σ(" not
+                   in param and "," not in param and 'τ' not in param]
+    mean_weight_params = [param for param in mean_params if 'γ' not in param]
+    std_params = [param for param in group_labels if "σ(" in param and "," not in param]
+    cov_params = [param for param in group_labels if "," in param]
 
     "Identify problematic parameters (e.g., ones clustering into a single bin based on small std deviation)"
     epsilon = 1e-2  # Define a threshold for tiny standard deviation.
@@ -7711,7 +7768,7 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
         y_max = 19.04 if ratio_mode == 'absolute' else 9.02  # Hardcoded.
         x_min, x_max = 0.0, 1.0
         x_tickvals = list(np.round(np.linspace(x_min, x_max, 6), 3))
-        x_ticktext = [''] + [f"{v:.1f}" for v in x_tickvals[1:]]
+        x_ticktext = [''] + [f"{val:.1f}" for val in x_tickvals[1:]]
         x_axis_common = dict(
             range=[x_min, x_max],
             tickvals=x_tickvals,
@@ -8205,13 +8262,31 @@ def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: F
     text_matrix = None
     text_template = None
     if show_text_values:
-        text_matrix = np.round(Z_ratio, text_decimals).astype(str)
+        fmt = f".{text_decimals}f"
+        text_matrix   = [[f"{v:{fmt}}" for v in row] for row in Z_ratio.tolist()]
         text_template = "%{text}"
 
     "Colorscale & template from figure layout settings"
     colorscales = fig_lay.get("colorscales", ["Plasma"])
     colorscale  = colorscales[1] if len(colorscales) > 1 else colorscales[0]
     template    = fig_lay.get("template", "plotly_dark")
+    base_font   = fig_lay.get("font_size", 14)
+
+    "Evenly-spaced tick positions (5 ticks) with 2-decimal text for both axes and colorbar."
+    _n_ticks = 5
+    _x_min, _x_max   = min(x_vals), max(x_vals)
+    _y_min, _y_max   = min(y_vals), max(y_vals)
+    _cb_min = color_range[0] if color_range is not None else float(np.nanmin(Z_ratio))
+    _cb_max = color_range[1] if color_range is not None else float(np.nanmax(Z_ratio))
+
+    def _even_ticks(lo, hi, n):
+        vals = [lo + i * (hi - lo) / (n - 1) for i in range(n)]
+        text = [f"{v:.2f}" for v in vals]
+        return vals, text
+
+    _tick_x,  _ticktext_x  = _even_ticks(_x_min, _x_max, _n_ticks)
+    _tick_y,  _ticktext_y  = _even_ticks(_y_min, _y_max, _n_ticks)
+    _tick_cb, _ticktext_cb = _even_ticks(_cb_min, _cb_max, _n_ticks)
 
     "Main heatmap"
     heat = go.Heatmap(
@@ -8223,7 +8298,10 @@ def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: F
         colorscale=colorscale,
         colorbar=dict(
             title=f"{ratio_label}<br><span style='font-size:0.85em'>{higher_means}</span>",
-            titleside="right"
+            titleside="right",
+            tickvals=_tick_cb,
+            ticktext=_ticktext_cb,
+            tickfont=dict(size=base_font + 4),
         ),
         customdata=customdata,
         hovertemplate=(
@@ -8238,6 +8316,7 @@ def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: F
         ),
         text=text_matrix,
         texttemplate=text_template,
+        textfont=dict(size=base_font * 2),
         showscale=True,
     )
 
@@ -8255,22 +8334,24 @@ def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: F
         title=title_txt,
         title_x=fig_lay.get("title_x", 0.5),
         title_y=fig_lay.get("title_y", 0.95) - 0.07,
-        font=dict(size=fig_lay.get("font_size", 14), color="white" if template == "plotly_dark" else "black"),
+        font=dict(size=base_font, color="white" if template == "plotly_dark" else "black"),
         margin=dict(l=615, r=615, t=160, b=80),
         xaxis=dict(
             title="Self-interest weight Vᵢᵢ",
             tickmode="array",
-            tickvals=x_vals,
-            tickformat=".1f",
+            tickvals=_tick_x,
+            ticktext=_ticktext_x,
+            tickfont=dict(size=base_font + 4),
             zeroline=False,
         ),
         yaxis=dict(
             title="Altruism weight Vᵢⱼ",
             tickmode="array",
-            tickvals=y_vals,
-            tickformat=".1f",
+            tickvals=_tick_y,
+            ticktext=_ticktext_y,
+            tickfont=dict(size=base_font + 4),
             zeroline=False,
-            scaleanchor='x1', 
+            scaleanchor='x1',
         ),
     )
 
@@ -8518,7 +8599,7 @@ def extract_participant_model_combined_fits(
 
 
 "=========================================================================================="
-"=================== Stage 7: Participant Cloud Distances ================================="
+"==================== Participant Cloud Distances and Architecture Embedding =============="
 "=========================================================================================="
 
 
@@ -8547,9 +8628,10 @@ def compute_participant_model_space_centroids(
 ) -> pd.DataFrame:
     """
     Computes the BIC-weighted centroid of each participant's model cloud in model MDS space.
-    Each participant's centroid is the weighted average of model MDS coordinates (from Stage 5),
-    where the weights are the participant's BIC weights from Stage 6. This gives a visual
-    summary of where each participant's model support is concentrated in the Stage 5 plot.
+    Each participant's centroid is the weighted average of model MDS coordinates (from
+    compute_model_space_embedding), where the weights are the participant's BIC weights from
+    extract_participant_model_combined_fits. This gives a visual summary of where each
+    participant's model support is concentrated in the model-space MDS plot.
 
     Arguments:
         • general_settings: dict — used to resolve the model MDS embedding filename via
@@ -8581,7 +8663,7 @@ def compute_participant_model_space_centroids(
     if not os.path.exists(embedding_csv_path):
         raise FileNotFoundError(
             f"Model-space embedding not found: {embedding_csv_path}\n"
-            "Run compute_model_space_embedding first (Stage 5)."
+            "Run compute_model_space_embedding first."
         )
     model_embedding_df = pd.read_csv(embedding_csv_path, dtype={"utility_bitstring": str})
     print(f"Loaded model-space embedding: {embedding_csv_path}  ({len(model_embedding_df)} models)")
@@ -8627,8 +8709,9 @@ def compute_participant_cloud_distances(
 ) -> dict:
     """
     Computes pairwise participant cloud distances using the energy distance formulation.
-    Each participant is treated as a BIC-weight distribution over utility models (Stage 6);
-    the AMPD matrix (Stage 5) provides the distance geometry over model space.
+    Each participant is treated as a BIC-weight distribution over utility models (from
+    extract_participant_model_combined_fits); the AMPD matrix (from compute_ampd_distance_matrix)
+    provides the distance geometry over model space.
 
     Two matrices are computed and saved:
       cross_distance_ij   = bic_weights_i @ ampd_matrix @ bic_weights_j
@@ -8842,7 +8925,8 @@ def compute_participant_feature_support(
 ) -> pd.DataFrame:
     """
     Computes each participant's BIC-weighted probability that each Boolean utility setting
-    is active, using the model cloud weights from Stage 6. For each participant and each
+    is active, using the model cloud BIC weights from extract_participant_model_combined_fits.
+    For each participant and each
     utility setting, P_i(setting=True) = sum_m w_i,m * setting_m_value, which gives the
     expected presence of that architectural feature weighted by model plausibility.
 
@@ -8970,6 +9054,21 @@ def plot_participant_architecture_mds(
 
     feature_support_p_cols = [col for col in plot_df.columns if col.startswith("P_")]
 
+    "=== Load compression-curve K=2..K=8 assignments for categorical coloring layers ==="
+    k_library_trace_indices: dict = {}   # k_val → list of trace indices for that K-library
+    _assignments_csv = os.path.join(file_paths["processed"], "population_architecture_assignments.csv")
+    if os.path.exists(_assignments_csv):
+        _assign_all      = pd.read_csv(_assignments_csv, encoding='utf-8-sig')
+        _available_k_set = set(_assign_all['K'].unique())
+        for _k_val in [k_val for k_val in range(2, 9) if k_val in _available_k_set]:
+            _col_name = f'_k{_k_val}_assigned_model'
+            _k_slice  = (
+                _assign_all[_assign_all['K'] == _k_val][['player_uuid', 'assigned_utility_idx']]
+                .rename(columns={'assigned_utility_idx': _col_name})
+            )
+            plot_df = plot_df.merge(_k_slice, on='player_uuid', how='left')
+            k_library_trace_indices[_k_val] = []
+
     "Load combined fits to extract top-model and runner-up model equations per participant."
     combined_fits_csv_path = os.path.join(file_paths["processed"], "participant_model_combined_fits.csv")
     runner_up_lookup: dict = {}
@@ -9009,7 +9108,9 @@ def plot_participant_architecture_mds(
             f"Runner up gap: {runner_up_gap_val} | Effective models: {effective_models_val} | Entropy: {entropy_val}"
         )
 
+    plot_df     = plot_df.reset_index(drop=True)
     hover_texts = [_participant_hover(row) for _, row in plot_df.iterrows()]
+    plot_df['_hover'] = hover_texts
 
     continuous_color_specs = [
         ("model_weight_entropy",       "Entropy",         "Viridis",   "Entropy"),
@@ -9055,7 +9156,7 @@ def plot_participant_architecture_mds(
                 color=color_values,
                 colorscale=colorscale_name,
                 showscale=True,
-                colorbar=dict(title=colorbar_title, x=1.02, thickness=36, len=0.75),
+                colorbar=dict(title=colorbar_title, x=1.02, thickness=36, len=0.75, tickformat='.2f'),
                 line=marker_outline,
             ),
         ))
@@ -9079,39 +9180,73 @@ def plot_participant_architecture_mds(
                 colorscale="RdBu",
                 cmin=0.0, cmax=1.0,
                 showscale=True,
-                colorbar=dict(title=feature_display_label, x=1.02, thickness=36, len=0.75),
+                colorbar=dict(title=feature_display_label, x=1.02, thickness=36, len=0.75, tickformat='.2f'),
                 line=marker_outline,
             ),
         ))
 
-    "Equal zero-centered axis range so both MDS dimensions share the same scale."
-    xy_max_abs = max(
+    "=== Categorical traces: K=2..K=8 compression-curve library assignments ==="
+    for _k_val, _trace_indices_list in sorted(k_library_trace_indices.items()):
+        _k_col    = f'_k{_k_val}_assigned_model'
+        if _k_col not in plot_df.columns:
+            continue
+        _k_models = sorted(plot_df[_k_col].dropna().unique().astype(int))
+        _n_models  = len(_k_models)
+        for _i, _model_idx in enumerate(_k_models):
+            _mask  = (plot_df[_k_col] == _model_idx)
+            _hue   = int(360 * _i / _n_models)
+            _color = _hsla(hue=_hue, saturation_percent=72, lightness_percent=52, alpha=0.92)
+            _trace_indices_list.append(len(data_traces))
+            data_traces.append(go.Scatter(
+                x=plot_df.loc[_mask, "mds_x"],
+                y=plot_df.loc[_mask, "mds_y"],
+                mode="markers",
+                name=f"Model {_model_idx:03d}",
+                visible=False,
+                showlegend=True,
+                text=plot_df.loc[_mask, '_hover'].tolist(),
+                hovertemplate="%{text}<extra></extra>",
+                marker=dict(size=marker_size, color=_color, line=marker_outline),
+            ))
+
+    "Symmetric equal-range axes: furthest outlier across both dims, rounded up to next 0.1."
+    import math
+    xy_max_abs     = max(
         abs(float(plot_df["mds_x"].max())), abs(float(plot_df["mds_x"].min())),
         abs(float(plot_df["mds_y"].max())), abs(float(plot_df["mds_y"].min())),
     )
-    mds_axis_pad   = xy_max_abs * 0.15
-    mds_axis_range = [-(xy_max_abs + mds_axis_pad), (xy_max_abs + mds_axis_pad)]
+    mds_axis_limit = math.ceil(xy_max_abs * 10) / 10
+    mds_axis_range = [-mds_axis_limit, mds_axis_limit]
+
+    "Tick values at 0.1 intervals; y-axis bottom tick is blank to avoid overlap with x-axis labels."
+    tick_vals   = [round(float(val), 1) for val in np.arange(-mds_axis_limit, mds_axis_limit + 0.05, 0.1)]
+    x_tick_text = [f'{val:.1f}' for val in tick_vals]
+    y_tick_text = ['' if idx == 0 else f'{val:.1f}' for idx, val in enumerate(tick_vals)]
 
     experiment_num = general_settings.get("experiment_num", "?")
     n_participants = len(plot_df)
     fig = go.Figure(data=data_traces)
     fig.update_layout(
         template=fig_lay.get("template", "plotly_white"),
-        title=f"Participant Architecture MDS — Energy Distance (Experiment {experiment_num}, {n_participants} participants)",
-        titlefont_size=fig_lay["titlefont_size"],
+        title=f"Participant Utility Function MDS — Energy Distance (Exp {experiment_num-1}, N={n_participants})",
+        titlefont_size=fig_lay["titlefont_size"]-10,
         title_x=0.5,
         font=fig_lay.get("font", {}),
         hoverlabel=fig_lay.get("hoverlabel", {}),
-        margin=dict(l=120, r=180, t=140, b=100),
+        margin=dict(l=500, r=560, t=140, b=100),
         xaxis=dict(
-            title="Architecture MDS Dimension 1",
+            title="Utility Function MDS Dimension 1",
             range=mds_axis_range,
+            tickvals=tick_vals,
+            ticktext=x_tick_text,
             scaleanchor="y", scaleratio=1,
             **fig_lay.get("xaxis", {}),
         ),
         yaxis=dict(
-            title="Architecture MDS Dimension 2",
+            title="Utility Function MDS Dimension 2",
             range=mds_axis_range,
+            tickvals=tick_vals,
+            ticktext=y_tick_text,
             **fig_lay.get("yaxis", {}),
         ),
     )
@@ -9132,9 +9267,19 @@ def plot_participant_architecture_mds(
                 method="update",
                 args=[
                     {"visible": _visibility_list([trace_position])},
-                    {"title": f"Participant Architecture MDS ({dropdown_label})"},
+                    {"title": f"Participant Utility Function MDS ({dropdown_label})"},
                 ],
             ))
+        for _k_val, _trace_indices_list in sorted(k_library_trace_indices.items()):
+            if _trace_indices_list:
+                dropdown_buttons.append(dict(
+                    label=f"Color: K={_k_val} Library",
+                    method="update",
+                    args=[
+                        {"visible": _visibility_list(_trace_indices_list)},
+                        {"title": f"Participant Utility Function MDS (K={_k_val} Library Assignment)"},
+                    ],
+                ))
         for feature_offset, feature_col in enumerate(feature_support_p_cols):
             feature_display_label = feature_label_map.get(feature_col, feature_col)
             feature_trace_idx = feature_trace_start_idx + feature_offset
@@ -9143,25 +9288,27 @@ def plot_participant_architecture_mds(
                 method="update",
                 args=[
                     {"visible": _visibility_list([feature_trace_idx])},
-                    {"title": f"Participant Architecture MDS ({feature_display_label})"},
+                    {"title": f"Participant Utility Function MDS ({feature_display_label})"},
                 ],
             ))
 
+        dropdown_to_side = True
         fig.update_layout(updatemenus=[dict(
             buttons=dropdown_buttons,
-            direction="down",
-            x=0.01, xanchor="left", y=1.12, yanchor="top",
+            direction="down", yanchor="top", xanchor="left", 
+            x=-0.50 if dropdown_to_side else 0.03, 
+            y=1.15 if dropdown_to_side else 1.00, 
             bgcolor=(
-                "rgba(50,50,50,0.85)" if "dark" in fig_lay.get("template", "")
-                else "rgba(240,240,240,0.92)"
+                _hsla(hue=0, saturation_percent=0, lightness_percent=20, alpha=0.85) if "dark" in fig_lay.get("template", "")
+                else _hsla(hue=0, saturation_percent=0, lightness_percent=94, alpha=0.92)
             ),
-            font=dict(size=20, family=fig_lay.get("font", {}).get("family", "Calibri")),
+            font=dict(size=16, family=fig_lay.get("font", {}).get("family", "Calibri")),
         )])
 
     if export_fig:
         out_path = os.path.join(file_paths["visuals"], "participant_architecture_mds.html")
         fig.write_html(out_path)
-        print(f"Participant architecture MDS saved: {out_path}")
+        print(f"Participant utility function MDS saved: {out_path}")
     return fig
 
 
@@ -9545,11 +9692,11 @@ def _fmt_duration(seconds: float) -> str:
     """Format a duration as 'H hours M minutes' or 'M minutes SS seconds'."""
     total_minutes = int(seconds) // 60
     if total_minutes >= 60:
-        h = total_minutes // 60
-        m = total_minutes % 60
-        return f"{h} hours {m} minutes"
-    s = int(seconds) % 60
-    return f"{total_minutes} minutes {s:02d} seconds"
+        hours = total_minutes // 60
+        mins = total_minutes % 60
+        return f"{hours} hours {mins} minutes"
+    secs = int(seconds) % 60
+    return f"{total_minutes} minutes {secs:02d} seconds"
 
 
 def _exhaustive_search_worker(args: tuple) -> tuple:
@@ -9575,6 +9722,52 @@ def _exhaustive_search_worker(args: tuple) -> tuple:
     scores = L[:, arr].min(axis=2).sum(axis=0)        # (B,)
     best_i = int(scores.argmin())
     return float(scores[best_i]), tuple(combo_batch[best_i])
+
+
+def _ampd_pair_worker(args: tuple) -> list:
+    """
+    Module-level parallel worker for AMPD distance matrix computation.
+
+    Receives a batch of model-index pairs and all parameters needed by
+    average_model_policy_distance. Computes the AMPD for each pair and returns
+    the results so the master process can merge them into the matrix and save.
+
+    Arguments:
+        • args: tuple of (pair_batch, settings_cache, general_settings_dict,
+              file_paths_dict, param_bds, metric, choice_temperature, n_games,
+              n_iters, parameter_sampling_mode, parameter_pairing_mode,
+              player_roles, random_seed, participant_parameter_pools)
+            pair_batch: list of (utility_idx_i, utility_idx_j) tuples
+            settings_cache: dict[int, UtilitySettings]
+            remaining items: passed through to average_model_policy_distance.
+
+    Returns:
+        • list of (utility_idx_i, utility_idx_j, distance) tuples — one per pair.
+    """
+    (pair_batch, settings_cache, general_settings_dict, file_paths_dict, param_bds,
+     metric, choice_temperature, n_games, n_iters, parameter_sampling_mode,
+     parameter_pairing_mode, player_roles, random_seed, participant_parameter_pools) = args
+
+    batch_results = []
+    for utility_idx_i, utility_idx_j in pair_batch:
+        dist = average_model_policy_distance(
+            utility_settings_a=settings_cache[utility_idx_i],
+            utility_settings_b=settings_cache[utility_idx_j],
+            general_settings=general_settings_dict,
+            file_paths=file_paths_dict,
+            param_bds=param_bds,
+            metric=metric,
+            choice_temperature=choice_temperature,
+            n_games=n_games,
+            n_iters=n_iters,
+            parameter_sampling_mode=parameter_sampling_mode,
+            parameter_pairing_mode=parameter_pairing_mode,
+            player_roles=player_roles,
+            random_seed=random_seed,
+            participant_parameter_pools=participant_parameter_pools,
+        )
+        batch_results.append((utility_idx_i, utility_idx_j, dist))
+    return batch_results
 
 
 def compute_cross_validated_architecture_losses(
@@ -9749,7 +9942,8 @@ def compute_h_form_cross_validated(
       1. Fold-selected: best K=1 architecture on each fold's training data (fairest).
       2. Fixed: population BIC winner from the full-data IC analysis.
 
-    The in-sample H_form (using full-data Stage 6 fits, no refitting) is also computed
+    The in-sample H_form (using full-data combined fits from extract_participant_model_combined_fits,
+    no refitting) is also computed
     as a reference for the optimism bias.
 
     Arguments:
@@ -9886,7 +10080,7 @@ def compute_h_form_cross_validated(
         nll_indiv_mean  = float(player_results['NLL_individual'].mean())
         nll_common_mean = float(player_results['NLL_common'].mean())
 
-        "In-sample H_form from Stage 6 combined fits (no refitting)."
+        "In-sample H_form from full-data combined fits (no refitting)."
         player_fits = combined_fits_df[combined_fits_df['player_uuid'] == player_uuid_key]
         population_winner_fits = player_fits[
             player_fits['utility_idx'] == int(combined_fits_df.groupby('utility_idx')['delta_BIC_individual'].mean().idxmin())
@@ -10029,12 +10223,12 @@ def plot_h_form_results(
         norm = float(np.clip(v / color_range, -1.0, 1.0))
         return float(np.arcsinh(k_arcsinh * norm) / np.arcsinh(k_arcsinh))
 
-    color_vals = [_to_color(v) for v in summary_df['H_form_mean'].tolist()]
+    color_vals = [_to_color(val) for val in summary_df['H_form_mean'].tolist()]
 
     "Colorbar: five landmark ticks only to avoid label overlap."
     colorbar_ticks    = [-3, -1, 0, 1, 3]
-    colorbar_tickvals = [_to_color(t) for t in colorbar_ticks]
-    colorbar_ticktext = [str(t) for t in colorbar_ticks]
+    colorbar_tickvals = [_to_color(tick) for tick in colorbar_ticks]
+    colorbar_ticktext = [str(tick) for tick in colorbar_ticks]
 
     def _hover(row: pd.Series) -> str:
         h_mean  = f"{row['H_form_mean']:.4f}"        if pd.notna(row.get('H_form_mean'))             else "?"
@@ -10073,7 +10267,7 @@ def plot_h_form_results(
                 tickvals=colorbar_tickvals,
                 ticktext=colorbar_ticktext,
             ),
-            line=dict(width=0.5, color='rgba(0,0,0,0.3)'),
+            line=dict(width=0.5, color=_hsla(hue=0, saturation_percent=0, lightness_percent=0, alpha=0.3)),
         ),
         hovertemplate='%{customdata}<extra></extra>',
         customdata=hover_texts,
@@ -10088,9 +10282,9 @@ def plot_h_form_results(
         n_clipped    = int(clipped_mask.sum())
         if n_clipped:
             print(f"[H-form plot] {n_clipped} participant(s) clipped to [{y_lo:.2f}, {y_hi:.2f}].")
-            clipped_idx  = [i for i, m in enumerate(clipped_mask) if m]
-            clipped_true = [float(summary_df['H_form_mean'].iloc[i]) for i in clipped_idx]
-            clip_labels  = [f"Clipped (true={v:.1f})" for v in clipped_true]
+            clipped_idx  = [idx for idx, mask_val in enumerate(clipped_mask) if mask_val]
+            clipped_true = [float(summary_df['H_form_mean'].iloc[idx]) for idx in clipped_idx]
+            clip_labels  = [f"Clipped (true={val:.1f})" for val in clipped_true]
             clip_y_pos   = [y_lo + abs(y_hi - y_lo) * 0.04] * len(clipped_idx)
             traces.append(go.Scatter(
                 x=clipped_idx, y=clip_y_pos,
@@ -10116,8 +10310,8 @@ def plot_h_form_results(
             text=f'In-sample {H}-form = {h_form_insample_global:.3f}',
             showarrow=False,
             font=dict(color='black', size=fig_lay.get('font', {}).get('size', 16)),
-            bgcolor='rgba(255,255,255,0.85)',
-            bordercolor='rgba(100,100,100,0.6)',
+            bgcolor=_hsla(hue=0, saturation_percent=0, lightness_percent=100, alpha=0.85),
+            bordercolor=_hsla(hue=0, saturation_percent=0, lightness_percent=39, alpha=0.6),
             borderwidth=1,
             align='center',
         )
@@ -10158,7 +10352,7 @@ def plot_h_form_results(
 
 
 "=========================================================================================="
-"============== Stage 9: Population Architecture Compression Curve ========================"
+"================= Population Architecture Compression Curve ============================="
 "=========================================================================================="
 
 
@@ -10187,7 +10381,7 @@ def compute_architecture_compression_curve(
     create_new_file: bool = False,
 ) -> pd.DataFrame:
     """
-    Population architecture compression curve (Stage 9).
+    Population architecture compression curve.
 
     For K = 1, 2, 3, … finds the library of K utility function architectures minimising
     total population BIC under hard assignment (each participant uses their best-fitting
@@ -10293,10 +10487,10 @@ def compute_architecture_compression_curve(
     else:
         top_per_part_set = set(pivot_indiv_bic.columns.tolist())
 
-    personal_bests_set   = set(int(m) for m in pivot_indiv_bic.idxmin(axis=1).dropna())
+    personal_bests_set   = set(int(model_idx) for model_idx in pivot_indiv_bic.idxmin(axis=1).dropna())
     candidate_model_idxs = sorted(top_pop_set | top_per_part_set | personal_bests_set | {ic_winner_idx})
     N_candidates         = len(candidate_model_idxs)
-    cand_col_map         = {int(m): j for j, m in enumerate(candidate_model_idxs)}
+    cand_col_map         = {int(model_idx): jdx for jdx, model_idx in enumerate(candidate_model_idxs)}
     print(f"Candidate architecture set: {N_candidates} models  "
           f"(population top {population_top_n_models}, per-participant top {participant_top_r_models}).")
 
@@ -10332,7 +10526,7 @@ def compute_architecture_compression_curve(
               f"differs from IC winner (index {ic_winner_idx}, score={ic_score_k1:.2f}) — may reflect candidate filtering.")
 
     score_fully_indiv     = float(L.min(axis=1).sum())
-    unique_personal_bests = set(int(candidate_model_idxs[j]) for j in L.argmin(axis=1))
+    unique_personal_bests = set(int(candidate_model_idxs[jdx]) for jdx in L.argmin(axis=1))
     K_useful_max          = len(unique_personal_bests)
     delta_A_range         = score_K1 - score_fully_indiv
     print(f"Anchor scores: K=1 score = {score_K1:.2f},  fully-individualised score = {score_fully_indiv:.2f},  useful maximum K = {K_useful_max}")
@@ -10344,7 +10538,7 @@ def compute_architecture_compression_curve(
         try:
             partial_df       = pd.read_csv(partial_csv)
             completed_K_rows = partial_df.to_dict('records')
-            completed_Ks     = {int(r['K']) for r in completed_K_rows}
+            completed_Ks     = {int(row['K']) for row in completed_K_rows}
             max_completed_K  = max(completed_Ks) if completed_Ks else 0
             print(f"Resuming from partial run: {len(completed_Ks)} K values already computed (up to K={max_completed_K}).")
         except Exception as _resume_exc:
@@ -10354,7 +10548,7 @@ def compute_architecture_compression_curve(
 
     if completed_K_rows:
         last_set_idxs     = json.loads(completed_K_rows[-1]['architecture_set_idxs'])
-        prev_set_col_idxs = [cand_col_map[m] for m in last_set_idxs if m in cand_col_map]
+        prev_set_col_idxs = [cand_col_map[model_idx] for model_idx in last_set_idxs if model_idx in cand_col_map]
         current_min_pp    = (L[:, prev_set_col_idxs].min(axis=1)
                              if prev_set_col_idxs else np.full(N_participants, np.inf))
         prev_A_K          = float(completed_K_rows[-1].get('A_K', 0.0))
@@ -10423,12 +10617,12 @@ def compute_architecture_compression_curve(
             in_set        = set(prev_set_col_idxs)
             baseline_sum  = float(current_min_pp.sum())
             best_gain = -np.inf;  best_add = None
-            for j in range(N_candidates):
-                if j in in_set:
+            for jdx in range(N_candidates):
+                if jdx in in_set:
                     continue
-                gain = baseline_sum - float(np.minimum(current_min_pp, L[:, j]).sum())
+                gain = baseline_sum - float(np.minimum(current_min_pp, L[:, jdx]).sum())
                 if gain > best_gain:
-                    best_gain = gain;  best_add = j
+                    best_gain = gain;  best_add = jdx
             if best_add is None:
                 print(f"Greedy extension found no improvement at K={K}; stopping search.")
                 break
@@ -10438,7 +10632,7 @@ def compute_architecture_compression_curve(
                 improved           = False
                 current_swap_score = float(L[:, candidate_set].min(axis=1).sum())
                 for remove_j in list(candidate_set):
-                    temp_set = [j for j in candidate_set if j != remove_j]
+                    temp_set = [jdx for jdx in candidate_set if jdx != remove_j]
                     temp_min = (L[:, temp_set].min(axis=1) if temp_set
                                 else np.full(N_participants, np.inf))
                     for add_j in range(N_candidates):
@@ -10457,7 +10651,7 @@ def compute_architecture_compression_curve(
 
         current_min_pp      = L[:, best_set_col_idxs].min(axis=1)
         prev_set_col_idxs   = list(best_set_col_idxs)
-        best_set_model_idxs = [int(candidate_model_idxs[j]) for j in best_set_col_idxs]
+        best_set_model_idxs = [int(candidate_model_idxs[jdx]) for jdx in best_set_col_idxs]
 
         A_K       = (score_K1 - best_score_K) / delta_A_range if delta_A_range > 0 else 1.0
         delta_A_K = float(A_K - prev_A_K) if K > 1 else float('nan')
@@ -10513,20 +10707,20 @@ def compute_architecture_compression_curve(
     A_vals   = curve_df['A_K'].tolist()
     n_rows   = len(curve_df)
 
-    da_list  = [r.get('delta_A_K') for r in completed_K_rows]
+    da_list  = [row.get('delta_A_K') for row in completed_K_rows]
     d2a_list = [None] * n_rows
-    for ri in range(2, n_rows):
-        da_k, da_km1 = da_list[ri], da_list[ri - 1]
+    for row_idx in range(2, n_rows):
+        da_k, da_km1 = da_list[row_idx], da_list[row_idx - 1]
         if da_k is not None and da_km1 is not None:
-            d2a_list[ri] = float(da_k - da_km1)
+            d2a_list[row_idx] = float(da_k - da_km1)
     curve_df['delta2_A_K'] = d2a_list
 
     K_span  = max(K_vals) - min(K_vals) or 1
     A_max   = max(A_vals) or 1.0
-    kneedle = [(a / A_max) - ((k - min(K_vals)) / K_span) for k, a in zip(K_vals, A_vals)]
+    kneedle = [(a / A_max) - ((k_val - min(K_vals)) / K_span) for k_val, a in zip(K_vals, A_vals)]
     curve_df['kneedle_distance']          = kneedle
     kneedle_best_K                        = K_vals[int(np.argmax(kneedle))]
-    curve_df['selected_by_kneedle_elbow'] = [k == kneedle_best_K for k in K_vals]
+    curve_df['selected_by_kneedle_elbow'] = [k_val == kneedle_best_K for k_val in K_vals]
 
     first_low_mg_K = None;  selected_mg_K = None;  mg_streak = 0
     for _ri, _row in curve_df.iterrows():
@@ -10541,31 +10735,31 @@ def compute_architecture_compression_curve(
             mg_streak = 0
     curve_df['first_K_with_low_marginal_gain'] = first_low_mg_K
     curve_df['selected_K_by_marginal_gain']    = selected_mg_K
-    curve_df['selected_by_marginal_gain']      = [k == selected_mg_K for k in K_vals]
+    curve_df['selected_by_marginal_gain']      = [k_val == selected_mg_K for k_val in K_vals]
 
     selected_cg_K = None
     for _ri, _row in curve_df.iterrows():
         if _row['A_K'] >= cumulative_gain_threshold:
             selected_cg_K = int(_row['K']);  break
-    curve_df['selected_by_cumulative_gain'] = [k == selected_cg_K for k in K_vals]
+    curve_df['selected_by_cumulative_gain'] = [k_val == selected_cg_K for k_val in K_vals]
 
-    d2_abs = [abs(v) if v is not None else -np.inf for v in d2a_list]
+    d2_abs = [abs(val) if val is not None else -np.inf for val in d2a_list]
     mc_idx = int(np.argmax(d2_abs))
     selected_mc_K = K_vals[mc_idx] if d2_abs[mc_idx] > 0 else None
-    curve_df['selected_by_max_curvature'] = [k == selected_mc_K for k in K_vals]
+    curve_df['selected_by_max_curvature'] = [k_val == selected_mc_K for k_val in K_vals]
 
     model_keff_lookup = fits_df.drop_duplicates('utility_idx').set_index('utility_idx')['k_effective']
     meta_bic_vals     = []
     ic_scores_list    = curve_df['ic_equivalent_score_K'].tolist()
-    for ri, row in curve_df.iterrows():
+    for row_idx, row in curve_df.iterrows():
         set_idxs  = json.loads(row['architecture_set_idxs'])
         mean_keff = float(model_keff_lookup.reindex(set_idxs).mean())
         meta_bic_vals.append(float(
-            2 * ic_scores_list[ri] + row['K'] * mean_keff * np.log(max(N_participants, 1))
+            2 * ic_scores_list[row_idx] + row['K'] * mean_keff * np.log(max(N_participants, 1))
         ))
     curve_df['exploratory_meta_bic'] = meta_bic_vals
     selected_metabic_K               = K_vals[int(np.argmin(meta_bic_vals))]
-    curve_df['selected_by_meta_bic'] = [k == selected_metabic_K for k in K_vals]
+    curve_df['selected_by_meta_bic'] = [k_val == selected_metabic_K for k_val in K_vals]
 
     "=== AMPD matrix — loaded from explicit path if given, otherwise auto-resolved from settings ==="
     ampd_df = None;  ampd_idx_set = set();  ampd_col_set = set();  all_ampd_pos = np.array([])
@@ -10591,23 +10785,23 @@ def compute_architecture_compression_curve(
         print(f"Warning: could not load AMPD behavioral-distance matrix ({type(_ampd_exc).__name__}: {_ampd_exc}); AMPD columns will be NaN.")
 
     lib_min_l = [];  lib_mean_l = [];  lib_med_l = [];  lib_max_l = [];  near_pair_l = []
-    for ri, row in curve_df.iterrows():
+    for row_idx, row in curve_df.iterrows():
         set_idxs = json.loads(row['architecture_set_idxs'])
         if ampd_df is None or len(set_idxs) < 2:
             lib_min_l.append(float('nan'));   lib_mean_l.append(float('nan'))
             lib_med_l.append(float('nan'));   lib_max_l.append(float('nan'))
             near_pair_l.append(None);  continue
-        pds = [];  min_d = np.inf;  near_pair = None
-        valid = [m for m in set_idxs if m in ampd_idx_set and m in ampd_col_set]
+        pairwise_dists = [];  min_d = np.inf;  near_pair = None
+        valid = [model_idx for model_idx in set_idxs if model_idx in ampd_idx_set and model_idx in ampd_col_set]
         for a_i, b_i in it.combinations(valid, 2):
-            d = float(ampd_df.loc[a_i, b_i])
-            if not np.isnan(d):
-                pds.append(d)
-                if d < min_d:
-                    min_d = d;  near_pair = (a_i, b_i)
-        if pds:
-            lib_min_l.append(float(np.min(pds)));    lib_mean_l.append(float(np.mean(pds)))
-            lib_med_l.append(float(np.median(pds))); lib_max_l.append(float(np.max(pds)))
+            dist_val = float(ampd_df.loc[a_i, b_i])
+            if not np.isnan(dist_val):
+                pairwise_dists.append(dist_val)
+                if dist_val < min_d:
+                    min_d = dist_val;  near_pair = (a_i, b_i)
+        if pairwise_dists:
+            lib_min_l.append(float(np.min(pairwise_dists)));    lib_mean_l.append(float(np.mean(pairwise_dists)))
+            lib_med_l.append(float(np.median(pairwise_dists))); lib_max_l.append(float(np.max(pairwise_dists)))
             near_pair_l.append(json.dumps(list(near_pair)) if near_pair else None)
         else:
             lib_min_l.append(float('nan'));   lib_mean_l.append(float('nan'))
@@ -10625,10 +10819,10 @@ def compute_architecture_compression_curve(
 
     "=== Build and save assignments CSV ==="
     assign_rows = []
-    for ri, row in curve_df.iterrows():
+    for row_idx, row in curve_df.iterrows():
         K_val        = int(row['K'])
         set_idxs     = json.loads(row['architecture_set_idxs'])
-        set_col_idxs = [cand_col_map[m] for m in set_idxs if m in cand_col_map]
+        set_col_idxs = [cand_col_map[model_idx] for model_idx in set_idxs if model_idx in cand_col_map]
         if not set_col_idxs:
             continue
         assign_cols = L[:, set_col_idxs].argmin(axis=1)
@@ -10641,11 +10835,11 @@ def compute_architecture_compression_curve(
             ampd_to_win  = (float(ampd_df.loc[assigned_m, ic_winner_idx])
                             if (ampd_df is not None and assigned_m in ampd_idx_set
                                 and ic_winner_idx in ampd_col_set) else float('nan'))
-            others = [m for m in set_idxs if m != assigned_m]
+            others = [other_m for other_m in set_idxs if other_m != assigned_m]
             if ampd_df is not None and assigned_m in ampd_idx_set and others:
-                od = [float(ampd_df.loc[assigned_m, m]) for m in others
-                      if m in ampd_col_set and not np.isnan(float(ampd_df.loc[assigned_m, m]))]
-                ampd_to_near = float(min(od)) if od else float('nan')
+                other_dists = [float(ampd_df.loc[assigned_m, other_m]) for other_m in others
+                               if other_m in ampd_col_set and not np.isnan(float(ampd_df.loc[assigned_m, other_m]))]
+                ampd_to_near = float(min(other_dists)) if other_dists else float('nan')
             else:
                 ampd_to_near = float('nan')
             assign_rows.append({
@@ -10663,10 +10857,10 @@ def compute_architecture_compression_curve(
     if diagnose_selected_library_redundancy:
         model_meta = fits_df.drop_duplicates('utility_idx').set_index('utility_idx')
         diag_rows  = []
-        for ri, row in curve_df.iterrows():
+        for row_idx, row in curve_df.iterrows():
             K_val        = int(row['K'])
             set_idxs     = json.loads(row['architecture_set_idxs'])
-            set_col_idxs = [cand_col_map[m] for m in set_idxs if m in cand_col_map]
+            set_col_idxs = [cand_col_map[model_idx] for model_idx in set_idxs if model_idx in cand_col_map]
             if not set_col_idxs:
                 continue
             score_K_val = float(L[:, set_col_idxs].min(axis=1).sum())
@@ -10678,7 +10872,7 @@ def compute_architecture_compression_curve(
                 assigned_pct   = float(assigned_n / N_participants)
                 mean_indiv_bic = (float(L_ibic[assigned_mask, col_idx].mean())
                                   if assigned_n > 0 else float('nan'))
-                remaining    = [c for c in set_col_idxs if c != col_idx]
+                remaining    = [col for col in set_col_idxs if col != col_idx]
                 score_without = float(L[:, remaining].min(axis=1).sum() if remaining
                                       else L.min(axis=1).sum())
                 pruning_cost = float(score_without - score_K_val)
@@ -10686,7 +10880,7 @@ def compute_architecture_compression_curve(
                                 if delta_A_range > 0 else float('nan'))
                 near_m = None;  near_ampd_v = float('nan');  near_ampd_pct = float('nan')
                 if ampd_df is not None and model_idx in ampd_idx_set and len(set_idxs) > 1:
-                    others_sel = [m for m in set_idxs if m != model_idx and m in ampd_col_set]
+                    others_sel = [other_m for other_m in set_idxs if other_m != model_idx and other_m in ampd_col_set]
                     if others_sel:
                         dsel = ampd_df.loc[model_idx, others_sel].dropna()
                         if not dsel.empty:
@@ -10701,14 +10895,14 @@ def compute_architecture_compression_curve(
                 ])
                 flag = 2 if n_conds == 3 else (1 if n_conds >= 2 else 0)
                 if model_idx in model_meta.index:
-                    mr       = model_meta.loc[model_idx]
-                    equation = str(mr.get('equation', '?'))
-                    k_params = int(mr.get('k_params', -1))
-                    util_v   = {c: bool(mr.get(c, False))
-                                for c in utility_settings.keys() if c in mr.index}
+                    model_row = model_meta.loc[model_idx]
+                    equation  = str(model_row.get('equation', '?'))
+                    k_params  = int(model_row.get('k_params', -1))
+                    util_vals = {col: bool(model_row.get(col, False))
+                                 for col in utility_settings.keys() if col in model_row.index}
                 else:
                     equation = '?';  k_params = -1
-                    util_v   = {c: None for c in utility_settings.keys()}
+                    util_vals = {col: None for col in utility_settings.keys()}
                 k_diag_rows.append({
                     'K': K_val, 'utility_idx': model_idx, 'equation': equation,
                     'k_params': k_params, 'assigned_n': assigned_n,
@@ -10718,17 +10912,17 @@ def compute_architecture_compression_curve(
                     'nearest_selected_model_idx': near_m,
                     'nearest_selected_model_ampd': near_ampd_v,
                     'nearest_selected_model_ampd_percentile': near_ampd_pct,
-                    'redundancy_warning_level': flag, **util_v,
+                    'redundancy_warning_level': flag, **util_vals,
                 })
             if len(k_diag_rows) > 1:
-                pr_a = np.array([d['pruning_cost_normalized'] for d in k_diag_rows], float)
-                as_a = np.array([d['assigned_percent']        for d in k_diag_rows], float)
-                am_a = np.array([d['nearest_selected_model_ampd'] for d in k_diag_rows], float)
-                for di in range(len(k_diag_rows)):
-                    k_diag_rows[di]['redundancy_score_optional'] = (
-                        0.50 * float(np.nanmean(pr_a > pr_a[di]))
-                        + 0.30 * float(np.nanmean(as_a > as_a[di]))
-                        + 0.20 * float(np.nanmean(am_a > am_a[di]))
+                pr_a = np.array([diag_row['pruning_cost_normalized'] for diag_row in k_diag_rows], float)
+                as_a = np.array([diag_row['assigned_percent']        for diag_row in k_diag_rows], float)
+                am_a = np.array([diag_row['nearest_selected_model_ampd'] for diag_row in k_diag_rows], float)
+                for diag_idx in range(len(k_diag_rows)):
+                    k_diag_rows[diag_idx]['redundancy_score_optional'] = (
+                        0.50 * float(np.nanmean(pr_a > pr_a[diag_idx]))
+                        + 0.30 * float(np.nanmean(as_a > as_a[diag_idx]))
+                        + 0.20 * float(np.nanmean(am_a > am_a[diag_idx]))
                     )
             elif k_diag_rows:
                 k_diag_rows[0]['redundancy_score_optional'] = float('nan')
@@ -10750,7 +10944,7 @@ def compute_architecture_compression_curve(
         }).copy()
         summary_df['population_IC_BIC'] = summary_df['utility_idx'].map(ic_bic_lookup)
         curve_k_indexed = curve_df.set_index('K')
-        for col in [c for c in k_level_cols if c != 'K' and c in curve_k_indexed.columns]:
+        for col in [col for col in k_level_cols if col != 'K' and col in curve_k_indexed.columns]:
             summary_df[col] = summary_df['K'].map(curve_k_indexed[col].to_dict())
         front_cols  = [
             'K', 'A_K', 'delta_A_K', 'delta2_A_K', 'kneedle_distance',
@@ -10766,8 +10960,8 @@ def compute_architecture_compression_curve(
         "Sort within each K by mean_individual_BIC ascending (best-fitting models first)."
         summary_df = summary_df.sort_values(['K', 'mean_individual_BIC'], ascending=[True, True])
         "Utility settings columns come after diagnostics; equation is always last so it spills into empty Excel cells."
-        util_cols    = [c for c in summary_df.columns if c not in front_cols and c != 'equation']
-        ordered_cols = [c for c in front_cols if c in summary_df.columns] + util_cols + ['equation']
+        util_cols    = [col for col in summary_df.columns if col not in front_cols and col != 'equation']
+        ordered_cols = [col for col in front_cols if col in summary_df.columns] + util_cols + ['equation']
         summary_csv  = os.path.join(proc_dir, 'population_architecture_summary_table.csv')
         summary_df[ordered_cols].to_csv(summary_csv, index=False, encoding='utf-8-sig')
         print(f"Architecture summary table saved: {os.path.basename(summary_csv)}")
@@ -10778,7 +10972,7 @@ def compute_architecture_compression_curve(
     return curve_df
 
     if not create_new_file:
-        all_exist = all(os.path.exists(p) for p in (curve_csv_path, summary_csv_path, assignments_csv_path))
+        all_exist = all(os.path.exists(file_path_val) for file_path_val in (curve_csv_path, summary_csv_path, assignments_csv_path))
         if all_exist:
             existing_curve   = pd.read_csv(curve_csv_path,   encoding='utf-8-sig')
             existing_summary = pd.read_csv(summary_csv_path, encoding='utf-8-sig')
@@ -10854,12 +11048,12 @@ def compute_architecture_compression_curve(
         """
         best_model_per_participant = train_bic_matrix.idxmin(axis=1)
         nll_individual_total = 0.0
-        for p in participants:
-            best_m = best_model_per_participant.get(p)
+        for participant in participants:
+            best_m = best_model_per_participant.get(participant)
             if best_m is None or (isinstance(best_m, float) and np.isnan(best_m)):
                 continue
             if best_m in test_nll_matrix.columns:
-                val = float(test_nll_matrix.loc[p, best_m])
+                val = float(test_nll_matrix.loc[participant, best_m])
                 if not np.isnan(val):
                     nll_individual_total += val
 
@@ -10881,32 +11075,32 @@ def compute_architecture_compression_curve(
             """
             candidates_this_K = universal_idxs if K == 1 else all_unique_idxs
 
-            for m in candidates_this_K:
-                if m in codebook:
+            for model_idx in candidates_this_K:
+                if model_idx in codebook:
                     continue
-                S_temp = codebook + [m]
+                S_temp = codebook + [model_idx]
 
                 """
                 Assign each participant to the model in S_temp with the lowest train_BIC.
-                np.nanargmin skips NaN, so participants without data for model m are assigned
+                np.nanargmin skips NaN, so participants without data for model_idx are assigned
                 to whichever other S_temp model they have data for.
                 """
                 assignments_temp: dict = {}
-                for p in participants:
-                    bic_array = np.array([train_bic_matrix.loc[p, sm]
+                for participant in participants:
+                    bic_array = np.array([train_bic_matrix.loc[participant, sm]
                                           for sm in S_temp if sm in train_bic_matrix.columns],
                                          dtype=float)
                     s_temp_valid = [sm for sm in S_temp if sm in train_bic_matrix.columns]
                     if bic_array.size > 0 and not np.all(np.isnan(bic_array)):
-                        assignments_temp[p] = s_temp_valid[int(np.nanargmin(bic_array))]
+                        assignments_temp[participant] = s_temp_valid[int(np.nanargmin(bic_array))]
 
                 train_score_temp = float(np.nansum([
-                    train_bic_matrix.loc[p, assignments_temp[p]]
-                    for p in assignments_temp
+                    train_bic_matrix.loc[participant, assignments_temp[participant]]
+                    for participant in assignments_temp
                 ]))
 
                 if train_score_temp < best_train_score:
-                    best_candidate   = m
+                    best_candidate   = model_idx
                     best_train_score = train_score_temp
                     best_assignments = assignments_temp
 
@@ -10915,8 +11109,8 @@ def compute_architecture_compression_curve(
 
             codebook.append(best_candidate)
             test_nll_K = float(np.nansum([
-                test_nll_matrix.loc[p, best_assignments[p]]
-                for p in best_assignments
+                test_nll_matrix.loc[participant, best_assignments[participant]]
+                for participant in best_assignments
             ]))
 
             if K == 1:
@@ -10948,13 +11142,13 @@ def compute_architecture_compression_curve(
                 'delta_NLL_K':         delta_NLL_K,
             })
 
-            for p, m_assigned in best_assignments.items():
+            for participant, m_assigned in best_assignments.items():
                 assignment_rows.append({
                     'fold_id':            fold_id_val,
                     'K':                  K,
-                    'player_uuid':        p,
+                    'player_uuid':        participant,
                     'assigned_model_idx': m_assigned,
-                    'test_nll':           float(test_nll_matrix.loc[p, m_assigned]),
+                    'test_nll':           float(test_nll_matrix.loc[participant, m_assigned]),
                 })
 
             A_prev        = A_K if not np.isnan(A_K) else A_prev
@@ -11014,11 +11208,11 @@ def compute_architecture_compression_curve(
         summary_df['selected_by_one_se_rule']        = summary_df['K'] == one_se_k
 
         "Print summary table."
-        w = 90
-        print(f"\n{'=' * w}")
+        table_width = 90
+        print(f"\n{'=' * table_width}")
         print(f" {'K':>3}   {'mean_A_K':>10}   {'mean_delta_A':>13}   {'mean_H_form_K':>14}   "
               f"{'margin_gain*':>12}   {'1SE*':>5}")
-        print(f"{'=' * w}")
+        print(f"{'=' * table_width}")
         for _, row in summary_df.iterrows():
             K_val   = int(row['K'])
             A_str   = f"{row['mean_A_K']:.4f}"      if not np.isnan(row['mean_A_K'])      else "    nan"
@@ -11027,7 +11221,7 @@ def compute_architecture_compression_curve(
             mg_mark = "  *" if row.get('selected_by_marginal_gain_rule') else ""
             se_mark = "  *" if row.get('selected_by_one_se_rule')        else ""
             print(f" {K_val:>3}   {A_str:>10}   {dA_str:>13}   {H_str:>14}   {mg_mark:>12}   {se_mark:>5}")
-        print(f"{'=' * w}")
+        print(f"{'=' * table_width}")
         mg_str = f"K = {marginal_gain_k}" if marginal_gain_k else "threshold not reached"
         se_str = f"K = {one_se_k}"        if one_se_k        else "threshold not reached"
         print(f"Marginal-gain stopping point (delta < {marginal_gain_threshold:.0%}): {mg_str}")
@@ -11036,7 +11230,7 @@ def compute_architecture_compression_curve(
             k_row = summary_df[summary_df['K'] == k_print]
             if len(k_row) > 0 and not np.isnan(float(k_row['mean_A_K'].values[0])):
                 print(f"  A(K={k_print}) = {float(k_row['mean_A_K'].values[0]):.4f}")
-        print(f"{'=' * w}\n")
+        print(f"{'=' * table_width}\n")
 
     curve_df.to_csv(curve_csv_path,       index=False, encoding='utf-8-sig')
     summary_df.to_csv(summary_csv_path,   index=False, encoding='utf-8-sig')
@@ -11092,7 +11286,7 @@ def plot_architecture_compression_curve(
     model_meta        = fits_df.drop_duplicates('utility_idx').set_index('utility_idx')
     model_equations: dict = {}
     for model_idx, meta_row in model_meta.iterrows():
-        model_util = {k: bool(meta_row.get(k, False)) for k in util_setting_keys if k in meta_row.index}
+        model_util = {util_key: bool(meta_row.get(util_key, False)) for util_key in util_setting_keys if util_key in meta_row.index}
         raw_eq     = build_utility_equation(utility_settings=model_util)
         model_equations[int(model_idx)] = (raw_eq[:_EQ_CHAR_LIMIT] + '…') if len(raw_eq) > _EQ_CHAR_LIMIT else raw_eq
     ic_bic_by_model = ic_df.set_index('idx')['BIC'].to_dict()
@@ -11311,5 +11505,1187 @@ def plot_architecture_compression_curve(
     if export_fig:
         out_path = os.path.join(str(file_paths['visuals']), 'population_architecture_curve.html')
         fig.write_html(out_path, config={'responsive': True})
-        print(f"Population utility function compression curve saved: {out_path}")
+"=========================================================================================="
+"=============================== Model Recovery Simulation ================================"
+"=========================================================================================="
+
+
+def _recovery_fit_worker(args: tuple) -> list:
+    """
+    Module-level parallel worker: fits all candidate utility models to one synthetic
+    agent's chooser data. One job covers all candidates for a single agent so each
+    agent's games are serialized only once (not once per candidate model).
+
+    Arguments (unpacked from args):
+        • agent_idx: int
+        • games_slice: list[dict] — first n_games game dicts for this agent
+        • candidate_models: list[(utility_idx: int, utility_settings: dict)]
+        • general_settings_for_fitting: dict — general_settings with update_method='naive'
+        • param_bds: dict
+        • softmax_temperature: float — fixed tau used for both NLL evaluation and generation
+
+    Returns:
+        • list[dict] — one result dict per candidate model, each with keys:
+            agent_idx, utility_idx, nll, n_games, k_params, best_params (JSON str).
+    """
+    import math as _math
+    import json as _json
+
+    (agent_idx, games_slice, candidate_models, general_settings_for_fitting, param_bds,
+     softmax_temperature, optimization_method) = args
+
+    n_valid_games = sum(1 for game in games_slice if not game.get('abdicated_chooser', False))
+    results = []
+
+    for candidate_utility_idx, candidate_utility_settings in candidate_models:
+        param_keys = parameter_keys_for_utility_settings(
+            utility_settings=candidate_utility_settings,
+            general_settings=general_settings_for_fitting,
+        )
+        param_bounds_list = [param_bds[param_key] for param_key in param_keys]
+
+        def _chooser_nll(
+            param_vector,
+            _param_keys=param_keys,
+            _utility_settings=candidate_utility_settings,
+            _games_slice=games_slice,
+            _temperature=softmax_temperature,
+        ) -> float:
+            params = dict(zip(_param_keys, param_vector))
+            total_nll = 0.0
+            for game in _games_slice:
+                if game.get('abdicated_chooser', False):
+                    continue
+                payoffs_option_a = {
+                    'As': game['payoff_A_chooser'], 'Ao': game['payoff_A_predictor'],
+                    'Bs': game['payoff_B_chooser'], 'Bo': game['payoff_B_predictor'],
+                }
+                payoffs_option_b = {
+                    'As': game['payoff_B_chooser'], 'Ao': game['payoff_B_predictor'],
+                    'Bs': game['payoff_A_chooser'], 'Bo': game['payoff_A_predictor'],
+                }
+                utility_a = utility(payoffs=payoffs_option_a, params=params, utility_settings=_utility_settings)
+                utility_b = utility(payoffs=payoffs_option_b, params=params, utility_settings=_utility_settings)
+                prob_choose_a = softmax_(uA=utility_a, uB=utility_b, temperature=_temperature)
+                prob_observed = prob_choose_a if game['choice'] == 'A' else (1.0 - prob_choose_a)
+                total_nll -= _math.log(max(prob_observed, 1e-10))
+            return total_nll
+
+        if not param_keys:
+            best_nll = _chooser_nll([])
+            best_params: dict = {}
+        else:
+            fit_result = global_local_optimization(
+                objective_fn=_chooser_nll,
+                x_bounds=param_bounds_list,
+                optimization_method=optimization_method,
+                n_random_starts=5,
+            )
+            best_nll    = float(fit_result['final']['loss'])
+            best_params = dict(zip(param_keys, fit_result['final']['x']))
+
+        results.append({
+            'agent_idx':   agent_idx,
+            'utility_idx': candidate_utility_idx,
+            'nll':         best_nll,
+            'n_games':     n_valid_games,
+            'k_params':    len(param_keys),
+            'best_params': _json.dumps(best_params, ensure_ascii=False),
+        })
+
+    return results
+
+
+def _recovery_simulation_stem(
+    generating_utility_idx: int,
+    n_candidate_models: Optional[int],
+    candidate_model_selection_mode: str,
+    softmax_temperature: float,
+    n_agents_grid: List[int],
+    n_games_grid: List[int],
+    random_seed: int,
+) -> str:
+    """
+    Returns the canonical filename stem for a model recovery simulation run.
+    Encodes all parameters that affect the output so that runs with different
+    settings never overwrite each other.
+
+    Stem format:
+        model_recovery_gen={idx}_cands={n}_{mode}_tau={tau}_agents={a1-a2-...}_games={g1-g2-...}_seed={seed}
+
+    Example:
+        model_recovery_gen=443_cands=100_hamming_tau=0p5_agents=73_games=20-40-60-90-120-180-240_seed=42
+    """
+    _tau_str    = str(softmax_temperature).replace('.', 'p')
+    _cands_str  = str(n_candidate_models) if n_candidate_models is not None else 'all'
+    _agents_str = '-'.join(str(val) for val in sorted(n_agents_grid))
+    _games_str  = '-'.join(str(val) for val in sorted(n_games_grid))
+    return (
+        f'model_recovery'
+        f'_gen={generating_utility_idx}'
+        f'_cands={_cands_str}_{candidate_model_selection_mode}'
+        f'_tau={_tau_str}'
+        f'_agents={_agents_str}'
+        f'_games={_games_str}'
+        f'_seed={random_seed}'
+    )
+
+
+def _build_synthetic_histories_json(
+    all_synthetic_agent_dyads: List[dict],
+    n_agents: int,
+    n_games: int,
+) -> dict:
+    """
+    Converts synthetic agent dyad data into the JSON format that
+    information_criterion_analysis reads (the 'player_pairs_exper{N}.json' format).
+
+    Arguments:
+        • all_synthetic_agent_dyads: list of dicts from create_simulated_dyad, one per agent.
+        • n_agents: int; number of agents to include (first n_agents from the list).
+        • n_games: int; number of games per agent (first n_games from each agent's game list).
+
+    Returns:
+        • dict with "histories" and "player_info" top-level keys.
+    """
+    synthetic_json: dict = {"histories": {}, "player_info": {}}
+    for agent_idx, agent_dyad_data in enumerate(all_synthetic_agent_dyads[:n_agents]):
+        for dyad_key_str, games_list in agent_dyad_data.items():
+            synthetic_json["histories"][dyad_key_str] = games_list[:n_games]
+            chooser_uuid   = f"synthetic_agent_{agent_idx}_chooser"
+            predictor_uuid = f"synthetic_agent_{agent_idx}_predictor"
+            synthetic_json["player_info"][chooser_uuid]   = {"player_type": "participant"}
+            synthetic_json["player_info"][predictor_uuid] = {"player_type": "participant"}
+    return synthetic_json
+
+
+def compute_model_recovery_simulation(
+    general_settings: dict,
+    file_paths: dict,
+    param_bds: dict,
+    utility_settings: dict,
+    generating_model: Union[int, dict] = 443,
+    n_agents_grid: Optional[List[int]] = None,
+    n_games_grid: Optional[List[int]] = None,
+    softmax_temperature: float = 0.5,
+    candidate_model_selection_mode: str = 'hamming',
+    n_candidate_models: Optional[int] = 100,
+    ampd_matrix_name_or_path: Optional[str] = None,
+    random_seed: int = 42,
+    create_new_file: bool = False,
+) -> pd.DataFrame:
+    """
+    Simulation study answering two intertwined data-adequacy questions:
+    (1) "How many games per agent are needed for the IC pipeline to reliably recover
+        the generating utility model?" and
+    (2) "How many participants (synthetic agents) are needed for reliable recovery?"
+
+    Procedure:
+        1. Resolve generating_model (int idx or UtilitySettings dict) to a
+           (utility_idx, UtilitySettings) pair.
+        2. Extract fitted chooser parameter vectors for the generating model from the IC JSON
+           as the realistic parameter pool.
+        3. Select n_candidate_models candidates via max-min AMPD/Hamming diversity,
+           always seeding the selection with the generating model.
+        4. Generate synthetic data for max(n_agents_grid) agents × max(n_games_grid) games
+           each (done once; all conditions use nested subsets of this pre-generated data).
+        5. For each (n_agents_value, n_games_value) condition, write a sliced synthetic
+           histories JSON to a condition-specific directory, then call
+           information_criterion_analysis on it (restricted to the candidate model set).
+        6. Extract population-level BIC results, determine whether the generating model
+           wins population BIC, and append one row per candidate model to the partial CSV.
+        7. On restart with create_new_file=False, completed conditions are skipped and
+           within-condition IC runs can resume from their saved per-model JSON files.
+
+    Arguments:
+        • general_settings: dict; must contain 'experiment_num', 'run_in_parallel', etc.
+            The 'optimization_method' key controls the optimization used by IC (default
+            'globloc' in general_settings); this is NOT a separate parameter — it is read
+            from general_settings to keep all IC runs consistent.
+        • file_paths: dict; must contain 'processed', 'bic_aic', 'player_fits', 'visuals'.
+        • param_bds: dict; {param_name: (low, high)} parameter bounds.
+        • utility_settings: dict; used to derive canonical flag order for the registry.
+        • generating_model: int | dict; utility_idx (int) or full UtilitySettings dict
+            identifying the model used to generate synthetic data. Default: 443.
+        • n_agents_grid: list[int] | None; synthetic-participant adequacy curve.
+            Default: [73] (the real N only). Example: [10, 20, 30, 50, 73].
+            max(n_agents_grid) agents are generated; all values are nested subsets.
+        • n_games_grid: list[int] | None; games-per-agent adequacy curve.
+            Default: [20, 40, 60, 90, 120, 180, 240].
+            max(n_games_grid) games are generated per agent; all values are nested subsets.
+        • softmax_temperature: float; fixed tau used for both data generation (default 0.5).
+        • candidate_model_selection_mode: str; 'hamming' or 'ampd' max-min diversity selection.
+        • n_candidate_models: int | None; size of the candidate set (default 100).
+        • ampd_matrix_name_or_path: str | None; path to AMPD matrix when mode='ampd'.
+        • random_seed: int; reproducibility seed (default 42).
+        • create_new_file: bool; if False and final CSV exists, load and return it immediately.
+
+    Returns:
+        • pd.DataFrame; one row per (n_agents_fitted, n_games_fitted, candidate utility_idx).
+            Each row reports population-level BIC for one candidate model in one condition,
+            allowing recovery rate and BIC rank curves to be plotted across the grid.
+
+    Resume support:
+        Each completed (n_agents, n_games) condition is appended to a partial CSV.
+        On restart with create_new_file=False, completed conditions are skipped. Within-
+        condition IC runs also resume from their saved per-model JSON files (write_mode=resume).
+        On clean completion the partial CSV is deleted.
+    """
+    import copy as _copy
+
+    "Resolve n_games_grid and n_agents_grid; derive max values."
+    if n_games_grid is None:
+        n_games_grid = [20, 40, 60, 90, 120, 180, 240]
+    if n_agents_grid is None:
+        n_agents_grid = [73]
+
+    n_games_max   = max(n_games_grid)
+    n_agents_max  = max(n_agents_grid)
+    n_games_grid  = sorted(set(n_val for n_val in n_games_grid  if 0 < n_val <= n_games_max))
+    n_agents_grid = sorted(set(n_val for n_val in n_agents_grid if 0 < n_val <= n_agents_max))
+
+    "Load utility registry and identify boolean flag columns."
+    processed_dir         = str(file_paths['processed'])
+    _original_player_fits = str(file_paths['player_fits'])
+    _sim_results_dir      = os.path.join(_original_player_fits, 'simulation_results')
+    os.makedirs(_sim_results_dir, exist_ok=True)
+    _gitignore_path = os.path.join(_sim_results_dir, '.gitignore')
+    if not os.path.exists(_gitignore_path):
+        with open(_gitignore_path, 'w', encoding='utf-8') as _gig:
+            _gig.write('*\n')
+    registry_df   = pd.read_csv(
+        os.path.join(processed_dir, 'all_utility_functions.csv'),
+        dtype={'utility_bitstring': str},
+    )
+    _non_flag_columns = {
+        'utility_idx', 'utility_bitstring', 'k_params', 'redundant_with', 'differing_settings',
+        'n_data', 'pvar', 'param_norm_sd', 'loss_nll', 'AIC', 'BIC', 'ΔAIC', 'ΔBIC',
+        'AIC_rank', 'BIC_rank', 'parents', 'siblings', 'children',
+        'ampd_to_best_rand', 'ampd_to_best_real', 'policy_regret_norm', 'equation',
+    }
+    flag_columns = [col for col in registry_df.columns if col not in _non_flag_columns]
+
+    "Resolve generating_model to (generating_utility_idx, generating_utility_settings)."
+    if isinstance(generating_model, int):
+        generating_utility_idx = generating_model
+        gen_registry_row = registry_df[registry_df['utility_idx'] == generating_utility_idx]
+        if len(gen_registry_row) == 0:
+            raise ValueError(f"Generating model idx={generating_utility_idx} not found in registry.")
+    else:
+        "UtilitySettings dict provided: find the unique matching registry row by flag values."
+        _flag_mask = pd.Series([True] * len(registry_df), index=registry_df.index)
+        for col in flag_columns:
+            if col in registry_df.columns:
+                _flag_mask &= (registry_df[col] == bool(generating_model.get(col, False)))
+        gen_registry_row = registry_df[_flag_mask]
+        if len(gen_registry_row) != 1:
+            raise ValueError(
+                f"Could not uniquely identify generating model from UtilitySettings dict "
+                f"({len(gen_registry_row)} matches). Pass an integer utility_idx instead."
+            )
+        generating_utility_idx = int(gen_registry_row.iloc[0]['utility_idx'])
+
+    generating_utility_settings = {
+        col: bool(gen_registry_row.iloc[0][col])
+        for col in flag_columns if col in gen_registry_row.columns
+    }
+
+    "Check for cached final result."
+    _stem            = _recovery_simulation_stem(
+        generating_utility_idx=generating_utility_idx,
+        n_candidate_models=n_candidate_models,
+        candidate_model_selection_mode=candidate_model_selection_mode,
+        softmax_temperature=softmax_temperature,
+        n_agents_grid=n_agents_grid,
+        n_games_grid=n_games_grid,
+        random_seed=random_seed,
+    )
+    output_csv_path  = os.path.join(processed_dir, f'{_stem}.csv')
+    partial_csv_path = os.path.join(processed_dir, f'{_stem}_partial.csv')
+    "8-char hash of _stem used as a short directory key to stay within Windows MAX_PATH (260 chars)."
+    _dir_key = hashlib.md5(_stem.encode()).hexdigest()[:8]
+
+    if not create_new_file and os.path.exists(output_csv_path):
+        cached_df = pd.read_csv(output_csv_path, encoding='utf-8-sig')
+        if not cached_df.empty:
+            print(f"Model recovery simulation loaded from cache: {output_csv_path}"
+                  f"  ({len(cached_df)} rows)")
+            return cached_df
+
+    "Detect completed (n_games, n_agents) conditions from partial CSV for mid-run resume."
+    completed_conditions: set = set()
+    accumulated_dataframes: List[pd.DataFrame] = []
+    if not create_new_file and os.path.exists(partial_csv_path):
+        partial_df = pd.read_csv(partial_csv_path, encoding='utf-8-sig')
+        if (not partial_df.empty
+                and 'n_games_fitted' in partial_df.columns
+                and 'n_agents_fitted' in partial_df.columns):
+            for _, condition_row in (
+                partial_df[['n_games_fitted', 'n_agents_fitted']].drop_duplicates().iterrows()
+            ):
+                completed_conditions.add(
+                    (int(condition_row['n_games_fitted']), int(condition_row['n_agents_fitted']))
+                )
+            accumulated_dataframes.append(partial_df)
+            print(f"Resuming from partial CSV: "
+                  f"{len(completed_conditions)} conditions already done: "
+                  f"{sorted(completed_conditions)}")
+
+    "Load distance matrix for diversity-based candidate selection."
+    if candidate_model_selection_mode == 'ampd':
+        if ampd_matrix_name_or_path is not None:
+            ampd_matrix_path = (
+                ampd_matrix_name_or_path if os.path.isabs(ampd_matrix_name_or_path)
+                else os.path.join(processed_dir, ampd_matrix_name_or_path)
+            )
+            distance_matrix_df = pd.read_csv(ampd_matrix_path, index_col=0)
+        else:
+            distance_matrix_df = _load_ampd_matrix_from_settings(general_settings, file_paths)
+        distance_matrix_df.index   = distance_matrix_df.index.astype(int)
+        distance_matrix_df.columns = distance_matrix_df.columns.astype(int)
+    else:
+        n_registry_models   = len(registry_df)
+        hamming_matrix_path = os.path.join(
+            processed_dir, f'model_distance_hamming__n_models={n_registry_models}.csv'
+        )
+        if not os.path.exists(hamming_matrix_path):
+            print("Hamming distance matrix not found; computing now...")
+            compute_hamming_distance_matrix(
+                file_paths=file_paths, utility_settings=utility_settings,
+            )
+        distance_matrix_df = pd.read_csv(hamming_matrix_path, index_col=0)
+        distance_matrix_df.index   = distance_matrix_df.index.astype(int)
+        distance_matrix_df.columns = distance_matrix_df.columns.astype(int)
+
+    "Greedy max-min diversity selection seeded with the generating model."
+    all_model_indices          = list(registry_df['utility_idx'].astype(int))
+    distance_matrix_index_set  = set(distance_matrix_df.index.tolist())
+    distance_matrix_column_set = set(distance_matrix_df.columns.tolist())
+    target_n_candidates        = (n_candidate_models if n_candidate_models is not None
+                                  else len(all_model_indices))
+
+    selected_model_indices: List[int] = [generating_utility_idx]
+    remaining_model_indices = [model_idx for model_idx in all_model_indices
+                               if model_idx != generating_utility_idx]
+
+    while len(selected_model_indices) < target_n_candidates and remaining_model_indices:
+        best_candidate_idx  = None
+        best_min_distance   = -1.0
+        for model_idx in remaining_model_indices:
+            if model_idx not in distance_matrix_index_set:
+                min_distance_to_selected = 0.0
+            else:
+                min_distance_to_selected = min(
+                    float(distance_matrix_df.loc[model_idx, selected_idx])
+                    if selected_idx in distance_matrix_column_set else 0.0
+                    for selected_idx in selected_model_indices
+                )
+            if min_distance_to_selected > best_min_distance:
+                best_min_distance  = min_distance_to_selected
+                best_candidate_idx = model_idx
+        if best_candidate_idx is None:
+            break
+        selected_model_indices.append(best_candidate_idx)
+        remaining_model_indices.remove(best_candidate_idx)
+
+    print(f"Selected {len(selected_model_indices)} candidate models "
+          f"via {candidate_model_selection_mode} diversity.")
+    print(f"  Generating model {generating_utility_idx} in candidate set: "
+          f"{generating_utility_idx in selected_model_indices}")
+
+    "Load AMPD and Hamming matrices for continuous recovery distance metrics."
+    if candidate_model_selection_mode == 'ampd':
+        ampd_metrics_df     = distance_matrix_df
+        _hamming_path_metr  = os.path.join(
+            processed_dir, f'model_distance_hamming__n_models={len(registry_df)}.csv',
+        )
+        if not os.path.exists(_hamming_path_metr):
+            compute_hamming_distance_matrix(file_paths=file_paths, utility_settings=utility_settings)
+        try:
+            hamming_metrics_df = pd.read_csv(_hamming_path_metr, index_col=0)
+            hamming_metrics_df.index   = hamming_metrics_df.index.astype(int)
+            hamming_metrics_df.columns = hamming_metrics_df.columns.astype(int)
+        except Exception:
+            hamming_metrics_df = None
+    else:
+        hamming_metrics_df = distance_matrix_df
+        try:
+            if ampd_matrix_name_or_path is not None:
+                _ampd_metr_path = (
+                    ampd_matrix_name_or_path if os.path.isabs(ampd_matrix_name_or_path)
+                    else os.path.join(processed_dir, ampd_matrix_name_or_path)
+                )
+                ampd_metrics_df = pd.read_csv(_ampd_metr_path, index_col=0)
+            else:
+                ampd_metrics_df = _load_ampd_matrix_from_settings(general_settings, file_paths)
+            ampd_metrics_df.index   = ampd_metrics_df.index.astype(int)
+            ampd_metrics_df.columns = ampd_metrics_df.columns.astype(int)
+            print(f"AMPD matrix loaded for recovery metrics: "
+                  f"{ampd_metrics_df.shape[0]}×{ampd_metrics_df.shape[1]}")
+        except Exception as _ampd_err:
+            print(f"  Warning: could not load AMPD matrix ({_ampd_err}). "
+                  f"AMPD recovery metrics will be NaN.")
+            ampd_metrics_df = None
+
+    candidate_models: List[Tuple[int, dict]] = []
+    for utility_idx_val in selected_model_indices:
+        registry_row = registry_df[registry_df['utility_idx'] == utility_idx_val]
+        if len(registry_row) == 0:
+            continue
+        candidate_utility_settings = {
+            col: bool(registry_row.iloc[0][col])
+            for col in flag_columns if col in registry_row.columns
+        }
+        candidate_models.append((utility_idx_val, candidate_utility_settings))
+
+    "Load IC JSON and extract model-specific chooser parameter pool for the generating model."
+    experiment_num = general_settings.get('experiment_num', 3)
+    ic_json_name   = f"All_Utility_Forms_IC_Analysis_Experiment{experiment_num}.json"
+    ic_json_path   = os.path.join(str(file_paths['bic_aic']), ic_json_name)
+
+    # TEMPORARY BRIDGE: the IC JSON has not yet been regenerated inside this repo.
+    # This fallback reads from the original analysis directory.
+    # Remove this block once the IC data is regenerated here
+    # (i.e., once ic_json_path points to a valid >=50 MB file in this repo).
+    _old_repo_ic_json_path = (
+        r"C:\Users\Gregory Stanley\Desktop\U of M\Research Archive\Multiplayer"
+        r"\ABM_Simulation\Judgment_Game\Inputs\Iter_Binary_Dictator"
+        rf"\bic_aic\All_Utility_Forms_IC_Analysis_Experiment{experiment_num}.json"
+    )
+    if not os.path.exists(ic_json_path) or os.path.getsize(ic_json_path) < 50_000_000:
+        ic_json_path = _old_repo_ic_json_path
+    # END TEMPORARY BRIDGE
+
+    print(f"Loading IC JSON: {os.path.basename(ic_json_path)}")
+    with open(ic_json_path, 'r', encoding='utf-8-sig') as ic_file_handle:
+        ic_data = json.load(ic_file_handle)
+    ic_results = ic_data.get('ic_results', {})
+
+    "Find generating model entry by settings tuple — not by utility_idx."
+    "The IC JSON was built from a different model registry (different total model count),"
+    "so integer indices may differ. The settings tuple is the stable cross-version identity."
+    _gen_settings_tuple     = tuple(
+        bool(generating_utility_settings.get(col, False)) for col in flag_columns
+    )
+    _gen_settings_tuple_str = str(_gen_settings_tuple)
+    generating_model_entry  = ic_results.get(_gen_settings_tuple_str)
+    if generating_model_entry is None:
+        raise ValueError(
+            f"Generating model (new registry idx={generating_utility_idx}) not found in "
+            f"IC JSON by settings tuple.\n"
+            f"  Settings tuple: {_gen_settings_tuple_str}\n"
+            f"  IC JSON path:   {ic_json_path}\n"
+            f"  IC JSON contains {len(ic_results)} models. The settings tuple above was "
+            f"built from flag_columns in all_utility_functions.csv — verify that the "
+            f"flag column order matches the IC JSON's key format."
+        )
+    _ic_json_idx = generating_model_entry.get('idx', 'unknown')
+    print(f"  Generating model matched: new registry idx={generating_utility_idx} "
+          f"→ IC JSON idx={_ic_json_idx} (via settings tuple)")
+
+    "Mean param keys for the generating model: no _std, no tau (tau is fixed during generation)."
+    general_settings_for_fitting = {
+        **general_settings, 'update_method': 'naive', 'include_covariance': False,
+    }
+    generating_param_keys = parameter_keys_for_utility_settings(
+        utility_settings=generating_utility_settings,
+        general_settings=general_settings_for_fitting,
+    )
+
+    param_pool: List[dict] = []
+    for _player_uuid, player_entry in generating_model_entry.get('minvec', {}).items():
+        raw_chooser_params = player_entry.get('params', {}).get('chooser', None)
+        if raw_chooser_params is None:
+            continue
+        clean_params = {
+            param_key: float(param_val)
+            for param_key, param_val in raw_chooser_params.items()
+            if param_key in generating_param_keys
+            and not param_key.endswith('_std')
+            and param_key != 'τ'
+        }
+        if len(clean_params) == len(generating_param_keys):
+            param_pool.append(clean_params)
+
+    if not param_pool:
+        # IC JSON param keys don't match current parameter names. This is expected when using
+        # the TEMPORARY BRIDGE to an older IC JSON (see comment above). The old JSON was
+        # generated before parameter names were updated in this codebase. Fall back to uniform
+        # sampling within param_bds so the simulation can still run; update this once the IC
+        # JSON is regenerated inside this repo with current parameter names.
+        _sample_minvec = generating_model_entry.get('minvec', {})
+        _first_player_entry = next(iter(_sample_minvec.values()), {}) if _sample_minvec else {}
+        _ic_json_keys = list(_first_player_entry.get('params', {}).get('chooser', {}).keys())
+        print(
+            f"\n  Warning: IC JSON chooser params for model {generating_utility_idx} use "
+            f"parameter names that do not match the current codebase.\n"
+            f"    IC JSON keys found:  {_ic_json_keys}\n"
+            f"    Current keys needed: {generating_param_keys}\n"
+            f"  Falling back to uniform sampling from param_bds for the generating "
+            f"parameter pool. Re-run after regenerating the IC JSON in this repo to use "
+            f"real participant parameters."
+        )
+        _rng_for_pool = np.random.RandomState(random_seed)
+        for _ in range(200):
+            _sample = {
+                param_key: float(_rng_for_pool.uniform(
+                    param_bds[param_key][0], param_bds[param_key][1]
+                ))
+                for param_key in generating_param_keys
+                if param_key in param_bds
+            }
+            if len(_sample) == len(generating_param_keys):
+                param_pool.append(_sample)
+        if not param_pool:
+            raise ValueError(
+                f"Could not build a parameter pool for generating model "
+                f"{generating_utility_idx}. Verify that all expected param keys are in "
+                f"param_bds.\n  Expected keys: {generating_param_keys}"
+            )
+    print(f"  Extracted {len(param_pool)} participant parameter vectors "
+          f"for generating model {generating_utility_idx}.")
+
+    "Build the candidate utility settings list (for IC's utility_setting_varieties param)."
+    candidate_utility_settings_list = [settings for _, settings in candidate_models]
+    ic_position_to_registry_utility_idx = {
+        position: utility_idx for position, (utility_idx, _) in enumerate(candidate_models)
+    }
+
+    "Identify the histories filename IC will look for in the processed directory."
+    "experiment_num is already defined above in the IC JSON loading block."
+    _raw_histories_filename = file_paths['file_names'].get(
+        f'player_pairs_exper{experiment_num}',
+        f'Social_Preference_Prediction_Pairs_Exper{experiment_num}.json',
+    )
+    "Strip any suffix that may have been added by add_remove_file_name_suffix."
+    histories_filename_clean = _raw_histories_filename.split('~')[0]
+
+    "Generate synthetic data for n_agents_max agents × n_games_max games (done once; sliced per condition)."
+    print(f"\nGenerating synthetic data: {n_agents_max} agents × {n_games_max} games ...")
+    random_state = np.random.RandomState(random_seed)
+    all_synthetic_agent_dyads: List[dict] = []
+
+    for agent_idx in range(n_agents_max):
+        pool_sample_index = random_state.randint(len(param_pool))
+        generating_params = dict(param_pool[pool_sample_index])
+        generating_params['τ'] = softmax_temperature
+
+        random.seed(random_seed + agent_idx * 1000)
+        np.random.seed(random_seed + agent_idx * 1000)
+
+        dyad_data = create_simulated_dyad(
+            n_games=n_games_max,
+            params_chooser=generating_params,
+            params_predictor=generating_params,
+            general_settings=general_settings,
+            utility_settings=generating_utility_settings,
+            param_bds=param_bds,
+            default_utility_settings=False,
+            dynamic_predictor=False,
+            dyad_id=f"synthetic_agent_{agent_idx}",
+        )
+        all_synthetic_agent_dyads.append(dyad_data)
+
+        if (agent_idx + 1) % 20 == 0 or (agent_idx + 1) == n_agents_max:
+            print(f"  Generated {agent_idx + 1}/{n_agents_max} agents.")
+
+    "Save max-scale synthetic data for reference and auditing."
+    max_scale_synthetic_json  = _build_synthetic_histories_json(
+        all_synthetic_agent_dyads, n_agents_max, n_games_max
+    )
+    max_scale_synthetic_path  = os.path.join(processed_dir, f'{_stem}_synthetic_data.json')
+    with open(max_scale_synthetic_path, 'w', encoding='utf-8') as _max_scale_file:
+        json.dump(max_scale_synthetic_json, _max_scale_file, ensure_ascii=False)
+    print(f"Max-scale synthetic data saved: {max_scale_synthetic_path}")
+
+    total_start_time = time.time()
+
+    def _dist_lookup(matrix_df, from_uid, to_uid):
+        if matrix_df is None:
+            return float('nan')
+        try:
+            return float(matrix_df.loc[int(from_uid), int(to_uid)])
+        except (KeyError, ValueError):
+            return float('nan')
+
+    for n_agents_value in n_agents_grid:
+        for n_games_value in n_games_grid:
+            if (n_games_value, n_agents_value) in completed_conditions:
+                print(f"[n_agents={n_agents_value}, n_games={n_games_value}] "
+                      f"Already complete; skipping.")
+                continue
+
+            condition_start_time = time.time()
+            print(f"\n[n_agents={n_agents_value}, n_games={n_games_value}] "
+                  f"Running information_criterion_analysis on "
+                  f"{len(candidate_models)} candidate models × {n_agents_value} synthetic agents ...")
+
+            "Write condition-specific synthetic histories JSON."
+            "Use _dir_key (8-char MD5) + abbreviated condition key to stay under Windows MAX_PATH."
+            _cond_key           = f"na{n_agents_value}_ng{n_games_value}"
+            condition_histories_json = _build_synthetic_histories_json(
+                all_synthetic_agent_dyads, n_agents_value, n_games_value
+            )
+            condition_base_dir      = os.path.join(
+                processed_dir, 'model_recovery_synthetic', _dir_key, _cond_key,
+            )
+            condition_processed_dir = os.path.join(condition_base_dir, 'processed')
+            os.makedirs(condition_processed_dir, exist_ok=True)
+            condition_histories_path = os.path.join(condition_processed_dir, 'histories.json')
+            with open(condition_histories_path, 'w', encoding='utf-8') as _cond_hist_file:
+                json.dump(condition_histories_json, _cond_hist_file, ensure_ascii=False)
+
+            "Build file_paths for the IC call, redirecting outputs to the condition directory."
+            condition_file_paths = _copy.deepcopy(file_paths)
+            condition_file_paths['processed']   = condition_processed_dir
+            condition_file_paths['param_data']  = os.path.join(condition_base_dir, 'param_data')
+            condition_file_paths['player_fits'] = os.path.join(
+                _original_player_fits, 'simulation_results', 'model_recovery_simulation',
+                _dir_key, _cond_key,
+            )
+            condition_file_paths['bic_aic']     = os.path.join(condition_base_dir, 'bic_aic')
+            condition_file_paths['file_names']  = _copy.deepcopy(file_paths['file_names'])
+            condition_file_paths['file_names'][f'player_pairs_exper{experiment_num}'] = 'histories.json'
+
+            "Build general_settings for the IC call."
+            condition_general_settings = {
+                **general_settings,
+                'write_mode':           'resume',  # enables within-condition resume on restart
+                'temperature_is_param': False,     # IC fits with fixed tau
+                'update_method':        'naive',   # static (non-dynamic) belief updating
+            }
+
+            "Call information_criterion_analysis on the synthetic data."
+            ic_df, _ = information_criterion_analysis(
+                general_settings=condition_general_settings,
+                utility_settings=utility_settings,
+                file_paths=condition_file_paths,
+                param_bds=param_bds,
+                utility_setting_varieties=candidate_utility_settings_list,
+            )
+
+            "Map IC's enumerate-position idx back to registry utility_idx, then add recovery columns."
+            ic_df = ic_df.copy()
+            ic_df['utility_idx'] = ic_df['idx'].map(ic_position_to_registry_utility_idx)
+            ic_df = ic_df.sort_values('BIC', ascending=True).reset_index(drop=True)
+            ic_df['bic_rank_overall'] = range(1, len(ic_df) + 1)
+            ic_df['n_agents_fitted']  = n_agents_value
+            ic_df['n_games_fitted']   = n_games_value
+            ic_df['true_utility_idx'] = generating_utility_idx
+            ic_df['is_generating_model'] = ic_df['utility_idx'] == generating_utility_idx
+
+            gen_mask = ic_df['is_generating_model']
+            if gen_mask.any():
+                generating_model_bic_rank = int(ic_df.loc[gen_mask, 'bic_rank_overall'].iloc[0])
+                recovered                 = generating_model_bic_rank == 1
+            else:
+                generating_model_bic_rank = None
+                recovered                 = False
+            ic_df['recovered'] = recovered
+
+            "Continuous recovery distance metrics."
+            _n_cands      = len(ic_df)
+            _bic_rank_true = (
+                generating_model_bic_rank if generating_model_bic_rank is not None
+                else _n_cands
+            )
+            _rank_pct_true = 1.0 - (_bic_rank_true - 1) / max(_n_cands - 1, 1)
+
+            _winner_rows = ic_df[ic_df['bic_rank_overall'] == 1]
+            _winner_uid  = (
+                int(_winner_rows.iloc[0]['utility_idx'])
+                if len(_winner_rows) > 0 else None
+            )
+
+            ic_df['ampd_to_truth'] = ic_df['utility_idx'].apply(
+                lambda uid: _dist_lookup(ampd_metrics_df, uid, generating_utility_idx)
+            )
+            ic_df['hamming_to_truth'] = ic_df['utility_idx'].apply(
+                lambda uid: _dist_lookup(hamming_metrics_df, uid, generating_utility_idx)
+            )
+
+            _ampd_winner   = _dist_lookup(ampd_metrics_df,    _winner_uid, generating_utility_idx)
+            _hamming_winner = _dist_lookup(hamming_metrics_df, _winner_uid, generating_utility_idx)
+
+            if _winner_uid is not None and _winner_uid != generating_utility_idx:
+                _winner_reg = registry_df[registry_df['utility_idx'] == _winner_uid]
+                if len(_winner_reg) > 0:
+                    _n_flags = len(flag_columns)
+                    _n_match = sum(
+                        bool(_winner_reg.iloc[0][col]) == bool(gen_registry_row.iloc[0][col])
+                        for col in flag_columns if col in registry_df.columns
+                    )
+                    _feat_acc = _n_match / _n_flags if _n_flags > 0 else float('nan')
+                else:
+                    _feat_acc = float('nan')
+            else:
+                _feat_acc = 1.0
+
+            from scipy.stats import spearmanr as _spearmanr
+            _valid_mask = ic_df['ampd_to_truth'].notna()
+            if _valid_mask.sum() >= 3:
+                _rho, _pval = _spearmanr(
+                    ic_df.loc[_valid_mask, 'bic_rank_overall'],
+                    ic_df.loc[_valid_mask, 'ampd_to_truth'],
+                )
+                _spear_r, _spear_p = float(_rho), float(_pval)
+            else:
+                _spear_r, _spear_p = float('nan'), float('nan')
+
+            ic_df['bic_rank_true_model']        = _bic_rank_true
+            ic_df['rank_percentile_true_model']  = _rank_pct_true
+            ic_df['ampd_winner_to_truth']        = _ampd_winner
+            ic_df['hamming_winner_to_truth']     = _hamming_winner
+            ic_df['feature_accuracy_winner']     = _feat_acc
+            ic_df['rank_distance_spearman_r']    = _spear_r
+            ic_df['rank_distance_spearman_p']    = _spear_p
+
+            "Select and rename columns for the output CSV."
+            _output_col_map = {
+                'loss': 'nll_population', 'AIC': 'aic_population',
+                'BIC': 'bic_population',  'ΔBIC': 'delta_bic', 'n_data': 'n_data_population',
+            }
+            _keep_cols = [
+                'n_agents_fitted', 'n_games_fitted', 'utility_idx', 'true_utility_idx',
+                'bic_rank_overall', 'is_generating_model', 'recovered',
+                'loss', 'k_params', 'AIC', 'BIC', 'ΔBIC', 'n_data',
+                'ampd_to_truth', 'hamming_to_truth',
+                'bic_rank_true_model', 'rank_percentile_true_model',
+                'ampd_winner_to_truth', 'hamming_winner_to_truth',
+                'feature_accuracy_winner',
+                'rank_distance_spearman_r', 'rank_distance_spearman_p',
+            ]
+            condition_df = ic_df[[col for col in _keep_cols if col in ic_df.columns]].copy()
+            condition_df.rename(columns=_output_col_map, inplace=True)
+
+            "Append completed condition to partial CSV (enables mid-run resume on restart)."
+            partial_write_header = not os.path.exists(partial_csv_path)
+            condition_df.to_csv(
+                partial_csv_path, mode='a', header=partial_write_header,
+                index=False, encoding='utf-8-sig',
+            )
+            accumulated_dataframes.append(condition_df)
+
+            condition_elapsed = time.time() - condition_start_time
+            _delta_bic_gen = (
+                float(ic_df.loc[gen_mask, 'ΔBIC'].iloc[0]) if gen_mask.any() else float('nan')
+            )
+            print(f"  -> recovered={recovered}  "
+                  f"rank={generating_model_bic_rank}/{len(candidate_models)}  "
+                  f"pct={_rank_pct_true:.2f}  "
+                  f"delta_bic={_delta_bic_gen:.1f}  "
+                  f"ampd_winner={_ampd_winner:.3f}  "
+                  f"hamming_winner={_hamming_winner:.0f}  "
+                  f"feat_acc={_feat_acc:.2f}  "
+                  f"spearman_r={_spear_r:.2f}  "
+                  f"time={_fmt_duration(condition_elapsed)}")
+
+    "Combine all conditions, write final CSV, delete partial."
+    all_results_df = (
+        pd.concat(accumulated_dataframes, ignore_index=True)
+        if accumulated_dataframes else pd.DataFrame()
+    )
+    all_results_df.to_csv(output_csv_path, index=False, encoding='utf-8-sig')
+    print(f"\nModel recovery simulation saved: {output_csv_path}  ({len(all_results_df)} rows)")
+    print(f"Total time: {_fmt_duration(time.time() - total_start_time)}")
+
+    if os.path.exists(partial_csv_path):
+        os.remove(partial_csv_path)
+
+    return all_results_df
+
+
+def plot_model_recovery_simulation(
+    general_settings: dict,
+    file_paths: dict,
+    fig_lay: dict,
+    generating_model: int = 443,
+    n_candidate_models: Optional[int] = 100,
+    candidate_model_selection_mode: str = 'hamming',
+    softmax_temperature: float = 0.5,
+    n_agents_grid: Optional[List[int]] = None,
+    n_games_grid: Optional[List[int]] = None,
+    random_seed: int = 42,
+    export_fig: bool = True,
+) -> 'go.Figure':
+    """
+    Plot data-adequacy recovery curves from the model recovery simulation.
+
+    Locates the correct CSV using the same parameter-encoded stem as
+    compute_model_recovery_simulation. A dropdown menu selects what is plotted:
+
+    • First option (default): ALL METRICS NORMALIZED — all eight recovery metrics
+      on a shared [0,1] y-axis. Each metric is mapped to [0,1] so that 1 = perfect
+      recovery and 0 = worst possible outcome. Each metric gets a distinct color;
+      dash style distinguishes n_agents groups. Hover shows both normalized and raw values.
+
+    • Options 2–9: individual metrics on their natural y-axis (raw values).
+
+    Normalization functions applied in the "all metrics" view:
+      recovered              → identity (already 0/1)
+      rank_percentile        → identity (already 0–1)
+      bic_rank               → (n_candidates - rank) / (n_candidates - 1)
+      delta_bic              → 1 / (1 + delta_bic)   [1 at delta=0, decays as gap grows]
+      ampd_winner_to_truth   → 1 - ampd               [invert: 0=identical=best]
+      hamming_winner_to_truth→ 1 - hamming / 14       [invert, 14 = max Boolean settings]
+      feature_accuracy       → identity (already 0–1)
+      spearman_r             → (r + 1) / 2            [map [-1,1] → [0,1]]
+
+    Arguments:
+        • general_settings: dict; accepted for API consistency (not currently used).
+        • file_paths: dict; must contain 'processed' and 'visuals'.
+        • fig_lay: dict; layout settings (template, font, title_size, base_hue).
+        • generating_model: int; utility_idx of the generating model (default 443).
+        • n_candidate_models: int | None; must match the value used in compute (default 100).
+        • candidate_model_selection_mode: str; must match compute (default 'hamming').
+        • softmax_temperature: float; must match compute (default 0.5).
+        • n_agents_grid: list[int] | None; must match compute (default [73]).
+        • n_games_grid: list[int] | None; must match compute (default [20,40,60,90,120,180,240]).
+        • random_seed: int; must match compute (default 42).
+        • export_fig: bool; if True, writes HTML to visuals/.
+
+    Returns:
+        • go.Figure
+    """
+    if n_agents_grid is None:
+        n_agents_grid = [73]
+    if n_games_grid is None:
+        n_games_grid = [20, 40, 60, 90, 120, 180, 240]
+    generating_utility_idx = generating_model
+    _stem = _recovery_simulation_stem(
+        generating_utility_idx=generating_utility_idx,
+        n_candidate_models=n_candidate_models,
+        candidate_model_selection_mode=candidate_model_selection_mode,
+        softmax_temperature=softmax_temperature,
+        n_agents_grid=n_agents_grid,
+        n_games_grid=n_games_grid,
+        random_seed=random_seed,
+    )
+    output_csv_path = os.path.join(str(file_paths['processed']), f'{_stem}.csv')
+    all_results_df  = pd.read_csv(output_csv_path, encoding='utf-8-sig')
+
+    generating_model_df = all_results_df[
+        all_results_df['utility_idx'] == generating_utility_idx
+    ].copy()
+
+    base_hue            = fig_lay.get('base_hue', 220)
+    base_font_size      = max(8, fig_lay.get('font', {}).get('size', 28) // 2)
+    axis_font_size      = base_font_size * 2
+    line_width          = 6
+    marker_size         = 20
+    n_candidates        = all_results_df['utility_idx'].nunique()
+    all_n_agents_values = sorted(all_results_df['n_agents_fitted'].unique())
+    n_agents_count      = len(all_n_agents_values)
+
+    _metric_configs = [
+        {
+            'col':         'recovered',
+            'short_label': 'Recovered',
+            'label':       'Recovered (population BIC winner)',
+            'norm_desc':   'identity',
+            'y_title':     'Recovery  (1 = generating model wins population BIC)',
+            'y_range':     [-0.05, 1.05],
+            'y_tickvals':  [0.0, 1.0],
+            'y_ticktext':  ['Not recovered (0)', 'Recovered (1)'],
+            'hover_fmt':   '.0f',
+        },
+        {
+            'col':         'rank_percentile_true_model',
+            'short_label': 'Rank pct',
+            'label':       'Rank percentile of true model',
+            'norm_desc':   'identity',
+            'y_title':     'Rank percentile  (1.0 = truth ranked #1)',
+            'y_range':     [-0.05, 1.05],
+            'hover_fmt':   '.3f',
+        },
+        {
+            'col':         'bic_rank_true_model',
+            'short_label': 'BIC rank (norm.)',
+            'label':       'BIC rank of true model',
+            'norm_desc':   '(n_cands − rank) / (n_cands − 1)',
+            'y_title':     f'BIC rank of generating model  (1 = best of {n_candidates})',
+            'y_range':     None,
+            'hover_fmt':   '.0f',
+        },
+        {
+            'col':         'delta_bic',
+            'short_label': 'ΔBIC (inv.)',
+            'label':       'ΔBIC: true model vs winner',
+            'norm_desc':   '1 / (1 + ΔBIC)',
+            'y_title':     'ΔBIC of generating model  (0 = exact recovery)',
+            'y_range':     None,
+            'hover_fmt':   '.1f',
+        },
+        {
+            'col':         'ampd_winner_to_truth',
+            'short_label': 'AMPD (inv.)',
+            'label':       'AMPD: winner → truth',
+            'norm_desc':   '1 − AMPD',
+            'y_title':     'AMPD behavioral distance  (winner → truth;  0 = identical)',
+            'y_range':     [-0.02, 1.02],
+            'hover_fmt':   '.4f',
+        },
+        {
+            'col':         'hamming_winner_to_truth',
+            'short_label': 'Hamming (inv.)',
+            'label':       'Hamming: winner → truth',
+            'norm_desc':   '1 − hamming / 14',
+            'y_title':     'Hamming distance  (winner → truth;  Boolean settings)',
+            'y_range':     None,
+            'hover_fmt':   '.0f',
+        },
+        {
+            'col':         'feature_accuracy_winner',
+            'short_label': 'Feature acc.',
+            'label':       'Feature accuracy of winner',
+            'norm_desc':   'identity',
+            'y_title':     'Feature accuracy of winner  (1 = all Boolean settings correct)',
+            'y_range':     [-0.05, 1.05],
+            'hover_fmt':   '.3f',
+        },
+        {
+            'col':         'rank_distance_spearman_r',
+            'short_label': 'Spearman r (norm.)',
+            'label':       'Rank-distance Spearman r',
+            'norm_desc':   '(r + 1) / 2',
+            'y_title':     'Spearman r: BIC rank ↔ AMPD-to-truth  (1 = perfectly correlated)',
+            'y_range':     [-1.05, 1.05],
+            'hover_fmt':   '.3f',
+        },
+    ]
+
+    def _get_metric(df, col):
+        if col in df.columns and not df[col].isna().all():
+            try:
+                return float(df[col].iloc[0])
+            except (ValueError, TypeError):
+                pass
+        return float('nan')
+
+    def _normalize(col, raw):
+        if raw != raw:
+            return float('nan')
+        if col == 'recovered':
+            return raw
+        if col == 'rank_percentile_true_model':
+            return raw
+        if col == 'bic_rank_true_model':
+            return (n_candidates - raw) / max(n_candidates - 1, 1)
+        if col == 'delta_bic':
+            return 1.0 / (1.0 + max(raw, 0.0))
+        if col == 'ampd_winner_to_truth':
+            return 1.0 - min(max(raw, 0.0), 1.0)
+        if col == 'hamming_winner_to_truth':
+            return 1.0 - min(max(raw, 0.0), 14.0) / 14.0
+        if col == 'feature_accuracy_winner':
+            return raw
+        if col == 'rank_distance_spearman_r':
+            return (raw + 1.0) / 2.0
+        return raw
+
+    "Per-metric colors (evenly spaced hues) for the all-metrics normalized view."
+    n_metrics     = len(_metric_configs)
+    metric_hues   = [(base_hue + i * (360 // n_metrics)) % 360 for i in range(n_metrics)]
+    dash_styles   = ['solid', 'dash', 'dot', 'dashdot', 'longdash']
+    fig = go.Figure()
+
+    """
+    TRACE LAYOUT:
+      Block 1 (indices 0 .. n_metrics*n_agents_count-1):
+        Normalized traces — shown in the 'All metrics' dropdown option.
+        Ordered as: metric 0 agents[0..], metric 1 agents[0..], ...
+
+      Block 2 (indices n_metrics*n_agents_count .. 2*n_metrics*n_agents_count-1):
+        Raw traces — shown in individual-metric dropdown options.
+        Same ordering as block 1; only the active metric's agents are visible.
+    """
+    n_block = n_metrics * n_agents_count
+
+    "Block 1: normalized traces."
+    for m_idx, m_cfg in enumerate(_metric_configs):
+        metric_color = _hsla(hue=metric_hues[m_idx], alpha=0.9)
+        for a_idx, n_agents_value in enumerate(all_n_agents_values):
+            agents_subset = generating_model_df[
+                generating_model_df['n_agents_fitted'] == n_agents_value
+            ]
+            summary_rows = []
+            for ng in sorted(all_results_df['n_games_fitted'].unique()):
+                sub = agents_subset[agents_subset['n_games_fitted'] == ng]
+                if sub.empty:
+                    continue
+                raw  = _get_metric(sub, m_cfg['col'])
+                norm = _normalize(m_cfg['col'], raw)
+                summary_rows.append({'n_games': int(ng), 'norm': norm, 'raw': raw})
+            if not summary_rows:
+                fig.add_trace(go.Scatter(x=[], y=[], visible=True, showlegend=False))
+                continue
+            summary_df  = pd.DataFrame(summary_rows)
+            agents_label = f"N={n_agents_value}"
+            norm_label   = f'{m_cfg["short_label"]}  ({agents_label})'
+
+            fig.add_trace(go.Scatter(
+                x=summary_df['n_games'],
+                y=summary_df['norm'],
+                customdata=summary_df['raw'],
+                mode='lines+markers',
+                name=norm_label,
+                visible=True,
+                line=dict(color=metric_color, width=line_width,
+                          dash=dash_styles[a_idx % len(dash_styles)]),
+                marker=dict(size=marker_size, color=metric_color),
+                hovertemplate=(
+                    f'{norm_label}<br>'
+                    f'norm ({m_cfg["norm_desc"]})=%{{y:.3f}}<br>'
+                    f'raw {m_cfg["col"]}=%{{customdata:{m_cfg["hover_fmt"]}}}<br>'
+                    'n_games=%{x}<br>'
+                    '<extra></extra>'
+                ),
+            ))
+
+    "Block 2: raw traces."
+    for m_idx, m_cfg in enumerate(_metric_configs):
+        for a_idx, n_agents_value in enumerate(all_n_agents_values):
+            agents_subset = generating_model_df[
+                generating_model_df['n_agents_fitted'] == n_agents_value
+            ]
+            summary_rows = []
+            for ng in sorted(all_results_df['n_games_fitted'].unique()):
+                sub = agents_subset[agents_subset['n_games_fitted'] == ng]
+                if sub.empty:
+                    continue
+                summary_rows.append({'n_games': int(ng), 'value': _get_metric(sub, m_cfg['col'])})
+            if not summary_rows:
+                fig.add_trace(go.Scatter(x=[], y=[], visible=False, showlegend=False))
+                continue
+            summary_df   = pd.DataFrame(summary_rows)
+            hue_shift    = (a_idx * 40) % 360
+            trace_color  = _hsla(hue=(base_hue + hue_shift) % 360, alpha=0.9)
+            agents_label = f"N={n_agents_value}"
+
+            fig.add_trace(go.Scatter(
+                x=summary_df['n_games'],
+                y=summary_df['value'],
+                mode='lines+markers',
+                name=agents_label,
+                visible=False,
+                line=dict(color=trace_color, width=line_width),
+                marker=dict(size=marker_size, color=trace_color),
+                hovertemplate=(
+                    f'{agents_label}<br>'
+                    'n_games=%{x}<br>'
+                    f'{m_cfg["col"]}=%{{y:{m_cfg["hover_fmt"]}}}<br>'
+                    '<extra></extra>'
+                ),
+            ))
+
+    "Build dropdown buttons."
+    "Button 0: all metrics normalized [0,1]."
+    btn0_visible = [True] * n_block + [False] * n_block
+    dropdown_buttons = [dict(
+        label='All metrics — normalized [0,1]',
+        method='update',
+        args=[
+            {'visible': btn0_visible},
+            {
+                'yaxis.title.text':      'Normalized recovery score  (0 = worst,  1 = perfect recovery)',
+                'yaxis.title.font.size': axis_font_size,
+                'yaxis.tickfont.size':   axis_font_size,
+                'yaxis.range':           [-0.05, 1.05],
+                'yaxis.autorange':       False,
+                'yaxis.tickmode':        'auto',
+            },
+        ],
+    )]
+
+    "Buttons 1..8: individual raw metrics."
+    for m_idx, m_cfg in enumerate(_metric_configs):
+        block1_visible = [False] * n_block
+        block2_visible = [
+            (t_idx // n_agents_count) == m_idx
+            for t_idx in range(n_block)
+        ]
+        yaxis_args = {
+            'yaxis.title.text':      m_cfg['y_title'],
+            'yaxis.title.font.size': axis_font_size,
+            'yaxis.tickfont.size':   axis_font_size,
+        }
+        if m_cfg.get('y_range') is not None:
+            yaxis_args['yaxis.range']     = m_cfg['y_range']
+            yaxis_args['yaxis.autorange'] = False
+        else:
+            yaxis_args['yaxis.autorange'] = True
+        if m_cfg.get('y_tickvals') is not None:
+            yaxis_args['yaxis.tickmode'] = 'array'
+            yaxis_args['yaxis.tickvals'] = m_cfg['y_tickvals']
+            yaxis_args['yaxis.ticktext'] = m_cfg['y_ticktext']
+        else:
+            yaxis_args['yaxis.tickmode'] = 'auto'
+
+        dropdown_buttons.append(dict(
+            label=m_cfg['label'],
+            method='update',
+            args=[
+                {'visible': block1_visible + block2_visible},
+                yaxis_args,
+            ],
+        ))
+
+    fig.update_layout(
+        title=dict(
+            text=(f'Model Recovery Simulation  |  Generating Model {generating_utility_idx}'
+                  f'  ({n_candidates} candidates)'),
+            x=0.5, xanchor='center',
+            y=0.97, yanchor='top',
+            font=dict(size=fig_lay.get('title_size', 22) * 2),
+        ),
+        xaxis=dict(
+            title=dict(
+                text='Number of chooser games per agent  (n_games)',
+                font=dict(size=axis_font_size),
+            ),
+            tickfont=dict(size=axis_font_size),
+            showgrid=True,
+            gridcolor=_hsla(hue=0, saturation_percent=0, lightness_percent=78, alpha=0.4),
+        ),
+        yaxis=dict(
+            title=dict(
+                text='Normalized recovery score  (0 = worst,  1 = perfect recovery)',
+                font=dict(size=axis_font_size),
+            ),
+            tickfont=dict(size=axis_font_size),
+            range=[-0.05, 1.05],
+        ),
+        updatemenus=[dict(
+            type='dropdown',
+            direction='down',
+            showactive=True,
+            x=0.0,
+            xanchor='left',
+            y=1.14,
+            yanchor='top',
+            buttons=dropdown_buttons,
+            font=dict(size=base_font_size),
+            bgcolor='white',
+            bordercolor=_hsla(hue=0, saturation_percent=0, lightness_percent=60, alpha=0.8),
+        )],
+        hoverlabel=dict(font=dict(size=base_font_size + 2)),
+        template=fig_lay.get('template', 'plotly_white'),
+        font=dict(
+            family=fig_lay.get('font', {}).get('family', 'Calibri'),
+            size=base_font_size,
+        ),
+        margin=dict(l=120, r=80, t=170, b=100),
+        autosize=True,
+        legend=dict(
+            title=dict(text='Metric  (N agents)', font=dict(size=base_font_size)),
+            yanchor='top', y=0.98, xanchor='left', x=1.02,
+            font=dict(size=base_font_size),
+        ),
+    )
+
+    if export_fig:
+        out_path = os.path.join(str(file_paths['visuals']), f'{_stem}.html')
+        fig.write_html(out_path, config={'responsive': True})
+        print(f"Model recovery simulation plot saved: {out_path}")
+
     return fig

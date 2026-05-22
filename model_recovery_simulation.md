@@ -141,9 +141,122 @@ This is interesting because it stress-tests the approximation used in the paper�
 
 ---
 
+# Computational cost-cutting decisions
+
+The full factorial grid described in this document (3 regimes × 3 temperatures × multiple dataset
+sizes × multiple generating models) is computationally prohibitive. The IC pipeline calls
+global-then-local optimization per (agent × candidate model) pair: at 73 agents × 480 models
+= 35,040 fits per simulation run, each run takes roughly 1–2 hours even with full parallelization.
+The decisions below scope the implementation to what is scientifically necessary.
+
+## Role: chooser only
+
+**Decision:** synthetic agents are generated as choosers only. Predictor role is not simulated.
+
+**Reason:** the UBM predictor role runs the full sequential Bayesian belief-updating pipeline
+(`agent()`) over all games, which is the most expensive operation in the codebase. Generating
+predictors would double or triple computation time per agent with no benefit for the recovery
+question. The IC analysis is primarily about recovering the *chooser's* utility function from
+their allocation choices. Chooser NLL is the dominant signal in the combined loss anyway.
+
+## Temperature: fixed at 0.5 (low noise)
+
+**Decision:** the SoftMax temperature is fixed at τ = 0.5 for the primary simulation.
+Temperature remains a function argument so it can be varied if needed, but the default
+run uses only τ = 0.5.
+
+**Reason:** a lower temperature makes choices more deterministic, which maximizes the
+signal-to-noise ratio for recovery. The primary question — *can the IC pipeline identify
+the correct utility form?* — is best answered in the cleanest setting first. τ = 0.5 is
+also within the range of the fitted temperature values from the actual experiment, so it
+is not an unrealistically clean setting.
+
+## Parameter regime: realistic only as the primary
+
+**Decision:** the primary simulation uses the realistic parameter regime (parameters drawn
+from the empirical distribution of fitted participant values). The diagnostic and near-anchor
+regimes described below remain in the plan as secondary checks but are not run by default.
+
+**Reason:** the most scientifically important result is whether the IC pipeline works under
+conditions that resemble the actual experiment. The diagnostic regime is useful only as a
+sanity check. The near-anchor regime is interesting but the paper already addresses this
+through its nesting network and parent-fair regularization.
+
+## Generating models: IC winner (model 443) first
+
+**Decision:** model 443 (the population IC winner, a 7-parameter form) is the primary
+generating model. A small number of structurally distinct alternatives are run secondarily
+to check that the IC pipeline can distinguish different utility families.
+
+**Reason:** the most important question for the paper is whether the IC pipeline can
+recover its own winning model under realistic data conditions. If it can, the analysis
+is validated. If it cannot, that is a problem worth knowing about.
+
+## Dataset size: vary n_games using nested subsets
+
+**Decision:** n_games is varied from approximately {20, 40, 60, 90, 120, 180, 240} while
+n_agents is fixed at 73 (matching the actual study). This produces the knee-of-the-curve
+analysis that addresses whether the actual study collected enough data.
+
+Synthetic data is generated *once* per generating model (240 games × 73 agents). For each
+n_games value, only the first n_games games per agent are used. This nested-subset design
+means all n_games conditions share the same agents; differences in recovery are attributable
+purely to data quantity, not to agent-sampling luck. No separate replications are needed.
+
+**Reason:** the user specifically identified "addressing whether we collected enough data"
+as a core objective. Varying n_agents is secondary; the actual study is fixed at 73
+participants and the more actionable question is whether 120 games was sufficient.
+
+## Candidate model filtering: max-diversity subset, not BIC-ranked
+
+**Decision:** when running the recovery search over fewer than all 480 candidate models for
+speed, filter by *maximum behavioral or structural diversity* — not by BIC ranking from the
+real data.
+
+**Reason:** filtering by real-data BIC would bias the candidate set toward models that happen
+to fit the real participants well, which has no principled relationship to which models are
+most challenging to distinguish from the generating model. A max-diversity filter gives a
+harder and more principled test: if the IC pipeline can recover the true model from a maximally
+spread-out candidate set, it demonstrates genuine discriminability. Filtering by BIC could
+accidentally exclude the true model or inflate recovery rates by removing structurally similar
+alternatives.
+
+**Implementation:** use `select_utility_settings_subset` (in `utilities.py`) with:
+- `selection_mode='ampd'` and `distance_matrix_path` pointing to the precomputed AMPD matrix
+  (preferred — behaviorally diverse candidates), or
+- `selection_mode='hamming'` (cheaper — structurally diverse by Boolean settings)
+
+Always include the generating model in the candidate set via `include_model_idxs`. The
+`compute_hamming_distance_matrix` function in `utilities.py` handles the Hamming case.
+Both modes implement max-min greedy selection: seeds with the IC winner, then repeatedly
+adds the candidate with the largest minimum distance to any already-selected model.
+
+## Parameter sampling: model-specific fitted values, not pooled
+
+**Decision:** when generating synthetic data under generating model M*, sample parameters
+from the empirical distribution of fitted values for model M* specifically (i.e., from the
+IC JSON's `ic_results[M*]` participant fits), not from the pooled distribution across all
+480 models.
+
+**Reason:** pooled sampling draws from all models — including models without altruism, where
+Vᵢⱼ is structurally zero or meaningless. This would corrupt the parameter distribution for
+a generating model that actively uses altruism. Model-specific sampling ensures the synthetic
+agents operate in the realistic parameter region for that specific utility form.
+
+**On circularity:** this design is *not* circular. The IC pipeline sees only (payoffs, choices)
+and has no access to the true parameters or generating model identity. It earns the recovery
+result by fitting all candidate models from scratch and ranking by BIC. Using model M*'s
+fitted participant parameters as the generating distribution is appropriate — it puts synthetic
+data in the realistic operating range for that utility form, which is exactly the condition the
+paper's main results apply to.
+
+---
+
 # Parameter sampling regimes
 
-Do **not** use only one parameter regime.
+The realistic regime is the primary. The diagnostic and near-anchor regimes are secondary
+sanity checks. Do **not** use only one parameter regime in the full analysis, but the
+realistic regime is the required minimum.
 
 Use at least three:
 
@@ -189,27 +302,40 @@ This is especially important because the paper already uses a formal nesting net
 Recovery should vary predictably with **choice stochasticity** and **dataset size**.
 
 ## Choice temperature
-Vary the SoftMax / response temperature.
 
-Low temperature should make models easier to distinguish.
-High temperature should make everything look more random.
+**Default: τ = 0.5 (fixed).** See the cost-cutting decisions section for rationale.
+Temperature remains a function argument and can be varied for secondary analyses,
+but the primary simulation does not sweep over temperature values.
 
-### Suggested values
+Low temperature makes models easier to distinguish. High temperature makes everything
+look more random. If temperature is varied in a secondary run, suggested values are:
+
 ```text
-tau in {0.5, 1.5, 3.0}
+tau in {0.5, 1.5}
 ```
 
-(Use the project’s actual conventions where appropriate.)
+Two values (low noise and realistic noise) are sufficient to bound the range.
 
 ## Number of games per agent
-Vary the number of observed games.
 
-If `n_games >= 625`, then use the **full payoff grid** and skip payoff randomization.
+Vary the number of observed games to produce the data-adequacy curve. Suggested grid:
+
+```text
+n_games in {20, 40, 60, 90, 120, 180, 240}
+```
+
+n_games = 120 is the actual study design. The curve should flatten near 120 if the study
+collected sufficient data.
+
+If `n_games >= 625`, use the **full payoff grid** and skip payoff randomization.
 
 ## Number of agents
-Vary the number of simulated participants.
 
-Together, `n_agents` and `n_games` give the **knee-of-the-curve** analysis:
+**Fixed at 73 (matching the actual study)** for the primary data-adequacy curve.
+n_agents can be varied in a secondary analysis, but varying n_games is more directly
+relevant to the paper’s question of whether the actual study was adequately powered.
+
+Together, the `n_games` grid gives the **knee-of-the-curve** analysis:
 - below the knee: recovery unstable / noisy;
 - near the knee: big gains from more data;
 - above the knee: diminishing returns.
@@ -646,6 +772,14 @@ This is the most important “how much did the miss matter?” measure.
 
 ## 6. Distance from winner to truth
 Use **Average Model Policy Distance** between the recovered winner and the true model.
+
+**Implementation note:** do not recompute AMPD from scratch per simulation run. The precomputed
+pairwise AMPD matrix (30-iteration version: `processed/ampd-normalized_jsd-uniform-shared-1p5-625-30-unseeded.csv`;
+250-iteration version when available) covers all 480 candidate models. For each recovery run,
+look up `AMPD[winner_utility_idx, true_utility_idx]` directly from the cached matrix. This reduces
+per-run cost from O(minutes) to O(microseconds) and ensures all simulation runs use a consistent
+behavioral-distance reference. The precomputed matrix uses uniform parameter sampling — this is
+appropriate as a reference-prior behavioral distance for the recovery question.
 
 ## 7. Weighted feature accuracy
 Did the recovered winner get the important Boolean settings right?

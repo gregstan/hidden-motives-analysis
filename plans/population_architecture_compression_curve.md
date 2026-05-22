@@ -533,3 +533,47 @@ The four stopping criteria return four different K values:
 This disagreement is not a bug or a limitation of the analysis — it is a substantive finding. **There is no uniquely correct answer to how many utility function types the population needs**, because that answer depends on how strongly one values parsimony relative to fit. A theorist who believes that one or two functional forms should suffice on parsimony grounds will stop at K = 3. An empiricist who wants the library to capture minority preference structures will continue to K = 5 or K = 8. Neither position is wrong; they reflect different values about what a model is for.
 
 This is why the paper should present the full compression curve and report all stopping criteria rather than nominating a single winner. The appropriate framing is to give researchers a menu: here is what you gain at K = 1, 2, 3, 4, 5 — choose the library that reflects your own fit-parsimony priorities. The lack of criterion consensus is itself evidence that the curve declines gradually enough that no single K stands out as obviously optimal, which is a scientifically honest and useful thing to communicate.
+
+---
+
+### Note for the paper: the relative vs. absolute fit distinction
+
+**This must be acknowledged explicitly.** A(K) is a *relative* quantity: it measures what fraction of the individualization gap is recovered by a K-architecture library. A(K=2) = 0.58 means that two architectures recover 58% of the advantage you would gain by giving every participant their own best-fitting model. But this says nothing about how large that advantage is in absolute terms.
+
+If the fully individualized BIC advantage over the population winner (score_K1 − score_fully_individualized) is small in absolute terms, then 58% of a small gap is still a small absolute improvement. A(K=2) = 0.58 can be simultaneously true and practically unimportant if the underlying gap is modest.
+
+**What calibrates the absolute gap?** The participant utility function MDS blob finding is relevant here: if participants' BIC-weighted model clouds are concentrated near a common region of behavioral space, it suggests the population winner already describes most participants reasonably well. In that case, the individualization gap is genuinely small, and the compression curve's relative gains — however large as a fraction — correspond to modest absolute improvements.
+
+**Recommended framing for the paper:** Report A(K) as the main compression curve quantity, but immediately annotate it with the absolute BIC improvement (score_K1 − score_K) in units readers can interpret — e.g., as average per-participant BIC improvement, or as improvement in held-out NLL per game. This lets readers judge whether the relative gain translates into a practically meaningful improvement in model fit. The relative gain answers "how much of the available individualization is captured?" The absolute gain answers "is individualization worth pursuing at all?"
+
+---
+
+### Finding 9: H(K) calibration — model 443 explains 95.4% of the explainable prediction improvement
+
+**The key empirical result** (N = 73 participants, ~6,880 total game observations):
+
+Define BIC_chance = 2 × n_total_games × log(2) — the BIC of a model that predicts 50/50 for every binary choice (0 free parameters). Define H(K) as:
+
+```
+H(K) = (BIC_chance − score_K) / (BIC_chance − score_fully_individualized)
+```
+
+H(K) is bounded [0, 1]: H = 0 means performance at chance level; H = 1 means performance at the fully individualized ceiling (best possible fit given the 480-model universe — NOT zero prediction error, which is unachievable). The upper bound is total individualization, not perfect prediction.
+
+**Empirical values (this dataset):**
+
+| K | H(K) | Interpretation |
+|---|------|----------------|
+| 1 | 0.954 | Model 443 alone explains 95.4% of the explainable gap |
+| 2 | 0.981 | Two models explain 98.1% (+2.7 pp absolute) |
+| 3 | 0.990 | Three models explain 99.0% (+3.6 pp total) |
+| 4 | 0.993 | Four models explain 99.3% (+3.9 pp total) |
+| 5 | 0.995 | Five models explain 99.5% (+4.1 pp total) |
+
+The total individualization budget (BIC_chance − score_fully_individualized ≈ 4,555 BIC units across all participants) is only 4.6% unexplained by model 443. The "58% jump" from K=1 to K=2 — often cited as evidence of meaningful functional heterogeneity — represents 58% of that 4.6%, which is a 2.7 percentage-point absolute improvement.
+
+**The headline finding for the paper:** Model 443 already leaves only 4.6% of explainable prediction improvement on the table. The case for using multiple utility function architectures rests on whether that 4.6% matters for the researcher's purpose. For population-level descriptive inference, K=1 is almost certainly adequate at H = 95.4%. For individual-level prediction or precision tailoring, K=2 (H = 98.1%) or K=3 (H = 99.0%) may be warranted. This gives researchers a principled anchor: choose K based on the H threshold your research question requires.
+
+**Equivalent framing:** 1 − H(K=1) = 0.046 measures the residual unexplained gap on a scale from 0 (perfect = fully individualized) to 1 (chance). Model 443 sits 4.6% away from the fully individualized ceiling.
+
+**IMPORTANT NOTE on H(K) column in summary table:** H_K and absolute_gap_closed_versus_chance = BIC_chance − score_K are saved as columns in population_architecture_summary_table.csv, placed immediately before the utility_idx column so they appear in the repeated-K block alongside A_K and delta_A_K.

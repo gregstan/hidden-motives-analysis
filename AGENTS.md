@@ -66,8 +66,21 @@ Understanding these terms is necessary for reading the code and contributing cor
 ## 3. Key files and folders
 
 ```
-main.py            ← core model, optimization, simulation, visualization, analyses; ~16,000 lines
+main.py            ← orchestrator only; imports from analysis and invokes run_code_settings blocks
 config.py          ← all settings, paths, type aliases, param specs; single source of truth
+model.py           ← core utility/choice functions: utility_term, utility, softmax_, choice,
+                       build_utility_equation, make_param_info, parameter_keys_for_utility_settings
+optimization.py    ← shared optimization infrastructure: compute_ic, global_local_optimization,
+                       global_local_then_trust_constr, best_initial_guesses, warm-starting helpers
+bayesian.py        ← Bayesian fitting pipeline: bayesian_update_grid, agent, loss_function_bayes,
+                       fit_params_by_player, run_analysis_bayes, _worker_fit_one
+simulation.py      ← simulation utilities: create_simulated_dyad, create_simulated_data,
+                       run_simulation_recovery_analysis, parameter recovery, update speed analyses
+visualization.py   ← all plotting functions and _hsla color helper
+analysis.py        ← Stage 5–12 analyses: AMPD, model-space geometry, IC extraction, MDS,
+                       compression curve, model recovery simulation
+mle.py             ← DEPRECATED — MLE fitting pipeline (superseded by bayesian.py); preserved
+                       for reference only; not called by any active analysis
 preprocessing.py   ← data loading, dyad construction, experiment-specific cleaning
 utilities.py       ← general helpers: utility enumeration, model nesting, IC utilities
 typological.py     ← discrete/typological Bayesian variants (parallel to the continuous UBM)
@@ -86,15 +99,23 @@ dyad_data/         ← per-dyad data files
 bic_aic/           ← IC analysis output CSVs
 visuals/           ← exported Plotly HTML figures
 demo_files/        ← all demo outputs (safe to delete)
+plans/             ← saved implementation plans (markdown); see Section 9
 ```
 
 **Import flow (no circular dependencies):**
 ```
-config.py     →  (nothing from this project)
-preprocessing →  config
-utilities     →  config, preprocessing
-typological   →  config, preprocessing
-main.py       →  config (via *), preprocessing (as prep), utilities (as gnrl), typological (as typo)
+config.py       →  (nothing from this project)
+preprocessing   →  config
+utilities       →  config, preprocessing
+typological     →  config, preprocessing
+model.py        →  config (via *)
+optimization.py →  model (via *)
+bayesian.py     →  optimization (via *)
+simulation.py   →  bayesian (via *)
+visualization.py→  simulation (via *)
+analysis.py     →  visualization (via *)
+mle.py          →  optimization (via *)   [deprecated; not imported by any active module]
+main.py         →  analysis (via *), mle.run_analysis_mle (explicit; for the one legacy call-site)
 ```
 
 ---
@@ -118,14 +139,20 @@ dicts control all behavior. The defaults in the repo are the settings used in th
 
 ## 5. Architecture
 
-### The two-layer structure
+### The active fitting approach
 
-The codebase has two parallel fitting approaches:
+All active fitting uses the **Bayesian UBM** pipeline in `bayesian.py`:
 
-- **Bayesian (UBM)**: `agent()` → `bayesian_update_grid()` → `loss_function_bayes()` → `fit_params_by_player()` → `run_analysis_bayes()`
-- **MLE**: `loss_function_mle()` → `fit_one_player_one_role_mle()` → `fit_dyad_parameters_mle()` → `run_analysis_mle()`
+```
+agent() → bayesian_update_grid() → loss_function_bayes() → fit_params_by_player() → run_analysis_bayes()
+```
 
-Both share the same utility and optimization infrastructure.
+The `agent()` function runs the full sequential belief-updating UBM over all games in a dyad.
+`loss_function_bayes()` is the NLL-style loss used in the IC analysis.
+
+**The MLE pipeline in `mle.py` is deprecated and is not called by any active analysis.**
+It was the original fitting approach and is kept only as a reference. Do not extend it or
+call it from new code. The single remaining call-site in `main.py` is also legacy code.
 
 ### `general_settings` and `utility_settings`
 
@@ -524,24 +551,20 @@ When working on extensions or new analyses, keep this in mind:
 
 ---
 
-## 8. Main sections of `main.py`
+## 8. Module contents
 
-The file is organized into logical sections in this order:
+The codebase has been split from the original monolithic `main.py` into focused modules.
+`main.py` is now only an orchestrator that sets `run_code_settings` flags and calls `main()`.
 
-| Section | Line range | Content |
-|---------|-----------|---------|
-| Utility and Choice Functions | 6–749 | `utility_term`, `utility`, `softmax_`, `choice`, `build_utility_equation` |
-| Shared Functions | 750–1543 | Optimization helpers: `global_local_optimization`, warm-starting, IC |
-| MLE Code | 1544–2003 | MLE loss, fitting, `run_analysis_mle` |
-| Bayesian Code | 2004–4789 | `bayesian_update_grid`, `agent`, `loss_function_bayes`, `run_analysis_bayes` |
-| Simulation 1–3 | 4790–8218 | Parameter recovery, convergence, update speed |
-| Illustrating Belief Updates | 8219–9419 | 2D/3D update visualizations, accuracy analysis |
-| Model Validation | 9420–10536 | Typological comparison, model comparison |
-| IC Analysis | 10537–12711 | 480-model utility comparison; nesting-aware fitting |
-| Nesting Network & Verification | 12712–15000 | Sanity checks, nesting tests, embedding verification |
-| Parameter Distribution Results | 15001–15861 | Population-level distributions, correlations |
-| Inequality Aversion Analysis | 15862–16224 | Bot competitions, aversion heatmaps |
-| Run Code | 16225–end | `run_code_settings` flags + `main()` |
+| Module | Key sections / functions |
+|--------|--------------------------|
+| `model.py` | `utility_term`, `utility`, `softmax_`, `choice`, `build_utility_equation`, `make_param_info`, `parameter_keys_for_utility_settings` |
+| `optimization.py` | `compute_ic`, `global_local_optimization`, `global_local_then_trust_constr`, `best_initial_guesses`, warm-starting helpers |
+| `bayesian.py` | `bayesian_update_grid`, `agent`, `loss_function_bayes`, `fit_params_by_player`, `run_analysis_bayes`, `_worker_fit_one` |
+| `simulation.py` | `create_simulated_dyad`, `create_simulated_data`, `simulated_bot_uuids`, `run_simulation_recovery_analysis`, `run_param_recovery_by_k`, `verify_particle_filter_fidelity` |
+| `visualization.py` | `_hsla`, all `plot_*` functions for belief updates, parameter distributions, accuracy |
+| `analysis.py` | Stage 5: `average_model_policy_distance`, `compute_ampd_distance_matrix`, `compute_model_space_embedding` · Stage 6: `extract_participant_model_combined_fits` · Stage 7: `compute_participant_architecture_embedding`, `compute_participant_feature_support` · Stage 9: `compute_architecture_compression_curve`, `plot_architecture_compression_curve` · Stage 12: model recovery simulation (in progress) |
+| `mle.py` | **DEPRECATED** — `loss_function_mle`, `fit_one_player_one_role_mle`, `fit_dyad_parameters_mle`, `run_analysis_mle` and helpers; not called by any active analysis |
 
 ---
 
@@ -569,3 +592,4 @@ Current plans:
 | File | Contents |
 |------|----------|
 | [`participant_fit_extraction_and_realistic_ampd.md`](plans/participant_fit_extraction_and_realistic_ampd.md) | Stage 6 extraction of per-participant × per-model fits from IC JSON; `participant_sampled` AMPD mode |
+| [`population_architecture_compression_curve.md`](plans/population_architecture_compression_curve.md) | Stage 9 compression curve: scoring basis, candidate filtering, exhaustive + greedy-swap search, stopping criteria, AMPD diagnostics, output files |

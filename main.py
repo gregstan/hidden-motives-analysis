@@ -1,4 +1,5 @@
 from analysis import *
+from mle import run_analysis_mle
 
 "=========================================================================================="
 "======================================== Run Code ========================================"
@@ -18,7 +19,7 @@ run_code_settings = {
 def main():
     """Execute main code."""
 
-    # "Stage 6 — Extract per-participant per-model combined fit table."
+    # "Extract per-participant per-model combined fit table."
     # combined_fits_df = extract_participant_model_combined_fits(
     #     general_settings=general_settings,
     #     file_paths=file_paths,
@@ -27,7 +28,7 @@ def main():
     # pp.pprint(combined_fits_df.head())
     # pp.pprint(combined_fits_df.groupby("player_uuid")["BIC_weight"].sum())
 
-    # "Stage 7 — Participant cloud distances and architecture embedding."
+    # "Participant cloud distances and architecture embedding."
     # participant_centroids_df = compute_participant_model_space_centroids(
     #     general_settings=general_settings,
     #     file_paths=file_paths,
@@ -69,7 +70,7 @@ def main():
     # )
     # pp.pprint(mat)
 
-    # "Stage 5 visualizations — all load the AMPD matrix from settings automatically."
+    # "Model-space visualizations — all load the AMPD matrix from settings automatically."
     # compute_model_space_embedding(
     #     general_settings=general_settings, file_paths=file_paths, n_dimensions=2,
     # )
@@ -86,7 +87,7 @@ def main():
     #     general_settings=general_settings, file_paths=file_paths, fig_lay=fig_lay, top_n=50,
     # )
 
-    # "Stage 6 — Extract per-participant per-model combined fit table."
+    # "Extract per-participant per-model combined fit table."
     # combined_fits_df = extract_participant_model_combined_fits(
     #     general_settings=general_settings,
     #     file_paths=file_paths,
@@ -95,7 +96,7 @@ def main():
     # pp.pprint(combined_fits_df.head())
     # pp.pprint(combined_fits_df.groupby("player_uuid")["BIC_weight"].sum())
 
-    # "Stage 8 — Cross-validated architecture losses (population winner now uses pooled BIC → model 443)."
+    # "Cross-validated architecture losses (population winner now uses pooled BIC → model 443)."
     # "Set create_new_file=True to force regeneration with the corrected population winner."
     # cv_losses_df = compute_cross_validated_architecture_losses(
     #     general_settings=general_settings,
@@ -122,17 +123,53 @@ def main():
     #     fig_lay=fig_lay,
     # )
 
-    "Stage 9 — Population Architecture Compression Curve."
-    curve_df = compute_architecture_compression_curve(
+    # "Population architecture compression curve."
+    # curve_df = compute_architecture_compression_curve(
+    #     general_settings=general_settings,
+    #     file_paths=file_paths,
+    #     create_new_file=False,
+    # )
+    # plot_architecture_compression_curve(
+    #     general_settings=general_settings,
+    #     file_paths=file_paths,
+    #     fig_lay=fig_lay,
+    # )
+
+    "Model recovery simulation — data-adequacy curves for participant and game counts."
+    recovery_df = compute_model_recovery_simulation(
         general_settings=general_settings,
         file_paths=file_paths,
-        create_new_file=False,
+        param_bds=param_bds,
+        utility_settings=utility_settings,
+        generating_model=443,
+        # n_agents_grid=[73],
+        n_agents_grid=[20],
+        # n_games_grid=[20, 40, 60, 90, 120, 180, 240],
+        n_games_grid=[20, 40, 60],
+        softmax_temperature=0.5,
+        candidate_model_selection_mode='hamming',
+        n_candidate_models=480,
+        random_seed=42,
+        create_new_file=True,
     )
-    plot_architecture_compression_curve(
+    plot_model_recovery_simulation(
         general_settings=general_settings,
         file_paths=file_paths,
         fig_lay=fig_lay,
+        generating_model=443,
+        # n_agents_grid=[73],
+        n_agents_grid=[20],
+        # n_games_grid=[20, 40, 60, 90, 120, 180, 240],
+        n_games_grid=[20, 40, 60],
+        n_candidate_models=480,
     )
+
+    # plot_participant_architecture_mds(
+    #     general_settings=general_settings,
+    #     file_paths=file_paths,
+    #     fig_lay=fig_lay,
+    #     color_by="model_weight_entropy",
+    # )
 
     exit()
     if run_code_settings['run_simulation_analyses']:

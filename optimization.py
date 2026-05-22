@@ -759,10 +759,10 @@ def best_initial_guesses(dyad_key: str | int, file_paths: FilePaths, param_info:
 
 
 "=========================================================================================="
-"======================================== MLE Code ========================================"
+"======== MLE Code — DEPRECATED; see mle.py. Not called by the active pipeline. =========="
 "=========================================================================================="
 
-def compute_std_errors_mle(best_x: NDArray[np.float64], data_rows: List[Dict[str, Any]], param_info: ParamInfo, 
+def compute_std_errors_mle(best_x: NDArray[np.float64], data_rows: List[Dict[str, Any]], param_info: ParamInfo,
                             utility_settings: UtilitySettings, penalty_weight: float) -> Dict[str,float]:
     """
     Estimate parameter standard errors from the curvature of the MLE loss surface at the optimum.
