@@ -25,7 +25,7 @@
 - When points represent utility functions, hovering should show the utility equation.
 - See `ic_scores_scatter.html` for inspiration.
 - Marker color should represent something meaningful, such as ΔBIC.
-- MDS should omit utility functions without IC data (476/480 have it); do not require re-running IC.
+- MDS should omit utility functions without IC data (480 have it); do not require re-running IC.
 
 ---
 

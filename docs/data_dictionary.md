@@ -170,7 +170,7 @@ optimization_policy = {
   - `'naive'`: Non-Bayesian. Only uses likelihood term as a posterior, no priors, 
   - `'no_learning'`: Non-Bayesian. Only uses priors as a posterior, no likelihood,
   - `'parametric'`: Assumes normally distributed hypothesis spaces, not used in paper
-  - `'mcmc'`: (depricated), 
+  - `'mcmc'`: legacy, not used in paper,
 - **analysis_mode**: 
   - `'bayesian'`: Uses Utility Bayesan Model 
   - `'mle'`: Uses maximum likelihood estimation (not in the paper)
@@ -227,6 +227,35 @@ optimization_policy = {
   - 'overwrite', 'resume', or 'readonly'; used primarily in IC analysis to control file updating behavior.
 - **dark_mode**: 
   - Toggles figure template and font colors (dark vs. light theme).
+- **ampd_settings**: nested dict controlling AMPD (Average Model Policy Distance) computation:
+  - `metric`: distance metric, default `'normalized_jsd'`
+  - `n_games`: number of simulated games per comparison, default 625
+  - `n_iters`: number of Monte Carlo iterations, default 30 (use 250 for full-precision)
+  - `parameter_sampling_mode`: `'uniform'` samples from param_bds; `'fitted'` uses posterior estimates
+  - `parameter_pairing_mode`: `'shared'` pairs same parameter draw across both models
+  - `player_roles`: `None` or a list of roles to include
+  - `random_seed`: reproducibility seed; `None` = unseeded
+- **individual_architecture_settings**: nested dict for the architecture compression curve (how many structurally distinct utility types describe the population?):
+  - `population_top_n_models`: top-N models by aggregate BIC to include as candidates (default 120; `None` = all)
+  - `participant_top_r_models`: top-R models per participant added to the candidate set (default 10)
+  - `K_max`: hard ceiling on K; `None` runs until stopping criterion fires
+  - `exhaustive_K_max`: exhaustive search for K ≤ this value; greedy+swap for larger K (default 4)
+  - `score_basis`: `'ic_equivalent_participant_score'` (recommended), `'sum_individual_BIC'`, or `'raw_NLL'`
+  - `stopping_criteria`: which criterion is highlighted; all five always computed (`'kneedle_elbow'`, `'marginal_gain'`, `'cumulative_gain'`, `'max_curvature'`, `'meta_bic'`)
+  - `marginal_gain_threshold`: threshold for marginal gain criterion (default 0.01)
+  - `n_consecutive_low_marginal_gains_required`: consecutive low-gain increments before stopping (default 1)
+  - `cumulative_gain_threshold`: cumulative gain threshold (default 0.80)
+  - `diagnose_selected_library_redundancy`: whether to compute per-architecture redundancy flags (default True)
+  - `n_workers`: number of parallel workers for exhaustive search; `None` = cpu_count - 1
+- **model_recovery_settings**: nested dict for the model recovery simulation (IC pipeline data adequacy):
+  - `generating_model`: `utility_idx` of the model used to generate synthetic data (default 443)
+  - `n_agents_grid`: list of synthetic-participant counts to test (default [73])
+  - `n_games_grid`: list of game counts to test (default [20, 40, 60, 90, 120, 180, 240])
+  - `softmax_temperature`: fixed τ for both data generation and NLL fitting (default 0.5)
+  - `candidate_model_selection_mode`: `'hamming'` or `'ampd'`; diversity method for candidate set
+  - `n_candidate_models`: number of candidate models for IC comparison (default 480)
+  - `ampd_matrix_name_or_path`: path to a precomputed AMPD matrix; `None` = compute on demand
+  - `random_seed`: reproducibility seed (default 42)
 
 
 # utility_settings

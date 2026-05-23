@@ -688,7 +688,7 @@ def best_initial_guesses(dyad_key: str | int, file_paths: FilePaths, param_info:
     if use_only_guesses:    
         row = {}
     else:
-        "FFilter the dataframe for the selected dyad"
+        "Filter the dataframe for the selected dyad"
         df = df[df['dyad_key'] == dyad_key]
 
         "Sort the dataframe by 'meeting_idx' to ensure correct order"

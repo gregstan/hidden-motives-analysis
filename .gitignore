@@ -215,3 +215,11 @@ param_data/*
 player_fits/*
 processed/*
 visuals/*
+
+# Private / personal files — not for the shared repo
+private/
+rick_ssh_setup.md
+
+# Deprecated / dead code — kept locally for safety but not part of the shared codebase
+deprecated.py
+deprecated/

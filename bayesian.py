@@ -359,8 +359,22 @@ def param_vector_to_pmf_array(param_vectors: Dict[Tuple[int], float],
                               general_settings: GeneralSettings,
                               use_fallback: bool = False) -> NDArray[np.float64]:
     """
-    Generates a PMF from a dictionary mapping parameter coordinates to probabilities.
-    PF-aware: skips interpolation when meta_data['representation'] == 'particles'.
+    Converts a sparse parameter-coordinate → probability mapping into a dense normalized PMF array.
+
+    Particle-filter mode (use_particle_filter=True): scatter particle probabilities directly into
+    a full grid and normalize — no interpolation.
+    Full-grid mode: fill a NaN-initialized grid, interpolate missing cells when sample_ratio < 1,
+    then normalize.
+
+    Arguments:
+        • param_vectors   : dict mapping index-tuples to probability mass (sparse; zero entries may be absent).
+        • meta_data       : grid metadata containing 'n_bins_per_dimension', 'tickvals',
+                            'sample_ratio', and 'representation'.
+        • general_settings: used to check use_particle_filter.
+        • use_fallback    : if True, returns a zero array instead of raising when all inputs are NaN.
+
+    Returns:
+        • NDArray[np.float64]; normalized PMF array shaped by the meta_data grid dimensions.
     """
     grid_shape = tuple(meta_data["n_bins_per_dimension"] for _ in meta_data["tickvals"].keys())
 
@@ -970,8 +984,8 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
     [game_idx_start, game_idx_stop], agent() retrieves the prior from the previous game, calls
     bayesian_update_grid() (or the parametric / MCMC variant depending on update_method) to
     incorporate the observed choice, stores the resulting posterior, and records the model's
-    predicted probability alongside the posterior summary statistics. Results are written in-place
-    into the 'parameter_estimates' sub-dict of each game dictionary.
+    predicted probability alongside the posterior summary statistics. Results are written in-
+    place into the 'parameter_estimates' sub-dict of each game dictionary.
 
     Arguments:
         • dyad_games: List[dict]
@@ -1663,6 +1677,7 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
     temperature_is_param = general_settings.get('temperature_is_param', True)
     optimization_method = general_settings.get('optimization_method', 'local')
 
+    "Experiment 0 is simulated data; choosers are virtual avatars with no parameters to fit."
     if experiment_num == 0 and 'chooser' in player_uuid:
         print(f"chooser player_uuid = {player_uuid}")
         raise Exception(f"Can only fit predictors for simulated data.")
@@ -1686,6 +1701,7 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
 
     plr_file_path = prep.ensure_directory_and_join(base_dir=player_fit_dir, file_name=player_fit_name)
 
+    "Return cached results if they exist; fall through and re-fit if the JSON is corrupt."
     try:
         if not general_settings.get('create_new_file', False) and os.path.exists(plr_file_path):
             with open(plr_file_path, "r", encoding='utf-8') as file:
@@ -1697,6 +1713,8 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
     player_dyads = prep.dyads_for_a_player(player_uuid=player_uuid, experiment_num=experiment_num, file_paths=file_paths, 
                                                  analysis_mode=general_settings.get('analysis_mode', 'bayesian'), dyad_already_analyzed=False)
 
+    "Build role-specific parameter specs. Both roles start from the same param_info base."
+    "Predictor keeps _std (prior-width) params; chooser's _std params are stripped below."
     initial_params = {'chooser': {}, 'predictor': {}}
     for player_role in ('chooser', 'predictor'):
         for param_cat in ('keys', 'bounds', 'guesses'):
@@ -2121,6 +2139,7 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
 
         return best_fitting_params, optimization_results
 
+    "1) Fit all roles: run optimize_roles for predictor (and chooser if experiment 3)."
     best_fitting_params = {}
     optimization_results = {}
     for player_role in ('predictor', 'chooser', ):
@@ -2152,6 +2171,8 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
         csv_path = prep.ensure_directory_and_join(base_dir=base_loss_dir, file_name=file_name_loss)
         df_loss.to_csv(csv_path, index=False, encoding='utf-8-sig')
 
+    "2) Final agent pass with best-fit params — re-runs agent over every dyad to capture"
+    "   the complete belief trajectories and per-round losses needed for the JSON output."
     fitted_plr_dyads = {}
     for dyad_key, dyad_games in player_dyads.items():
 
@@ -2224,9 +2245,10 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
                                 }
                                 fitted_dyad_games[0]['reports'][player_role]["final"]["min_raw_neglog_sum"] = min_raw_neglog_sum
 
+        "Experiment 2: human vs. avatar dyads — compute avatar-type posteriors for the visualization pipeline."
         if general_settings.get('experiment_num') == 2:
             fitted_dyad_games = typo.avatar_posteriors(
-                dyad_games=fitted_dyad_games, update_method=update_method, 
+                dyad_games=fitted_dyad_games, update_method=update_method,
                 temperature=softmax_temperature)
 
         fitted_plr_dyads[dyad_key] = fitted_dyad_games
@@ -2249,6 +2271,7 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
                             pf_state['indices'] = indices.tolist()
                         if isinstance(weights, np.ndarray):
                             pf_state['weights'] = weights.tolist()
+    "Convert any numpy arrays inside PF state to plain lists so json.dump can serialize them."
     _serialize_particle_filter_state(fitted_plr_dyads)
 
     "Save the fitted results."

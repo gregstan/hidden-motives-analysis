@@ -174,6 +174,31 @@ class AmpdSettings(TypedDict, total=False):
     random_seed: int | None
 
 
+class IndividualArchitectureSettings(TypedDict, total=False):
+    population_top_n_models: Optional[int]
+    participant_top_r_models: Optional[int]
+    K_max: Optional[int]
+    exhaustive_K_max: int
+    score_basis: str
+    stopping_criteria: str
+    marginal_gain_threshold: float
+    n_consecutive_low_marginal_gains_required: int
+    cumulative_gain_threshold: float
+    diagnose_selected_library_redundancy: bool
+    n_workers: Optional[int]
+
+
+class ModelRecoverySettings(TypedDict, total=False):
+    generating_model: int
+    n_agents_grid: List[int]
+    n_games_grid: List[int]
+    softmax_temperature: float
+    candidate_model_selection_mode: str
+    n_candidate_models: Optional[int]
+    ampd_matrix_name_or_path: Optional[str]
+    random_seed: int
+
+
 class GeneralSettings(TypedDict, total=False):
     update_method: str
     analysis_mode: str
@@ -202,6 +227,21 @@ class GeneralSettings(TypedDict, total=False):
     write_mode: str
     dark_mode: bool
     ampd_settings: AmpdSettings
+    individual_architecture_settings: IndividualArchitectureSettings
+    model_recovery_settings: ModelRecoverySettings
+
+
+class RunCodeSettings(TypedDict):
+    run_simulation_analyses: bool
+    run_illustrate_belief_updates: bool
+    run_alternative_model_contest: bool
+    run_typological_bayesian_models: bool
+    run_information_criterion_analysis: bool
+    run_model_nesting_violation_analysis: bool
+    run_parameter_distribution_results: bool
+    run_inequality_aversion_analysis: bool
+    run_individual_architecture_analysis: bool
+    run_model_recovery_simulation: bool
 
 
 class ParamCovarInfo(TypedDict):
@@ -400,8 +440,14 @@ def make_param_info(param_bds: dict[str, tuple[int | float, int | float]], utili
 
 def create_file_name_suffix(general_settings: dict[str, Any], utility_settings: dict[str, bool]) -> str:
     """
-    Creates a suffix for file names based on the general settings and utiltity
+    Creates a suffix for file names based on the general settings and utility
     options so that new files only overwrite files with the same settings.
+
+    Only scalar settings (bool, int, float, str) contribute to the suffix.
+    Nested dicts (warmstart_policy, optimization_policy, ampd_settings,
+    individual_architecture_settings, model_recovery_settings, etc.) are
+    automatically skipped — they encode run-specific tuning that should not
+    determine which saved files get overwritten.
 
     Arguments:
         • general_settings: dict[str, Any]; Various settings bundled together.
@@ -410,13 +456,15 @@ def create_file_name_suffix(general_settings: dict[str, Any], utility_settings: 
     Returns:
         • str; Added to the end of each file name.
     """
-    settings_to_ignore = ('run_in_parallel', 'optimization_policy', 'warmstart_policy', 'create_new_file', 'write_mode', 
-                          'dark_mode', 'export_fig', 'track_evolution', 'fit_roles_together', 'use_initial_params', 'learning_rate')
+    settings_to_ignore = (
+        'run_in_parallel', 'create_new_file', 'write_mode',
+        'dark_mode', 'export_fig', 'track_evolution',
+        'fit_roles_together', 'use_initial_params', 'learning_rate',
+    )
 
     file_name_suffix = "~"
     for key, val in sorted(general_settings.items()):
         if key in settings_to_ignore:
-            abreviated_val = ""
             continue
         elif key == "penalty_weight":
             abreviated_val = f"{val}"
@@ -440,10 +488,28 @@ def create_file_name_suffix(general_settings: dict[str, Any], utility_settings: 
     return file_name_suffix
 
 
-def add_remove_file_name_suffix(file_paths: FileNames, file_name_suffix: str | None, 
+def add_remove_file_name_suffix(file_paths: FileNames, file_name_suffix: str | None,
                                 add_suffix: bool = True) -> dict[str, str | dict[str, str]]:
     """
-    Adds or removes the file_name_suffix from file names in file_paths.
+    Adds or removes a file_name_suffix from the canonical file names in file_paths["file_names"].
+
+    When adding (add_suffix=True):
+        • Stores the suffix under file_paths["file_name_suffix"].
+        • Appends the suffix before the extension of every file_names entry whose key
+          contains "_iter", "_fit1", "_bayes", or "all" — the run-specific output files.
+        • File names without a "." are left unchanged.
+
+    When removing (add_suffix=False):
+        • Strips everything from the first "~" in the stem onward, restoring the base name.
+        • Safe to call on an unsuffixed dict (no-op when "~" is absent).
+
+    Arguments:
+        • file_paths      : FileNames; the config file-paths dict (modified in place and returned).
+        • file_name_suffix : str | None; suffix from create_file_name_suffix; None = no-op when adding.
+        • add_suffix      : bool; True to apply the suffix, False to strip it.
+
+    Returns:
+        • dict[str, str | dict[str, str]]; the modified file_paths dict.
     """
     if add_suffix and file_name_suffix is not None:
         file_paths["file_name_suffix"] = file_name_suffix
@@ -557,29 +623,6 @@ sample_ratio = 0.05
 export_fig = True
 dark_mode = False
 
-warmstart_policy = {
-    "enabled": True,
-    "schedule": "binary",
-    "cold_iters": 4,
-    "explore_iters": 4,
-    "temperature_low": 0.01,
-    "temperature_high": 1000.0,
-    "disable_dual_annealing_when_warm": True,
-}
-optimization_policy = {
-    'n_random_starts'    : 1,
-    'maxiter_global'     : 36,
-    'maxiter_local'      : 24,
-    'maxfun_global'      : 36,
-    'maxfun_local'       : 24,  
-    'run_trust_constr'   : False,
-    'dual_annealing_seed': None,
-    'trust_maxiter'      : 600,
-    'trust_gtol'         : 1e-6,
-    'trust_xtol'         : 1e-8,
-    'trust_verbose'      : False,
-    'local_methods': ['L-BFGS-B']
-}
 
 general_settings: GeneralSettings = {
     'update_method': update_method,
@@ -598,10 +641,31 @@ general_settings: GeneralSettings = {
     'guess_params_randomly': guess_params_randomly,
     'temperature_is_param': temperature_is_param,
     'n_bins_per_dimension': n_bins_per_dimension,
-    'optimization_policy': optimization_policy,
+    'optimization_policy': {
+        'n_random_starts'    : 1,
+        'maxiter_global'     : 36,
+        'maxiter_local'      : 24,
+        'maxfun_global'      : 36,
+        'maxfun_local'       : 24,
+        'run_trust_constr'   : False,
+        'dual_annealing_seed': None,
+        'trust_maxiter'      : 600,
+        'trust_gtol'         : 1e-6,
+        'trust_xtol'         : 1e-8,
+        'trust_verbose'      : False,
+        'local_methods'      : ['L-BFGS-B'],
+    },
     'fit_roles_together': fit_roles_together,
     'use_initial_params': use_initial_params,
-    'warmstart_policy': warmstart_policy,
+    'warmstart_policy': {
+        "enabled"                         : True,
+        "schedule"                        : "binary",
+        "cold_iters"                      : 4,
+        "explore_iters"                   : 4,
+        "temperature_low"                 : 0.01,
+        "temperature_high"                : 1000.0,
+        "disable_dual_annealing_when_warm": True,
+    },
     'penalty_weight': penalty_weight,
     'learning_rate': learning_rate,
     'sample_ratio': sample_ratio,
@@ -616,6 +680,29 @@ general_settings: GeneralSettings = {
         'parameter_pairing_mode':   'shared',
         'player_roles':             None,
         'random_seed':              None,
+    },
+    'individual_architecture_settings': {
+        'population_top_n_models':                   120,
+        'participant_top_r_models':                  10,
+        'K_max':                                     None,
+        'exhaustive_K_max':                          4,
+        'score_basis':                               'ic_equivalent_participant_score',
+        'stopping_criteria':                         'kneedle_elbow',
+        'marginal_gain_threshold':                   0.01,
+        'n_consecutive_low_marginal_gains_required': 1,
+        'cumulative_gain_threshold':                 0.80,
+        'diagnose_selected_library_redundancy':      True,
+        'n_workers':                                 None,
+    },
+    'model_recovery_settings': {
+        'generating_model':              443,
+        'n_agents_grid':                 [73],
+        'n_games_grid':                  [20, 40, 60, 90, 120, 180, 240],
+        'softmax_temperature':           0.5,
+        'candidate_model_selection_mode': 'hamming',
+        'n_candidate_models':            480,
+        'ampd_matrix_name_or_path':      None,
+        'random_seed':                   42,
     },
 }
 

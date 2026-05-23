@@ -322,7 +322,7 @@ def parameter_penalty(
     if penalty_weight <= 0:
         return 0.0
 
-    # ---- Helpers --------------------------------------------------------------
+    "Helper: safely extract a numeric parameter value from the params dict."
     def parameter_value(param_dict: dict, param_key: str) -> float:
         param_val = param_dict.get(param_key, 0.0)
         return float(param_val) if isinstance(param_val, (int, float)) else 0.0
@@ -332,9 +332,9 @@ def parameter_penalty(
 
     penalty = 0.0
 
-    # 1) Means (self, altruism, social): pairwise mean-abs with appropriate anchors
+    "1) Means (self, altruism, social): pairwise mean-abs magnitude with appropriate anchors."
 
-    # --- Self-interest (anchor = 1.0) -----------------------------------------
+    "Self-interest (anchor = 1.0)."
     Vii = parameter_value(params, "Vᵢᵢ") or parameter_value(params, "Vii")
     Lii = parameter_value(params, "Ʌᵢᵢ") or parameter_value(params, "Λii")
     has_Vii = _has(params, "Vᵢᵢ", "Vii")
@@ -350,7 +350,7 @@ def parameter_penalty(
         else:  # has_Lii only
             penalty += (Lii - anchor) ** 2
 
-    # --- Altruism (anchor = 0.0) ----------------------------------------------
+    "Altruism (anchor = 0.0)."
     Vij = parameter_value(params, "Vᵢⱼ") or parameter_value(params, "Vij")
     Lij = parameter_value(params, "Ʌᵢⱼ") or parameter_value(params, "Λij")
     has_Vij = _has(params, "Vᵢⱼ", "Vij")
@@ -365,7 +365,7 @@ def parameter_penalty(
         if has_Lij:
             penalty += Lij * Lij
 
-    # --- Social comparison (anchor = 0.0) -------------------------------------
+    "Social comparison (anchor = 0.0)."
     Eij = parameter_value(params, "Ƹᵢⱼ") or parameter_value(params, "Eij")
     Gij = parameter_value(params, "Ʒᵢⱼ") or parameter_value(params, "Gij")
     has_E = _has(params, "Ƹᵢⱼ", "Eij")
@@ -380,19 +380,19 @@ def parameter_penalty(
         if has_G:
             penalty += Gij * Gij
 
-    # 2) Exponents (optional): penalize deviation of the MEAN gamma from 1
+    "2) Exponents (optional): penalize deviation of the mean gamma from 1."
     if penalize_exponents:
         gammas = []
         for param_key in params:
             if param_key.startswith("γ") or param_key.lower().startswith("gamma"):
                 val = parameter_value(params, param_key)
-                # keep zeros too, but this avoids weird non-numeric
+                "Keep zeros too — avoids problems with non-numeric values."
                 gammas.append(val)
         if gammas:
             mean_gamma = sum(gammas) / len(gammas)
             penalty += len(gammas) * (mean_gamma - 1.0) ** 2  # parent-fair
 
-    # 3) Standard deviations (optional)
+    "3) Standard deviations (optional)."
     if penalize_std:
         for param_key, param_val in params.items():
             if isinstance(param_val, (int, float)) and isinstance(param_key, str) and param_key.endswith("_std"):
@@ -403,13 +403,13 @@ def parameter_penalty(
                 else:
                     penalty += (param_val * param_val) / 10.0
 
-    # 4) Covariances (optional)
+    "4) Covariances (optional)."
     if penalize_cov:
         for param_key, param_val in params.items():
             if isinstance(param_val, (int, float)) and isinstance(param_key, str) and param_key.endswith("_cov"):
                 penalty += float(param_val) ** 2
 
-    # 5) Temperature (optional)
+    "5) Temperature (optional)."
     if penalize_temp:
         temperature = parameter_value(params, "τ") or parameter_value(params, "temp")
         if temperature != 0.0:
@@ -529,48 +529,61 @@ def _statistics_from_sparse_param_vectors(
     """
     tickvals: dict[str, list[float]] = meta_data['tickvals']
     mean_param_keys: list[str] = [
-        k for k in param_info['keys']
-        if (not k.endswith('_std')) and (not k.endswith('_cov'))
+        param_key for param_key in param_info['keys']
+        if (not param_key.endswith('_std')) and (not param_key.endswith('_cov'))
     ]
 
-    total_mass: float = 0.0
-    sum_x:  dict[str, float] = {k: 0.0 for k in mean_param_keys}
-    sum_x2: dict[str, float] = {k: 0.0 for k in mean_param_keys}
+    total_mass: float          = 0.0
+    weighted_value_sum:   dict[str, float] = {param_key: 0.0 for param_key in mean_param_keys}
+    weighted_squared_sum: dict[str, float] = {param_key: 0.0 for param_key in mean_param_keys}
 
     for index_tuple, mass in param_vectors.items():
         if mass is None or mass <= 0.0:
             continue
         total_mass += float(mass)
-        for dim, param_key in enumerate(mean_param_keys):
-            x_val = float(tickvals[param_key][index_tuple[dim]])
-            sum_x[param_key]  += mass * x_val
-            sum_x2[param_key] += mass * (x_val * x_val)
+        for dimension_index, param_key in enumerate(mean_param_keys):
+            tick_value = float(tickvals[param_key][index_tuple[dimension_index]])
+            weighted_value_sum[param_key]   += mass * tick_value
+            weighted_squared_sum[param_key] += mass * (tick_value * tick_value)
 
     if total_mass <= 0.0:
         "Degenerate; return zeros to be safe (should not happen if normalized)"
-        out_zero = {k: 0.0 for k in mean_param_keys}
-        out_zero.update({f"{k}_std": 0.0 for k in mean_param_keys})
-        return out_zero
+        zero_result = {param_key: 0.0 for param_key in mean_param_keys}
+        zero_result.update({f"{param_key}_std": 0.0 for param_key in mean_param_keys})
+        return zero_result
 
-    out: dict[str, float] = {}
+    result: dict[str, float] = {}
     for param_key in mean_param_keys:
-        mu  = sum_x[param_key] / total_mass
-        ex2 = sum_x2[param_key] / total_mass
-        var = max(0.0, ex2 - mu * mu)
-        out[param_key] = float(mu)
-        out[f"{param_key}_std"] = float(var ** 0.5)
+        param_mean             = weighted_value_sum[param_key] / total_mass
+        mean_of_squared_values = weighted_squared_sum[param_key] / total_mass
+        variance               = max(0.0, mean_of_squared_values - param_mean * param_mean)
+        result[param_key]            = float(param_mean)
+        result[f"{param_key}_std"]   = float(variance ** 0.5)
 
-    return out
+    return result
 
 
 def is_positive_semidefinite(matrix: NDArray[np.float64], tol: float = 1e-12) -> bool:
-    """Check if a matrix is positive semidefinite.""" # TODO Make docstring conform to formatting conventions.
+    """
+    Returns True if matrix is positive semidefinite (all eigenvalues ≥ -tol).
+
+    Tries a Cholesky decomposition first (fast path for strictly PD matrices); falls back
+    to a full eigendecomposition if that fails, which handles the semidefinite boundary.
+
+    Arguments:
+        • matrix: NDArray[np.float64] — square symmetric matrix to test.
+        • tol: float — tolerance for treating near-zero negative eigenvalues as zero
+            (default 1e-12). Accounts for floating-point rounding near the PSD boundary.
+
+    Returns:
+        • bool — True if all eigenvalues of matrix are ≥ -tol, False otherwise.
+    """
     try:
         np.linalg.cholesky(matrix)
         return True
     except np.linalg.LinAlgError:
         eigenvalues: NDArray[np.float64] = np.linalg.eigvalsh(matrix)
-        return bool(np.all(eigenvalues >= -tol))  # Ensure boolean return
+        return bool(np.all(eigenvalues >= -tol))
 
 
 def nearest_psd_matrix(matrix: NDArray[np.float64], min_eigval: float = 0.0) -> NDArray[np.float64]:
@@ -2107,13 +2120,13 @@ def compute_hamming_distance_matrix(
     distance_matrix: List[List[int]] = [
         [0] * n_models for _ in range(n_models)
     ]
-    for i in range(n_models):
-        bits_i = raw_bits_by_position[i]
-        for j in range(i + 1, n_models):
-            bits_j = raw_bits_by_position[j]
-            dist = sum(a != b for a, b in zip(bits_i, bits_j))
-            distance_matrix[i][j] = dist
-            distance_matrix[j][i] = dist
+    for row_index in range(n_models):
+        row_bits = raw_bits_by_position[row_index]
+        for col_index in range(row_index + 1, n_models):
+            col_bits = raw_bits_by_position[col_index]
+            hamming_distance = sum(a != b for a, b in zip(row_bits, col_bits))
+            distance_matrix[row_index][col_index] = hamming_distance
+            distance_matrix[col_index][row_index] = hamming_distance
 
     hamming_df = pd.DataFrame(
         data=distance_matrix,
@@ -2132,6 +2145,105 @@ def compute_hamming_distance_matrix(
         f"({n_models}×{n_models}, max distance={int(hamming_df.max().max())})"
     )
     return hamming_df
+
+
+def compute_conditional_hamming_distance_matrix(
+    file_paths: FilePaths,
+    utility_settings: Optional[UtilitySettings] = None,
+    create_new_file: bool = False,
+) -> pd.DataFrame:
+    """
+    Pairwise conditional Hamming distance matrix over all valid utility forms in the registry.
+
+    Like the raw Hamming matrix, counts Boolean flag mismatches between pairs of models —
+    but only at positions where the flag is semantically live in BOTH models. A flag is live
+    in a model if flipping that flag (all other flags held fixed) still yields a valid utility
+    settings combination per is_valid_utility_settings.
+
+    This corrects raw Hamming's inflation when a parent feature is absent: e.g., two models
+    with no exponents and one with per-term exponents should have equal conditional Hamming
+    distance to the no-exponent model on the 'single_exponential_parameter' axis, because
+    that flag is forced (not live) in the no-exponent model.
+
+    is_valid_utility_settings is the sole source of truth for liveness — if new settings or
+    dependency rules are added there, this function adapts automatically.
+
+    Arguments:
+        • file_paths: FilePaths — must contain 'processed' pointing to the registry directory.
+        • utility_settings: UtilitySettings | None — unused; present for API parity with
+            compute_hamming_distance_matrix.
+        • create_new_file: bool (default False) — if False and a cached matrix exists, load it.
+
+    Returns:
+        • pd.DataFrame — square symmetric matrix indexed and columned by utility_idx.
+            Values are non-negative integers; diagonal is zero; max ≤ 14.
+    """
+    registry_df = pd.read_csv(
+        os.path.join(file_paths["processed"], "all_utility_functions.csv"),
+        dtype={"utility_bitstring": str},
+    )
+    n_models  = len(registry_df)
+    cache_path = os.path.join(
+        file_paths["processed"],
+        f"model_distance_conditional_hamming__n_models={n_models}.csv",
+    )
+
+    "Return cached matrix when available and not overridden."
+    if not create_new_file and os.path.exists(cache_path):
+        cond_hamming_df = pd.read_csv(cache_path, index_col=0)
+        cond_hamming_df.index   = cond_hamming_df.index.astype(int)
+        cond_hamming_df.columns = cond_hamming_df.columns.astype(int)
+        print(f"Conditional Hamming matrix loaded from cache: {cache_path}  ({n_models}×{n_models})")
+        return cond_hamming_df
+
+    "Build settings dicts from bitstrings via convert_utility_settings (canonical key order)."
+    utility_idx_values: List[int] = list(registry_df["utility_idx"].astype(int))
+    settings_list: List[dict] = [
+        convert_utility_settings(
+            tuple(bool(int(c)) for c in row["utility_bitstring"].replace("-", "")),
+            into=dict,
+        )
+        for _, row in registry_df.iterrows()
+    ]
+
+    "Precompute live flags per model: a flag is live if flipping it still yields a valid model."
+    flag_keys: List[str] = list(settings_list[0].keys())
+    live_flags_list: List[set] = []
+    for settings in settings_list:
+        live = set()
+        for key in flag_keys:
+            flipped = dict(settings)
+            flipped[key] = not flipped[key]
+            if is_valid_utility_settings(flipped):
+                live.add(key)
+        live_flags_list.append(live)
+
+    "Count mismatches only where the flag is live in BOTH models."
+    distance_matrix: List[List[int]] = [[0] * n_models for _ in range(n_models)]
+    for i in range(n_models):
+        settings_i = settings_list[i]
+        live_i     = live_flags_list[i]
+        for j in range(i + 1, n_models):
+            both_live = live_i & live_flags_list[j]
+            dist = sum(settings_i[k] != settings_list[j][k] for k in both_live)
+            distance_matrix[i][j] = dist
+            distance_matrix[j][i] = dist
+
+    cond_hamming_df = pd.DataFrame(
+        data=distance_matrix,
+        index=utility_idx_values,
+        columns=utility_idx_values,
+    )
+
+    assert (cond_hamming_df == cond_hamming_df.T).all().all(), "Matrix is not symmetric."
+    assert (cond_hamming_df.values.diagonal() == 0).all(), "Diagonal is not zero."
+
+    cond_hamming_df.to_csv(cache_path)
+    print(
+        f"Conditional Hamming matrix computed and cached: {cache_path}  "
+        f"({n_models}×{n_models}, max distance={int(cond_hamming_df.max().max())})"
+    )
+    return cond_hamming_df
 
 
 def identify_redundant_utility_functions(utility_settings: UtilitySettings, build_equation_function: callable, file_paths: dict[str, str]) -> pd.DataFrame:
@@ -2937,40 +3049,41 @@ def summarize_nesting_relationship_counts(
 
     sibling_pairs: set[tuple[int, int]] = set()
     if provided_sib_key is not None:
-        for i, nbrs in enumerate(adj_lists[provided_sib_key]):
-            for j in nbrs:
-                if 0 <= j < n_models and i != j:
+        for model_index, neighbor_indices in enumerate(adj_lists[provided_sib_key]):
+            for neighbor_index in neighbor_indices:
+                if 0 <= neighbor_index < n_models and model_index != neighbor_index:
                     "store undirected as (min,max)"
-                    sibling_pairs.add((min(i, j), max(i, j)))
+                    sibling_pairs.add((min(model_index, neighbor_index), max(model_index, neighbor_index)))
     else:
         "2) Infer siblings:"
         "Convert settings to tuples of 0/1 flags once, and compute k & family tags."
         settings_tuples: List[tuple[int, ...]] = [
-            convert_utility_settings(utility_settings=s, into=tuple) for s in settings_list
+            convert_utility_settings(utility_settings=settings, into=tuple) for settings in settings_list
         ]
 
-        def k_params(s: Dict[str, bool]) -> int:
-            return count_free_parameters(utility_settings=s)
+        def count_k_params(settings: Dict[str, bool]) -> int:
+            return count_free_parameters(utility_settings=settings)
 
-        def family_tag(s: Dict[str, bool]) -> str:
-            if s.get('conditional_welfare_mode', False):
+        def family_tag(settings: Dict[str, bool]) -> str:
+            if settings.get('conditional_welfare_mode', False):
                 return "cw"
-            if s.get('min_max_rawlsian_leontief', False):
+            if settings.get('min_max_rawlsian_leontief', False):
                 return "mm"
             return "base"
 
-        k_list = [k_params(s) for s in settings_list]
-        fam_list = [family_tag(s) for s in settings_list]
+        model_k_counts   = [count_k_params(settings) for settings in settings_list]
+        model_family_tags = [family_tag(settings) for settings in settings_list]
 
-        def _hamming(a: tuple[int, ...], b: tuple[int, ...]) -> int:
-            return sum(1 for x, y in zip(a, b) if x != y)
+        def _hamming(tuple_a: tuple[int, ...], tuple_b: tuple[int, ...]) -> int:
+            return sum(1 for a, b in zip(tuple_a, tuple_b) if a != b)
 
-        for i in range(n_models):
-            for j in range(i + 1, n_models):
+        for model_index in range(n_models):
+            for other_model_index in range(model_index + 1, n_models):
                 "siblings: same k, same family, and differ by exactly one boolean flag"
-                if (k_list[i] == k_list[j]) and (fam_list[i] == fam_list[j]) \
-                   and (_hamming(settings_tuples[i], settings_tuples[j]) == 1):
-                    sibling_pairs.add((i, j))
+                if (model_k_counts[model_index] == model_k_counts[other_model_index]) \
+                   and (model_family_tags[model_index] == model_family_tags[other_model_index]) \
+                   and (_hamming(settings_tuples[model_index], settings_tuples[other_model_index]) == 1):
+                    sibling_pairs.add((model_index, other_model_index))
 
     out = {
         'n_models': n_models,
@@ -3045,165 +3158,319 @@ def test_utility_functions(build_utility_equation: Callable, general_settings: G
 import re as _re_eval
 import math as _math_eval
 
-"Map subscript to plain gamma names if needed downstream"
+"Map subscript characters to plain gamma parameter names for downstream substitution."
 _SUB_TO_GAMMA = {"₁": "γ1", "₂": "γ2", "₃": "γ3"}
-_SC_EXP_TAG   = r"\^[^\s)]+?"  # matches ^γ₁/^γ₂/^γ₃ or numeric after substitution
+
+"Regex fragment matching an exponent suffix: ^γ₁, ^γ₂, ^γ₃, or a numeric literal."
+_SC_EXPONENT_TAG = r"\^[^\s)]+?"
+
+"Matches a social comparison term written in grouped form: -Ƹᵢⱼ × (max(envy,0)^p - max(guilt,0)^q)."
 _SC_GROUPED = _re_eval.compile(
     rf"""
     -\s*Ƹᵢⱼ\s*[×*]\s*\(\s*
-    max\((?P<envy>[^)]*?)\s*,\s*0\)\s*(?P<p>{_SC_EXP_TAG})?
+    max\((?P<envy>[^)]*?)\s*,\s*0\)\s*(?P<envy_exponent>{_SC_EXPONENT_TAG})?
     \s*-\s*
-    max\((?P<guilt>[^)]*?)\s*,\s*0\)\s*(?P<q>{_SC_EXP_TAG})?
+    max\((?P<guilt>[^)]*?)\s*,\s*0\)\s*(?P<guilt_exponent>{_SC_EXPONENT_TAG})?
     \s*\)
     """, _re_eval.VERBOSE
 )
+
+"Matches a social comparison term written in two-term form: -Ƹᵢⱼ × max(envy,0)^p + Ƹᵢⱼ × max(guilt,0)^q."
 _SC_TWOTERM = _re_eval.compile(
     rf"""
-    -\s*Ƹᵢⱼ\s*[×*]\s*max\((?P<envy>[^)]*?)\s*,\s*0\)\s*(?P<p>{_SC_EXP_TAG})?
-    \s*\+\s*Ƹᵢⱼ\s*[×*]\s*max\((?P<guilt>[^)]*?)\s*,\s*0\)\s*(?P<q>{_SC_EXP_TAG})?
+    -\s*Ƹᵢⱼ\s*[×*]\s*max\((?P<envy>[^)]*?)\s*,\s*0\)\s*(?P<envy_exponent>{_SC_EXPONENT_TAG})?
+    \s*\+\s*Ƹᵢⱼ\s*[×*]\s*max\((?P<guilt>[^)]*?)\s*,\s*0\)\s*(?P<guilt_exponent>{_SC_EXPONENT_TAG})?
     """, _re_eval.VERBOSE
 )
 
-def signed_pow(_x: float, _gamma: float) -> float:
+def signed_pow(value: float, exponent: float) -> float:
     """
-    Sign-preserving power: returns sign(x) * |x|^gamma.
-    Used to align string evaluation with utility() semantics for non-integer exponents.
+    Sign-preserving power function: returns sign(value) × |value|^exponent.
+
+    Arguments:
+        • value: float — the base; its sign is preserved through the exponentiation.
+        • exponent: float — the power to raise |value| to.
+
+    Returns:
+        • float — sign(value) × |value|^exponent, or 0.0 if value is zero.
     """
-    _x = float(_x); _gamma = float(_gamma)
-    if _x == 0.0:
+    value    = float(value)
+    exponent = float(exponent)
+    if value == 0.0:
         return 0.0
-    return _math_eval.copysign(abs(_x) ** _gamma, _x)
+    return _math_eval.copysign(abs(value) ** exponent, value)
 
-def _canon_sc_grouped_to_twoterm(rhs: str) -> str:
-    def _repl(m: _re_eval.Match) -> str:
-        envy  = m.group("envy").strip()
-        guilt = m.group("guilt").strip()
-        p     = m.group("p") or ""
-        q     = m.group("q") or p
-        return f"- Ƹᵢⱼ × max({envy}, 0){p} + Ƹᵢⱼ × max({guilt}, 0){q}"
-    return _SC_GROUPED.sub(_repl, rhs)
-
-def _canon_sc_twoterm_to_grouped(rhs: str) -> str:
-    def _repl(m: _re_eval.Match) -> str:
-        envy  = m.group("envy").strip()
-        guilt = m.group("guilt").strip()
-        p     = m.group("p") or ""
-        q     = m.group("q") or p
-        return f"- Ƹᵢⱼ × (max({envy}, 0){p} - max({guilt}, 0){q})"
-    return _SC_TWOTERM.sub(_repl, rhs)
-
-def canon_sc_both_ways(rhs: str, mode: str = "twoterm") -> str:
+def _canon_sc_grouped_to_twoterm(equation_rhs: str) -> str:
     """
-    Canonicalize symmetric SC either way, then enforce a target style.
-    mode="twoterm":  - Ƹ × max(envy)^p + Ƹ × max(guilt)^q  (default)
-    mode="grouped":  - Ƹ × (max(envy)^p - max(guilt)^q)
+    Rewrites any grouped social comparison term in equation_rhs into two-term form.
+
+    Grouped form:   - Ƹᵢⱼ × (max(envy, 0)^p - max(guilt, 0)^q)
+    Two-term form:  - Ƹᵢⱼ × max(envy, 0)^p + Ƹᵢⱼ × max(guilt, 0)^q
+
+    Arguments:
+        • equation_rhs: str — right-hand side of a pretty-printed utility equation.
+
+    Returns:
+        • str — equation_rhs with grouped SC terms replaced by two-term equivalents.
     """
-    rhs1 = _canon_sc_grouped_to_twoterm(rhs)
-    rhs2 = _canon_sc_twoterm_to_grouped(rhs1)
+    def _repl(match: _re_eval.Match) -> str:
+        envy_expression  = match.group("envy").strip()
+        guilt_expression = match.group("guilt").strip()
+        envy_exponent    = match.group("envy_exponent") or ""
+        guilt_exponent   = match.group("guilt_exponent") or envy_exponent
+        return (
+            f"- Ƹᵢⱼ × max({envy_expression}, 0){envy_exponent}"
+            f" + Ƹᵢⱼ × max({guilt_expression}, 0){guilt_exponent}"
+        )
+    return _SC_GROUPED.sub(_repl, equation_rhs)
+
+
+def _canon_sc_twoterm_to_grouped(equation_rhs: str) -> str:
+    """
+    Rewrites any two-term social comparison in equation_rhs into grouped form.
+
+    Two-term form:  - Ƹᵢⱼ × max(envy, 0)^p + Ƹᵢⱼ × max(guilt, 0)^q
+    Grouped form:   - Ƹᵢⱼ × (max(envy, 0)^p - max(guilt, 0)^q)
+
+    Arguments:
+        • equation_rhs: str — right-hand side of a pretty-printed utility equation.
+
+    Returns:
+        • str — equation_rhs with two-term SC patterns replaced by grouped equivalents.
+    """
+    def _repl(match: _re_eval.Match) -> str:
+        envy_expression  = match.group("envy").strip()
+        guilt_expression = match.group("guilt").strip()
+        envy_exponent    = match.group("envy_exponent") or ""
+        guilt_exponent   = match.group("guilt_exponent") or envy_exponent
+        return (
+            f"- Ƹᵢⱼ × (max({envy_expression}, 0){envy_exponent}"
+            f" - max({guilt_expression}, 0){guilt_exponent})"
+        )
+    return _SC_TWOTERM.sub(_repl, equation_rhs)
+
+
+def canon_sc_both_ways(equation_rhs: str, mode: str = "twoterm") -> str:
+    """
+    Normalizes symmetric social comparison terms to a canonical target style.
+
+    Applies both conversions in sequence (grouped → two-term → grouped) to reach a
+    stable form regardless of which style the input was written in, then enforces
+    the requested target style.
+
+    Arguments:
+        • equation_rhs: str — right-hand side of a pretty-printed utility equation.
+        • mode: str — target style; either "twoterm" (default) or "grouped".
+
+    Returns:
+        • str — equation_rhs with all SC terms written in the requested style.
+    """
+    twoterm_form = _canon_sc_grouped_to_twoterm(equation_rhs)
+    grouped_form = _canon_sc_twoterm_to_grouped(twoterm_form)
     if mode == "twoterm":
-        return _canon_sc_grouped_to_twoterm(rhs2)
-    else:
-        return rhs2
+        return _canon_sc_grouped_to_twoterm(grouped_form)
+    return grouped_form
 
-def _is_token_char(ch: str) -> bool:
-    return ch not in " \t\r\n,^*/+-()"
+def _is_token_char(character: str) -> bool:
+    """
+    Returns True if character can appear inside an operator token (variable name, number, etc.).
 
-def _find_left_operand(expr: str, caret_index: int) -> tuple[int, int]:
-    i = caret_index - 1
-    while i >= 0 and expr[i].isspace():
-        i -= 1
-    if i >= 0 and expr[i] == ")":
-        depth = 1; i -= 1
-        while i >= 0 and depth > 0:
-            if expr[i] == ")": depth += 1
-            elif expr[i] == "(": depth -= 1
-            i -= 1
-        start = i + 1; end = caret_index
-        name_end = start; name_start = name_end - 1
-        while name_start >= 0 and expr[name_start].isalpha():
-            name_start -= 1
-        name_start += 1
-        if name_start < name_end and expr[name_end] == "(":
-            start = name_start
-        return start, end
-    end = i + 1; start = i
-    while start >= 0 and _is_token_char(expr[start]):
-        start -= 1
-    start += 1
-    return start, end
+    Arguments:
+        • character: str — a single character from an expression string.
 
-def _find_right_operand(expr: str, caret_index: int) -> tuple[int, int]:
-    i = caret_index + 1; n = len(expr)
-    while i < n and expr[i].isspace():
-        i += 1
-    if i < n and expr[i] == "(":
-        depth = 1; i += 1
-        while i < n and depth > 0:
-            if expr[i] == "(": depth += 1
-            elif expr[i] == ")": depth -= 1
-            i += 1
-        return caret_index + 1, i
-    start = i
-    while i < n and _is_token_char(expr[i]):
-        i += 1
-    return start, i
+    Returns:
+        • bool — True if the character is not a delimiter (space, comma, operator, parenthesis).
+    """
+    return character not in " \t\r\n,^*/+-()"
 
-def _replace_powers(expr: str) -> str:
-    out = expr
-    while "^" in out:
-        caret = out.find("^")
-        ls, le = _find_left_operand(out, caret)
-        rs, re = _find_right_operand(out, caret)
-        base = out[ls:le].strip()
-        exp  = out[rs:re].strip()
-        out  = out[:ls] + f"pow_signed({base}, {exp})" + out[re:]
-    return out
+def _find_left_operand(expression: str, caret_index: int) -> tuple[int, int]:
+    """
+    Locates the left operand of the ^ operator at caret_index in expression.
+
+    Handles three cases: a bare token (number or variable name), a parenthesised
+    sub-expression, and a named function call such as max(...) or pow_signed(...).
+
+    Arguments:
+        • expression: str — the full expression string being parsed.
+        • caret_index: int — index of the '^' character in expression.
+
+    Returns:
+        • tuple[int, int] — (start, end) character indices of the left operand,
+            such that expression[start:end] is the operand text.
+    """
+    position = caret_index - 1
+    while position >= 0 and expression[position].isspace():
+        position -= 1
+
+    if position >= 0 and expression[position] == ")":
+        paren_depth = 1
+        position -= 1
+        while position >= 0 and paren_depth > 0:
+            if expression[position] == ")":
+                paren_depth += 1
+            elif expression[position] == "(":
+                paren_depth -= 1
+            position -= 1
+        operand_start = position + 1
+        operand_end   = caret_index
+        function_name_end   = operand_start
+        function_name_start = function_name_end - 1
+        while function_name_start >= 0 and expression[function_name_start].isalpha():
+            function_name_start -= 1
+        function_name_start += 1
+        if function_name_start < function_name_end and expression[function_name_end] == "(":
+            operand_start = function_name_start
+        return operand_start, operand_end
+
+    operand_end   = position + 1
+    operand_start = position
+    while operand_start >= 0 and _is_token_char(expression[operand_start]):
+        operand_start -= 1
+    operand_start += 1
+    return operand_start, operand_end
+
+def _find_right_operand(expression: str, caret_index: int) -> tuple[int, int]:
+    """
+    Locates the right operand of the ^ operator at caret_index in expression.
+
+    Handles parenthesised sub-expressions and bare tokens (numbers, variable names).
+
+    Arguments:
+        • expression: str — the full expression string being parsed.
+        • caret_index: int — index of the '^' character in expression.
+
+    Returns:
+        • tuple[int, int] — (start, end) character indices of the right operand,
+            such that expression[start:end] is the operand text.
+    """
+    position    = caret_index + 1
+    expr_length = len(expression)
+    while position < expr_length and expression[position].isspace():
+        position += 1
+
+    if position < expr_length and expression[position] == "(":
+        paren_depth = 1
+        position += 1
+        while position < expr_length and paren_depth > 0:
+            if expression[position] == "(":
+                paren_depth += 1
+            elif expression[position] == ")":
+                paren_depth -= 1
+            position += 1
+        return caret_index + 1, position
+
+    operand_start = position
+    while position < expr_length and _is_token_char(expression[position]):
+        position += 1
+    return operand_start, position
+
+def _replace_powers(expression: str) -> str:
+    """
+    Replaces all ^ exponentiation operators in expression with pow_signed(...) calls.
+
+    Uses parenthesis-aware operand detection so that compound bases like max(a, b)^γ
+    and multi-character exponents are captured correctly.
+
+    Arguments:
+        • expression: str — a normalised equation string that may contain ^ operators.
+
+    Returns:
+        • str — expression with every a^b replaced by pow_signed(a, b).
+    """
+    result = expression
+    while "^" in result:
+        caret_position             = result.find("^")
+        left_start,  left_end      = _find_left_operand(result, caret_position)
+        right_start, right_end     = _find_right_operand(result, caret_position)
+        base_expression            = result[left_start:left_end].strip()
+        exponent_expression        = result[right_start:right_end].strip()
+        result = (
+            result[:left_start]
+            + f"pow_signed({base_expression}, {exponent_expression})"
+            + result[right_end:]
+        )
+    return result
 
 def normalize_pretty_rhs_for_eval(rhs_text: str, sc_mode: str = "twoterm") -> str:
     """
-    Unicode/operator cleanup, canonicalize symmetric SC (both ways), insert implicit '*',
-    and convert '^' with parenthesis-aware capture to pow_signed(...).
+    Converts a pretty-printed equation right-hand side into a Python-evaluable string.
+
+    Applies Unicode normalisation, implicit-multiplication insertion, social comparison
+    canonicalisation, and ^ → pow_signed(...) substitution in sequence.
+
+    Arguments:
+        • rhs_text: str — right-hand side of a pretty-printed utility equation, possibly
+            containing Unicode characters, implicit multiplication, and ^ exponents.
+        • sc_mode: str — target style for social comparison terms; "twoterm" (default)
+            or "grouped". Passed through to canon_sc_both_ways.
+
+    Returns:
+        • str — a Python-evaluable expression string using only ASCII operators and
+            the pow_signed, max, min, and abs functions.
     """
-    "unicode & ops"
+    "Normalise Unicode dashes and multiplication symbols to ASCII equivalents."
     norm = (rhs_text.replace("\u00A0", " ")
                     .replace("−", "-").replace("–", "-").replace("—", "-")
                     .replace("≥", ">=").replace("≤", "<=").replace("≠", "!=")
                     .replace("×", "*").replace("·", "*").replace("⋅", "*"))
-    "brackets→parens"
+    "Replace square brackets with parentheses."
     norm = norm.replace("[", "(").replace("]", ")")
-    "implicit multiplication (numbers against '(')"
+    "Insert explicit multiplication where a numeric literal immediately precedes an open paren."
     norm = _re_eval.sub(r"(?<![A-Za-z0-9_])(\-?\d+(?:\.\d+)?)\s*\(", r"\1*(", norm)
     norm = norm.replace(")(", ")*(")
     norm = _re_eval.sub(r"\)\s*(\-?\d+(?:\.\d+)?)", r")*\1", norm)
-    "function calls stuck to numbers or ')'"
+    "Insert explicit multiplication where a function name is stuck to a number or closing paren."
     norm = _re_eval.sub(r"(\d)\s*(max|min)\s*\(", r"\1*\2(", norm)
     norm = _re_eval.sub(r"(\d)(?=(max|min)\()", r"\1*", norm)
     norm = _re_eval.sub(r"\)(?=(max|min)\()", r")*", norm)
 
-    "symmetric SC canonicalization both ways; choose stable target"
+    "Canonicalise social comparison terms to a stable target style."
     norm = canon_sc_both_ways(norm, mode=sc_mode)
 
-    "'^' replacement (captures bases incl. function calls)"
+    "Replace ^ operators with pow_signed(...) calls, respecting parenthesised bases."
     out = _replace_powers(norm)
 
-    "ensure pow_signed is multiplied when stuck to numbers or ')'"
+    "Insert explicit multiplication around any pow_signed calls stuck to numbers or parens."
     out = _re_eval.sub(r"(\d)\s*(pow_signed)\s*\(", r"\1*\2(", out)
     out = _re_eval.sub(r"\)\s*(pow_signed)\s*\(", r")*\1(", out)
     out = _re_eval.sub(r"(\d)(?=(pow_signed)\()", r"\1*", out)
     out = _re_eval.sub(r"\)(?=(pow_signed)\()", r")*", out)
     return out
 
-def eval_pretty_equation_rhs(rhs_filled: str, decimals: int = 6, sc_mode: str = "twoterm") -> tuple[float | None, str]:
+def eval_pretty_equation_rhs(
+    rhs_filled: str,
+    decimals: int = 6,
+    sc_mode: str = "twoterm",
+) -> tuple[float | None, str]:
     """
-    Converts a filled RHS to Python and evaluates it. Returns (value, status).
+    Evaluates a pretty-printed, parameter-filled equation right-hand side numerically.
+
+    Normalises the string via normalize_pretty_rhs_for_eval, then evaluates it in a
+    restricted namespace containing only max, min, abs, and signed_pow. No builtins
+    are exposed to prevent arbitrary code execution.
+
+    Arguments:
+        • rhs_filled: str — right-hand side of a utility equation with all parameter
+            symbols replaced by their numeric values.
+        • decimals: int — number of decimal places to round the result to (default 6).
+        • sc_mode: str — social comparison canonicalisation style; passed through to
+            normalize_pretty_rhs_for_eval (default "twoterm").
+
+    Returns:
+        • tuple[float | None, str] — (value, status) where value is the rounded result
+            or None on failure, and status is an empty string on success or an error
+            message beginning with "EVAL ERROR:" on failure.
     """
-    python_rhs = normalize_pretty_rhs_for_eval(rhs_filled, sc_mode=sc_mode)
-    safe_env = {"__builtins__": {}, "max": max, "min": min, "abs": abs,
-                "pow_signed": signed_pow, "signed_pow": signed_pow}
+    python_expression = normalize_pretty_rhs_for_eval(rhs_filled, sc_mode=sc_mode)
+    safe_namespace = {
+        "__builtins__": {},
+        "max": max, "min": min, "abs": abs,
+        "pow_signed": signed_pow, "signed_pow": signed_pow,
+    }
     try:
-        value = float(eval(python_rhs, safe_env, {}))
-        return round(value, decimals), ""
-    except Exception as err:
-        return None, f"EVAL ERROR: {type(err).__name__}: {err}"
+        result_value = float(eval(python_expression, safe_namespace, {}))
+        return round(result_value, decimals), ""
+    except Exception as error:
+        return None, f"EVAL ERROR: {type(error).__name__}: {error}"
 
 

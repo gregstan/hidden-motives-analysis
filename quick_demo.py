@@ -23,6 +23,12 @@ analysis_options = {
     # ── Requires raw experiment data ─────────────────────────────────────────────────────
     'run_model_comparison':         False, # Alternative model contest + typological model comparison.
     'run_ic_analysis':              False, # IC utility comparison: 5 forms in light mode, all 480 in full.
+
+    # ── Requires IC results in bic_aic/ ──────────────────────────────────────────────────
+    'run_individual_architecture':  False, # Architecture compression curve: how many utility types does the population need?
+    'run_model_recovery':           False, # Model recovery simulation: data adequacy check for the IC pipeline.
+
+    # ── Requires raw experiment data ─────────────────────────────────────────────────────
     'run_parameter_distribution':   False, # Population parameter distributions and correlations.
     'run_inequality_aversion':      False, # Inequality aversion bot competition heatmaps.
 }
@@ -49,6 +55,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     model and equations, Bayesian inference machinery, model nesting infrastructure,
     parameter recovery simulations, particle filter validation, belief-update visualization,
     alternative model comparison, IC utility function comparison across 480 forms,
+    individual architecture compression curve, model recovery simulation,
     population parameter distributions, and inequality aversion analysis.
 
     Arguments:
@@ -662,7 +669,116 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             )
 
     "=========================================================================================="
-    "============ Section 10: Population Parameter Distributions and Correlations ============="
+    "====== Section 10: Individual Architecture Compression Curve (K Utility Types) ==========="
+    "=========================================================================================="
+    """
+    Manuscript context: Section 4.5 (how many structurally distinct utility types describe the population?).
+    Functions exercised: extract_participant_model_combined_fits, compute_architecture_compression_curve,
+    plot_architecture_compression_curve.
+    Requires: IC results in bic_aic/ (participant_model_combined_fits.csv is generated on first run).
+    NOTE: light_mode uses only 5 candidate models and K_max=2; for real results run with light_mode=False
+    and real IC data.
+    """
+
+    if analysis_options.get('run_individual_architecture'):
+        print("\n" + _section_header("SECTION 10: Individual architecture compression curve"))
+
+        ic_json_path = ROOT / "bic_aic" / "All_Utility_Forms_IC_Analysis_Experiment3.json"
+        if not ic_json_path.exists():
+            print(
+                "\n" + "!" * 70 + "\n"
+                "CRITICAL WARNING: IC JSON not found at:\n"
+                f"  {ic_json_path}\n"
+                "Section 10 cannot run without this file. Generate it by running\n"
+                "information_criterion_analysis() (Section 9), or obtain it from the authors.\n"
+                + "!" * 70 + "\n"
+            )
+        else:
+            "File paths for IC-dependent analyses: reads real bic_aic/, writes to demo_files/."
+            demo_ic_file_paths = {**demo_real_file_paths, "bic_aic": ROOT / "bic_aic"}
+
+            if light_mode:
+                ia_settings = {
+                    **general_settings.get('individual_architecture_settings', {}),
+                    'population_top_n_models': 5,
+                    'participant_top_r_models': 3,
+                    'K_max': 2,
+                    'exhaustive_K_max': 2,
+                    'n_workers': 1,
+                }
+                arch_general_settings = {**general_settings, 'individual_architecture_settings': ia_settings}
+            else:
+                arch_general_settings = general_settings
+
+            extract_participant_model_combined_fits(
+                general_settings=arch_general_settings,
+                file_paths=demo_ic_file_paths,
+                create_new_file=False,
+            )
+            compute_architecture_compression_curve(
+                general_settings=arch_general_settings,
+                file_paths=demo_ic_file_paths,
+                create_new_file=True,
+            )
+            plot_architecture_compression_curve(
+                general_settings=arch_general_settings,
+                file_paths=demo_ic_file_paths,
+                fig_lay=fig_lay,
+            )
+
+    "=========================================================================================="
+    "=========== Section 11: Model Recovery Simulation (IC Pipeline Data Adequacy) ============"
+    "=========================================================================================="
+    """
+    Manuscript context: Section 4.6 (how many games and participants are needed for the IC pipeline
+    to reliably recover the generating model?).
+    Functions exercised: compute_model_recovery_simulation, plot_model_recovery_simulation.
+    Requires: IC JSON in bic_aic/ (supplies generating-model parameter distributions).
+    NOTE: light_mode uses 2 agents and 2 game counts; full run uses general_settings defaults.
+    """
+
+    if analysis_options.get('run_model_recovery'):
+        print("\n" + _section_header("SECTION 11: Model recovery simulation"))
+
+        ic_json_path = ROOT / "bic_aic" / "All_Utility_Forms_IC_Analysis_Experiment3.json"
+        if not ic_json_path.exists():
+            print(
+                "\n" + "!" * 70 + "\n"
+                "CRITICAL WARNING: IC JSON not found at:\n"
+                f"  {ic_json_path}\n"
+                "Section 11 cannot run without this file. Generate it by running\n"
+                "information_criterion_analysis() (Section 9), or obtain it from the authors.\n"
+                + "!" * 70 + "\n"
+            )
+        else:
+            demo_ic_file_paths = {**demo_real_file_paths, "bic_aic": ROOT / "bic_aic"}
+
+            if light_mode:
+                mr_settings = {
+                    **general_settings.get('model_recovery_settings', {}),
+                    'n_agents_grid':     [2],
+                    'n_games_grid':      [5, 10],
+                    'n_candidate_models': 5,
+                }
+                recovery_general_settings = {**general_settings, 'model_recovery_settings': mr_settings}
+            else:
+                recovery_general_settings = general_settings
+
+            compute_model_recovery_simulation(
+                general_settings=recovery_general_settings,
+                file_paths=demo_ic_file_paths,
+                param_bds=param_bds,
+                utility_settings=utility_settings,
+                create_new_file=True,
+            )
+            plot_model_recovery_simulation(
+                general_settings=recovery_general_settings,
+                file_paths=demo_ic_file_paths,
+                fig_lay=fig_lay,
+            )
+
+    "=========================================================================================="
+    "============ Section 12: Population Parameter Distributions and Correlations ============="
     "=========================================================================================="
     """
     Manuscript context: Section 5 (parameter estimates, cross-role correlations, ratios).
@@ -672,7 +788,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
 
     if analysis_options['run_parameter_distribution'] and not light_mode:
-        print("\n" + _section_header("SECTION 10: Population parameter distribution results"))
+        print("\n" + _section_header("SECTION 12: Population parameter distribution results"))
 
         experiment_num_for_distributions = general_settings.get('experiment_num', 3)
         distribution_settings = {**general_settings, 'experiment_num': experiment_num_for_distributions}
@@ -736,7 +852,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             )
 
     "=========================================================================================="
-    "================ Section 11: Inequality Aversion Bot Competition Heatmaps ================"
+    "================ Section 13: Inequality Aversion Bot Competition Heatmaps ================"
     "=========================================================================================="
     """
     Manuscript context: Section 5.4 (envy vs guilt asymmetry competition).
@@ -745,7 +861,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
 
     if analysis_options['run_inequality_aversion']:
-        print("\n" + _section_header("SECTION 11: Inequality aversion bot competition heatmaps"))
+        print("\n" + _section_header("SECTION 13: Inequality aversion bot competition heatmaps"))
 
         visualize_inequality_aversion_bot_competition(
             fig_lay=fig_lay,

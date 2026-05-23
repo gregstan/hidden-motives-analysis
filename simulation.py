@@ -31,8 +31,8 @@ def simulated_bot_uuids(n_games: int, params_predictor: dict[str, float], params
     These strings embed the “true” simulation parameters (means, standard deviations, and
     temperature) into the player identifiers so that downstream analysis can recover the
     ground-truth parameter values directly from the filenames or player_ids.  This is
-    especially useful when validating that the optimizer recovers the parameters used to
-    generate simulated data.
+    especially useful when validating that the optimizer recovers the parameters used
+    to generate simulated data.
 
     When `k_of_2` is True, UUIDs are tailored to the 2-parameter (Vᵢᵢ, Vᵢⱼ) simulation, and
     the IDs for chooser and predictor each encode *both* agents’ parameters for convenience.
@@ -52,8 +52,8 @@ def simulated_bot_uuids(n_games: int, params_predictor: dict[str, float], params
                 - 'Vᵢⱼ_std': Standard deviation over altruism.
                 - 'τ': SoftMax temperature for the predictor.
         • params_chooser: dict[str, float];
-            Dictionary of chooser parameters with the same keys as `params_predictor` but
-            describing the agent who *generates* choices rather than predictions.
+            Dictionary of chooser parameters with the same keys as `params_predictor`
+            but describing the agent who *generates* choices rather than predictions.
         • predictor_id: str | None;
             Optional explicit identifier for the predictor. Only used when `k_of_2` is False.
             If provided, the predictor UUID will be of the form:

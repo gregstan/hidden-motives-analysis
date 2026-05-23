@@ -972,7 +972,7 @@ unique off-diagonal pairs, where:
 M = len(all_utility_functions)
 ```
 
-Do not hard-code `476` or `480`. The valid model universe is whatever the current registry / `generate_utility_settings(...)` produces.
+Do not hard-code `480`. The valid model universe is whatever the current registry / `generate_utility_settings(...)` produces.
 
 This distance matrix is much cheaper than optimization, but still worth caching because it will be reused for MDS, clustering, max-min subset selection, top-model coherence, participant-cloud distances, and architecture-compression analyses.
 

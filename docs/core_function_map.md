@@ -9,19 +9,22 @@ If you’re new to the data structures, see **data_dictionary.md** for a concret
 
 ## Quick navigation
 
-| Area | Key functions | Location (approx) |
+| Area | Key functions | Module |
 |---|---|---|
-| Utility + likelihood | `utility_term`, `utility`, `softmax_`, `choice` | `main.py:10–331` |
-| Readable equations | `build_utility_equation` | `main.py:387` |
-| Bayesian updating | `prior_grid_from_params`, `bayesian_update_grid` | `main.py:2437–2688` |
-| UBM engine | `agent` | `main.py:3010` |
-| Objective | `loss_function_bayes`, `create_loss_report` | `main.py:3446–3541` |
-| Optimizer | `global_local_optimization` | `main.py:875` |
-| Fit loop | `fit_params_by_player`, `run_analysis_bayes` | `main.py:3636–4625` |
-| Model comparison | `information_criterion_analysis` | `main.py:10369` |
-| Nesting graph | `model_nesting_adjacency_matrices` | `main.py:14145` |
-| Nesting checks | `run_child_parent_probability_equivalence_smoketest` | `main.py:13037` |
-| String-vs-numeric check | `verify_utility_vs_string_equation` | `main.py:13523` |
+| Utility + likelihood | `utility_term`, `utility`, `softmax_`, `choice` | `model.py` |
+| Readable equations | `build_utility_equation` | `model.py` |
+| Bayesian updating | `prior_grid_from_params`, `bayesian_update_grid` | `bayesian.py` |
+| UBM engine | `agent` | `bayesian.py` |
+| Objective | `loss_function_bayes`, `create_loss_report` | `bayesian.py` |
+| Optimizer | `global_local_optimization` | `optimization.py` |
+| Fit loop | `fit_params_by_player`, `run_analysis_bayes` | `bayesian.py` |
+| Model comparison | `information_criterion_analysis` | `analysis.py` |
+| Architecture curve | `compute_architecture_compression_curve` | `analysis.py` |
+| Model recovery | `compute_model_recovery_simulation` | `analysis.py` |
+| Nesting graph | `model_nesting_adjacency_matrices` | `analysis.py` |
+| Nesting checks | `run_child_parent_probability_equivalence_smoketest` | `analysis.py` |
+| String-vs-numeric check | `verify_utility_vs_string_equation` | `utilities.py` |
+| Settings / enumeration | `generate_utility_settings`, `make_param_info` | `utilities.py`, `config.py` |
 
 ---
 
@@ -29,7 +32,7 @@ If you’re new to the data structures, see **data_dictionary.md** for a concret
 
 At a high level, the project does three things:
 
-1. **Defines a family of utility functions** (476 valid forms) for social preferences.
+1. **Defines a family of utility functions** (480 valid forms) for social preferences.
 2. **Implements a Utility‑Bayesian Model (UBM)** where a *predictor* updates beliefs about a *chooser’s* latent social‑preference traits over repeated games.
 3. **Fits and compares models** by optimizing parameters to minimize negative log likelihood (plus a nesting‑fair penalty), and then performing a large‑scale information‑criterion comparison.
 
@@ -85,12 +88,12 @@ These functions make the model family explicit and ensure the rest of the code c
 
 ---
 
-## 3) Enumerating the 476 utility functions (utilities.py)
+## 3) Enumerating the 480 utility functions (utilities.py)
 
 ### `generate_utility_settings(utility_settings) -> list[dict]`
 **Purpose:** Enumerate the space of candidate utility functions by iterating over all `2^14` boolean combinations of the utility flags and keeping only configurations that are **logically valid** and **non‑redundant**.
 
-**Key idea:** Only ~476 (up to ~512 depending on counting conventions) of the `2^14 = 16384` combinations are meaningful models; the rest are impossible or collapse to an equivalent model.
+**Key idea:** 480 of the `2^14 = 16384` combinations are meaningful models; the rest are logically impossible or collapse to an equivalent model.
 
 **Used by:** `information_criterion_analysis(...)` to define the universe of models.
 
@@ -105,7 +108,7 @@ These functions make the model family explicit and ensure the rest of the code c
 
 ---
 
-## 4) Utility function + choice rule (main.py)
+## 4) Utility function + choice rule (model.py)
 
 These functions implement the likelihood term: given payoffs and parameters, what is the probability of each choice?
 
@@ -139,7 +142,7 @@ This is critical for making the model family interpretable and auditable.
 
 ---
 
-## 5) Bayesian updating engine (the UBM) (main.py)
+## 5) Bayesian updating engine (the UBM) (bayesian.py)
 
 ### `prior_grid_from_params(params, param_info, general_settings, ...)`
 **Purpose:** Convert param “mean + std” representations into a discrete probability mass function (PMF) over an n‑dimensional grid.
@@ -169,7 +172,7 @@ Given a sequence of games between two players, it:
 
 ---
 
-## 6) Loss, penalties, and optimization (utilities.py + main.py)
+## 6) Loss, penalties, and optimization (utilities.py + bayesian.py + optimization.py)
 
 ### `parameter_penalty(params, utility_settings, ...) -> float`  *(utilities.py)*
 **Purpose:** Add a regularization term to discourage extreme / degenerate parameterizations **without biasing model comparison**.
@@ -211,7 +214,7 @@ Not central to the paper, but kept as an experimentation hook.
 
 ---
 
-## 7) Fitting pipeline (player-level) (main.py)
+## 7) Fitting pipeline (player-level) (bayesian.py)
 
 ### `fit_params_by_player(player_uuid, ..., general_settings, utility_settings, param_info, file_paths)`
 **Purpose:** Fit parameters for one participant **across all dyads they appeared in** (the unit used in the paper).
@@ -236,7 +239,7 @@ It:
 
 ---
 
-## 8) Model comparison & nesting-violation prevention (utilities.py + main.py)
+## 8) Model comparison & nesting-violation prevention (utilities.py + analysis.py)
 
 ### `classify_pair_relation(child_settings, parent_settings) -> tuple[str|None, str|None]` *(utilities.py)*
 **Purpose:** Given two utility-setting configurations, classify their relationship:
@@ -296,11 +299,11 @@ It:
 - runs a robustness loop until improvements saturate,
 - uses the nesting graph + child→parent parameter propagation to eliminate nesting violations.
 
-**Why it matters:** This is what makes the 476‑model comparison feasible and trustworthy.
+**Why it matters:** This is what makes the 480‑model comparison feasible and trustworthy.
 
 ---
 
-## 9) Validation & sanity checks (main.py)
+## 9) Validation & sanity checks (analysis.py + utilities.py)
 
 These are the “trust but verify” tools used to ensure the model family behaves correctly.
 

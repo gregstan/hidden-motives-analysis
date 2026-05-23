@@ -415,11 +415,59 @@ So simpler models are not just less flexible; they can become **conceptually mis
 
 ---
 
-## **11) Robustness, nesting, and parent-fair regularization**
+## **11) How many utility architectures does the population need?**
+
+The IC comparison identifies the single best utility architecture for the whole population. But participants may differ not only in preference *magnitudes* — how strongly they weight altruism or self-interest — but in the *structure* of their utility function. A person who is entirely indifferent to inequality requires a categorically different functional form than one who is strongly aversion-motivated.
+
+The **architecture compression curve** addresses this question. For K = 1, 2, 3, …, it finds the set of K utility architectures that minimizes total population BIC under hard assignment: each participant uses whichever of the K architectures fits them best. A(K) measures the fraction of the *fully individualized* BIC advantage — giving every participant their own unique best architecture — that is captured by a K-architecture library.
+
+```
+A(1) = 0     (baseline: no individualization with one shared architecture)
+A(K) → 1    (ceiling: every participant has their own architecture)
+```
+
+The curve's knee — identified by the Kneedle elbow criterion — is the answer to: *how many structurally distinct utility types does the population actually need?*
+
+After the best K is found, **AMPD** (Average Model Policy Distance) is computed for the selected library. This checks behavioral distinctiveness: do the selected architectures make genuinely different predictions across game scenarios, or are they structurally different but functionally near-identical?
+
+The compression curve and the IC analysis answer complementary questions:
+
+- **IC:** what is the best single architectural description of the whole population?
+- **Compression curve:** how many distinct architectural types are needed to describe the population?
+
+A library that recovers most of the individualized advantage at K = 2 or K = 3 is more interesting than one requiring K = 10, because it suggests a small number of genuinely distinct social-preference strategies rather than continuous individual variation.
+
+---
+
+## **12) Data adequacy: the model recovery simulation**
+
+A natural question about the IC comparison is whether the experimental design provides enough data to reliably identify the correct utility model. The **model recovery simulation** tests this by treating the IC pipeline itself as the object of study.
+
+**Procedure:**
+1. Choose a generating model (the IC winner by default).
+2. Draw realistic parameter vectors from the IC-fitted distributions for that model.
+3. Simulate synthetic chooser data for a grid of (n_agents × n_games) conditions.
+4. Run the full IC candidate comparison on each condition.
+5. Measure recovery: did the generating model win population BIC? what was its rank? how large was the BIC gap to the runner-up?
+
+**Key recovery metrics:**
+- **Recovery rate** — fraction of synthetic agents for whom the generating model achieves BIC rank 1
+- **Mean BIC rank** — mean rank of the generating model among all candidates; 1 = perfect
+- **Δ-BIC** — mean BIC gap between the generating model and the runner-up; larger = cleaner separation
+- **AMPD to truth** — behavioral distance from the winning model to the generating model; small AMPD means the pipeline selected a model that behaves like the truth even if it is not the exact model
+- **Conditional Hamming distance** — structural distance between the winner and truth in terms of active utility flags
+
+The output is a grid of curves across the n_games axis, showing how each metric improves as data increases. These directly answer: *with our experimental design (N games per participant), how reliable is the IC model comparison?*
+
+The simulation also tests a subtler point. If the pipeline does not perfectly recover the generating model, does it at least select a behaviorally similar one? A mismatch in model identity but near-zero AMPD to truth is a mild failure; a structurally and behaviorally distant winner would be a serious problem.
+
+---
+
+## **13) Robustness, nesting, and parent-fair regularization**
 
 This section matters a lot for anyone touching the fitting code.
 
-## **11.1 Robustness analysis**
+## **13.1 Robustness analysis**
 Because optimization is stochastic, the paper repeats fitting across iterations and tracks:
 
 1. **sum of Δ minimum loss**
@@ -427,7 +475,7 @@ Because optimization is stochastic, the paper repeats fitting across iterations 
 
 Stopping occurs when incremental improvement becomes negligible; stability is reached by about **iteration 11**.
 
-## **11.2 Nesting logic**
+## **13.2 Nesting logic**
 A properly optimized parent should never fit worse than its child. If it does, that signals an optimization failure, not a theoretical result.
 
 The nesting graph is built explicitly:
@@ -435,7 +483,7 @@ The nesting graph is built explicitly:
 - exactly one Boolean setting differs,
 - and the parent reproduces the child at anchor values across all payoff structures.
 
-## **11.3 Parent-fair L2 regularization**
+## **13.3 Parent-fair L2 regularization**
 Many utility families are quasi-scale-invariant, so local optimization can wander or stop early.
 
 The paper adds a small penalty:
@@ -452,7 +500,7 @@ The key design constraint is **parent fairness**:
 
 That stabilizes fitting **without** artificially favoring children.
 
-## **11.4 Optimization schedule**
+## **13.4 Optimization schedule**
 The schedule deliberately moves from exploration to exploitation:
 
 1. early passes: SA + L-BFGS-B, no warm starts  
@@ -463,9 +511,9 @@ This is there to reduce local-minimum problems while preserving the nested model
 
 ---
 
-## **12) Main empirical results**
+## **14) Main empirical results**
 
-## **12.1 Big picture**
+## **14.1 Big picture**
 The fitted distributions imply:
 
 - strong self-interest
@@ -474,7 +522,7 @@ The fitted distributions imply:
 - meaningful nonlinear payoff sensitivity
 - substantial heterogeneity, including antisocial and self-sacrificial tails
 
-## **12.2 The headline findings**
+## **14.2 The headline findings**
 
 ### **A) Self-interest > altruism**
 Chooser means in the main results section:
@@ -521,7 +569,7 @@ participants are not simply projecting their own morality onto others.
 
 ---
 
-## **13) Why the paper matters**
+## **15) Why the paper matters**
 
 ### **Theoretical contribution**
 The paper argues that outcome-based social preferences need more than the classic 2D self-vs-other picture.
@@ -549,7 +597,7 @@ The paper frames this as relevant to:
 
 ---
 
-## **14) Limits**
+## **16) Limits**
 
 This is a model of **outcome-based social preferences**, not all of morality.
 
@@ -569,7 +617,7 @@ Other important constraints:
 
 ---
 
-## **15) Coding-agent takeaways**
+## **17) Coding-agent takeaways**
 
 If you are editing code in this repo, preserve these invariants:
 
@@ -594,7 +642,7 @@ utility family
 
 ---
 
-## **16) Practical version note**
+## **18) Practical version note**
 
 The manuscript is evolving, so some early summary sentences lag behind later tables/equations.
 
@@ -609,7 +657,7 @@ That matters because a few draft summaries appear older than the later technical
 
 ---
 
-## **17) Final takeaway**
+## **19) Final takeaway**
 
 This paper is trying to make hidden social motives measurable.
 

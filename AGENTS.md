@@ -79,8 +79,8 @@ simulation.py      ← simulation utilities: create_simulated_dyad, create_simul
 visualization.py   ← all plotting functions and _hsla color helper
 analysis.py        ← Stage 5–12 analyses: AMPD, model-space geometry, IC extraction, MDS,
                        compression curve, model recovery simulation
-mle.py             ← DEPRECATED — MLE fitting pipeline (superseded by bayesian.py); preserved
-                       for reference only; not called by any active analysis
+mle.py             ← legacy — MLE fitting pipeline; still callable via analysis_mode='mle' but
+                       not used in the paper analyses
 preprocessing.py   ← data loading, dyad construction, experiment-specific cleaning
 utilities.py       ← general helpers: utility enumeration, model nesting, IC utilities
 typological.py     ← discrete/typological Bayesian variants (parallel to the continuous UBM)
@@ -114,7 +114,7 @@ bayesian.py     →  optimization (via *)
 simulation.py   →  bayesian (via *)
 visualization.py→  simulation (via *)
 analysis.py     →  visualization (via *)
-mle.py          →  optimization (via *)   [deprecated; not imported by any active module]
+mle.py          →  optimization (via *)   [legacy; not imported by any active module]
 main.py         →  analysis (via *), mle.run_analysis_mle (explicit; for the one legacy call-site)
 ```
 
@@ -150,9 +150,9 @@ agent() → bayesian_update_grid() → loss_function_bayes() → fit_params_by_p
 The `agent()` function runs the full sequential belief-updating UBM over all games in a dyad.
 `loss_function_bayes()` is the NLL-style loss used in the IC analysis.
 
-**The MLE pipeline in `mle.py` is deprecated and is not called by any active analysis.**
-It was the original fitting approach and is kept only as a reference. Do not extend it or
-call it from new code. The single remaining call-site in `main.py` is also legacy code.
+**The MLE pipeline in `mle.py` is legacy** — still callable via `analysis_mode='mle'` in
+`general_settings`, but not used in the paper analyses. Do not extend it or call it from new
+code. The call-site in `main.py` is retained only so the option remains accessible.
 
 ### `general_settings` and `utility_settings`
 
@@ -563,8 +563,8 @@ The codebase has been split from the original monolithic `main.py` into focused 
 | `bayesian.py` | `bayesian_update_grid`, `agent`, `loss_function_bayes`, `fit_params_by_player`, `run_analysis_bayes`, `_worker_fit_one` |
 | `simulation.py` | `create_simulated_dyad`, `create_simulated_data`, `simulated_bot_uuids`, `run_simulation_recovery_analysis`, `run_param_recovery_by_k`, `verify_particle_filter_fidelity` |
 | `visualization.py` | `_hsla`, all `plot_*` functions for belief updates, parameter distributions, accuracy |
-| `analysis.py` | Stage 5: `average_model_policy_distance`, `compute_ampd_distance_matrix`, `compute_model_space_embedding` · Stage 6: `extract_participant_model_combined_fits` · Stage 7: `compute_participant_architecture_embedding`, `compute_participant_feature_support` · Stage 9: `compute_architecture_compression_curve`, `plot_architecture_compression_curve` · Stage 12: model recovery simulation (in progress) |
-| `mle.py` | **DEPRECATED** — `loss_function_mle`, `fit_one_player_one_role_mle`, `fit_dyad_parameters_mle`, `run_analysis_mle` and helpers; not called by any active analysis |
+| `analysis.py` | Stage 5: `average_model_policy_distance`, `compute_ampd_distance_matrix`, `compute_model_space_embedding` · Stage 6: `extract_participant_model_combined_fits` · Stage 7: `compute_participant_architecture_embedding`, `compute_participant_feature_support` · Stage 9: `compute_architecture_compression_curve`, `plot_architecture_compression_curve` · Stage 12: `_recovery_fit_worker`, `compute_model_recovery_simulation`, `plot_model_recovery_simulation` |
+| `mle.py` | **legacy** — `loss_function_mle`, `fit_one_player_one_role_mle`, `fit_dyad_parameters_mle`, `run_analysis_mle` and helpers; callable via `analysis_mode='mle'` but not used in the paper analyses |
 
 ---
 
