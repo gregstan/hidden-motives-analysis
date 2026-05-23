@@ -444,7 +444,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
         fits_dir = os.path.join(str(demo_file_paths['player_fits']), 'experiment_0')
         basic_files = sorted([
             f for f in os.listdir(fits_dir)
-            if f.startswith('robot_predictor_Vii') and f.endswith('.json')
+            if f.startswith('synthetic_predictor_') and f.endswith('.json')
         ]) if os.path.isdir(fits_dir) else []
 
         if not simulation_pairs_path.exists() or not basic_files:

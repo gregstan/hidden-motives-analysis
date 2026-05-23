@@ -1,162 +1,33 @@
 from bayesian import *
+import uuid
 
 "=========================================================================================="
 "========== Simulation 1) The Optimizer Accurately Recovers Predictor Parameters =========="
 "=========================================================================================="
 
-global_chooser_id = 0
-
-"""
-TODO: Replace simulated_bot_uuids with a content-addressed hash identifier.
-  The current system is brittle: k_of_2=True hardcodes Vᵢᵢ/Vᵢⱼ/_std keys and crashes for
-  any utility model with a different parameter set; k_of_2=False produces filenames that can
-  exceed OS limits. A cleaner design:
-
-      import hashlib, json
-      def stable_bot_id(params: dict, role: str, n_games: int) -> str:
-          payload = json.dumps({'params': sorted(params.items()), 'n': n_games}, sort_keys=True)
-          return f'synthetic_{role}_{hashlib.sha256(payload.encode()).hexdigest()[:12]}'
-
-  Benefits: works for any utility model, never exceeds filename limits, collision-resistant,
-  still uniquely identifies each (params, n_games) combination. Callers that need the raw
-  parameter values should embed them in the game dict (embed_true_params=True), not the ID.
-  Until this is redesigned, pass dyad_id= to create_simulated_dyad to bypass this function.
-"""
-
-def simulated_bot_uuids(n_games: int, params_predictor: dict[str, float], params_chooser: dict[str, float],
-                        predictor_id: str | None = None, chooser_id: str | None = None, k_of_2: bool = True) -> tuple[str, str]:
+def stable_bot_id(params: dict, player_role: str, n_games: int) -> str:
     """
-    Constructs human-readable UUID-like strings for artificial chooser–predictor dyads.
+    Content-addressed hash identifier for a synthetic simulation bot.
 
-    These strings embed the “true” simulation parameters (means, standard deviations, and
-    temperature) into the player identifiers so that downstream analysis can recover the
-    ground-truth parameter values directly from the filenames or player_ids.  This is
-    especially useful when validating that the optimizer recovers the parameters used
-    to generate simulated data.
-
-    When `k_of_2` is True, UUIDs are tailored to the 2-parameter (Vᵢᵢ, Vᵢⱼ) simulation, and
-    the IDs for chooser and predictor each encode *both* agents’ parameters for convenience.
-    When `k_of_2` is False, UUIDs are constructed generically from the full contents of
-    `params_chooser` and `params_predictor`, with a global counter appended to keep them unique.
+    Works for any utility model and never exceeds OS filename limits. The same
+    (params, role, n_games) triple always produces the same ID, so predictor filenames
+    can be reconstructed from parameters without tracking state.
 
     Arguments:
-        • n_games: int;
-            Number of binary dictator games that this dyad will play together. Used to embed
-            the length of the simulated interaction in the UUIDs (e.g., `_n=25`).
-        • params_predictor: dict[str, float];
-            Dictionary of predictor parameters. For the 2-parameter simulations, this must
-            contain (at minimum):
-                - 'Vᵢᵢ': Mean self-interest parameter for the predictor.
-                - 'Vᵢⱼ': Mean altruism parameter for the predictor.
-                - 'Vᵢᵢ_std': Standard deviation over self-interest.
-                - 'Vᵢⱼ_std': Standard deviation over altruism.
-                - 'τ': SoftMax temperature for the predictor.
-        • params_chooser: dict[str, float];
-            Dictionary of chooser parameters with the same keys as `params_predictor`
-            but describing the agent who *generates* choices rather than predictions.
-        • predictor_id: str | None;
-            Optional explicit identifier for the predictor. Only used when `k_of_2` is False.
-            If provided, the predictor UUID will be of the form:
-                'robot_predictor_by_k_id=<predictor_id>_n=<n_games>'
-        • chooser_id: str | None;
-            Optional explicit identifier for the chooser. If provided, the chooser UUID will
-            use this value instead of the global counter. If None, `global_chooser_id` is used
-            and then incremented.
-        • k_of_2: bool;
-            If True, assume a 2-parameter (Vᵢᵢ, Vᵢⱼ) simulation and build compact UUID strings
-            that hard-code the pair (mean, std) for both players plus τ and n_games. If False,
-            iterate over all parameter keys and embed each as key=value in the UUID strings.
+        • params: dict[str, float]; parameter dict that defines this bot’s behavior.
+        • player_role: str; ‘predictor’ or ‘chooser’.
+        • n_games: int; number of games the dyad will play.
 
     Returns:
-        • tuple[str, str];
-            A tuple (predictor_uuid, chooser_uuid) where each element is a string identifier
-            suitable for use as a player_uuid in the simulated histories and as the basename
-            for JSON files storing fitted results.
-
-            Examples (k_of_2 = True):
-                predictor_uuid = 'robot_predictor_Vii=(1.0,1.0)_Vij=(-1.0,1.0)_t=1.5_n=25~...'
-                chooser_uuid   = 'robot_chooser_Vii=(1.0,1.0)_Vij=(-1.0,1.0)_t=1.5_n=25~...'
-
-    Raises:
-        • TypeError:
-            If `n_games` is not an integer.
-        • ValueError:
-            If `n_games` is not strictly positive.
-
-    Notes:
-        • Greek and subscript characters in parameter keys are sanitized (e.g., 'Vᵢᵢ' → 'Vii',
-          'Vᵢⱼ_std' → 'ViJs', 'τ' → 't') when `k_of_2` is False to keep UUIDs filename-safe.
-        • The `~...` “HACK” suffix links each UUID to its counterpart’s coarse parameter
-          settings, which can be useful when parsing filenames without opening the JSON.
+        • str; e.g. ‘synthetic_predictor_a3f9b1d2e5c7’.
     """
-    if not isinstance(n_games, int):
-        raise TypeError(f"n_games must be an integer not {type(n_games)} - {n_games}.")
-    if not n_games > 0:
-        raise ValueError(f"n_games must be greater than 0, not {n_games}.")
-
-    def safe_param_key(param_key):
-        for unsafe, safe in [('ᵢ', 'i'), ('ⱼ', 'j'), ('Ƹ', 'E'), ('Ʒ', 'G'), ('Ʌ', 'N'), 
-                             ('γ', 'e'), ('τ', 't'), ('_std', 's'), ('_cov', 'c'),]: # ('', ''), ('', ''), 
-            param_key = param_key.replace(unsafe, safe)
-        return param_key
-
-    global global_chooser_id
-    local_chooser_id = chooser_id if isinstance(chooser_id, str) else str(global_chooser_id)
-
-    if k_of_2:
-        Vᵢᵢ_chooser =     params_chooser.get("Vᵢᵢ")
-        Vᵢⱼ_chooser =     params_chooser.get("Vᵢⱼ")
-        Vᵢᵢ_std_chooser = params_chooser.get("Vᵢᵢ_std")
-        Vᵢⱼ_std_chooser = params_chooser.get("Vᵢⱼ_std")
-        τ_chooser =       params_chooser.get("τ")
-
-        Vᵢᵢ_predictor =     params_predictor.get("Vᵢᵢ")
-        Vᵢⱼ_predictor =     params_predictor.get("Vᵢⱼ")
-        Vᵢᵢ_std_predictor = params_predictor.get("Vᵢᵢ_std")
-        Vᵢⱼ_std_predictor = params_predictor.get("Vᵢⱼ_std")
-        τ_predictor =       params_predictor.get("τ")
-
-        chooser_uuid = f"robot_chooser_Vii=({round(Vᵢᵢ_chooser, 2)},{round(Vᵢᵢ_std_chooser, 2)})_Vij="
-        chooser_uuid += f"({round(Vᵢⱼ_chooser, 2)},{round(Vᵢⱼ_std_chooser, 2)})_t={round(τ_chooser, 2)}_n={n_games}"
-        "--- Toggle: set False to revert to old behavior quickly ---"
-        UNIQUE_PLAYERS_PER_DYAD = True
-
-        chooser_uuid += (
-            f"~{int(Vᵢᵢ_predictor)}{int(Vᵢⱼ_predictor)}"
-            f"{round(Vᵢⱼ_std_predictor, 2)}{round(τ_predictor, 2)}"
-        )  # HACK
-
-        "Make chooser unique per dyad (matches predictor behavior)"
-        if UNIQUE_PLAYERS_PER_DYAD:
-            chooser_uuid += f"_{global_chooser_id}"
-
-        predictor_uuid = f"robot_predictor_Vii=({round(Vᵢᵢ_predictor, 2)},{round(Vᵢᵢ_std_predictor, 2)})_Vij="
-        predictor_uuid += f"({round(Vᵢⱼ_predictor, 3)},{round(Vᵢⱼ_std_predictor, 2)})_t={round(τ_predictor, 2)}_n={n_games}"
-        predictor_uuid += f"~{int(Vᵢᵢ_chooser)}{int(Vᵢⱼ_chooser)}{round(Vᵢⱼ_std_chooser, 2)}{round(τ_chooser, 2)}_{global_chooser_id}"
-        
-    else:    
-        chooser_uuid = "robot_chooser_by_k_"
-        for param_key, param_val in params_chooser.items():
-            chooser_uuid += f"{safe_param_key(param_key)}={param_val:.2f}_"
-        chooser_uuid += f"n={n_games}_{local_chooser_id}"
-
-        if predictor_id is not None:
-            predictor_uuid = f"robot_predictor_by_k_id={predictor_id}_n={n_games}"
-        else:
-            predictor_uuid = "robot_predictor_by_k_"
-            for param_key, param_val in params_predictor.items():
-                predictor_uuid += f"{safe_param_key(param_key)}={param_val:.2f}_"
-            predictor_uuid += f"n={n_games}_{local_chooser_id}"
-
-    if chooser_id is None:
-        global_chooser_id += 1
-
-    return (predictor_uuid, chooser_uuid)
+    payload = json.dumps({'params': sorted(params.items()), 'n': n_games}, sort_keys=True)
+    return f'synthetic_{player_role}_{hashlib.sha256(payload.encode()).hexdigest()[:12]}'
 
 
 def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params_predictor: dict[str, float], general_settings: GeneralSettings,
                           utility_settings: UtilitySettings, param_bds: ParamBounds, payoff_structures: list[dict[str, int]] | None = None,
-                          default_utility_settings: bool = True, embed_true_params: bool = False, dynamic_predictor: bool = True,
+                          default_utility_settings: bool = True, dynamic_predictor: bool = True,
                           dyad_id: str | None = None) -> dict[DyadKey, DyadGames]:
     """
     Create a single synthetic chooser–predictor dyad with recorded choices and predictions.
@@ -187,17 +58,14 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
         • default_utility_settings: bool;
             If True (default), use the built-in baseline utility settings (altruism only, etc.).
             If False, use the caller-provided `utility_settings`.
-        • embed_true_params: bool; 
-            If True, saves the true params in the dyads so that they are easier to find later.
         • dynamic_predictor: bool;
             If True, runs the full UBM via agent() for predictors, meaning belief updating.
             If False, runs choice() for predictors, meaning no belief updating.
         • dyad_id: str | None;
             If provided, used directly as the dyad identifier (chooser_uuid becomes
-            '{dyad_id}_chooser', predictor_uuid becomes '{dyad_id}_predictor'). This
-            bypasses simulated_bot_uuids entirely, which is necessary when the params dict
-            does not contain the specific keys that function assumes (e.g., utility models
-            with more than 2 parameters). Pass None (default) to use the old UUID system.
+            '{dyad_id}_chooser', predictor_uuid becomes '{dyad_id}_predictor'). Pass None
+            (default) to auto-generate IDs via stable_bot_id (predictor) and uuid4 (chooser).
+            True params are always embedded in game[0] regardless of this setting.
 
     Returns:
         • dict[DyadKey, DyadGames]
@@ -241,8 +109,8 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
         chooser_uuid   = f"{dyad_id}_chooser"
         predictor_uuid = f"{dyad_id}_predictor"
     else:
-        predictor_uuid, chooser_uuid = simulated_bot_uuids(n_games=n_games, params_predictor=params_predictor,
-                                                           params_chooser=params_chooser, k_of_2=not embed_true_params)
+        predictor_uuid = stable_bot_id(params_predictor, 'predictor', n_games)
+        chooser_uuid   = f'synthetic_chooser_{uuid.uuid4().hex[:12]}'
     dyad_key = f"({predictor_uuid}, {chooser_uuid})"
 
     dyad_games = []
@@ -295,7 +163,7 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
             "round": game_idx,            
         }
 
-        if embed_true_params and game_idx == 0:
+        if game_idx == 0:
             dyad_game["true_params_predictor"] = dict(params_predictor)
             dyad_game["true_params_chooser"]   = dict(params_chooser)
 
@@ -422,7 +290,6 @@ def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], 
           so the outer loops vary predictor parameters first, then chooser parameters.
         • Each unique player UUID is assigned a random avatar shape and color sample (HLSA)
           to make simulated players visually distinct in the UI and diagnostic plots.
-        • When `run_analysis=True`, `global_chooser_id` is reset to 0 after the analysis.
     """
     if run_analysis:
         if param_bds is None:
@@ -594,9 +461,8 @@ def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], 
  
         histories_info = player_histories['player_info']
 
-        run_analysis_bayes(histories_data=player_histories, file_paths=file_paths_, param_info=param_info_, 
+        run_analysis_bayes(histories_data=player_histories, file_paths=file_paths_, param_info=param_info_,
                            utility_settings=utility_settings_, general_settings=general_settings_)
-        global_chooser_id = 0
     return player_histories
 
 
@@ -690,15 +556,15 @@ def get_simulated_dyad(file_paths: FilePaths, dyad_idx: int | None, n_games: int
             - If `prep.get_file_by_index_or_name` fails to return a valid filename.
 
     Notes:
-        • When both parameter dictionaries are supplied, they must match the ones used to
-          generate the original dyad; otherwise the reconstructed filename will not exist.
+        • When `params_predictor` is supplied, it must match the dict used during simulation;
+          `stable_bot_id` produces the same hash → filename deterministically. `params_chooser`
+          is no longer used for filename reconstruction (chooser UUIDs are random uuid4).
         • This loader is read-only: it does not modify or re-simulate any dyads, it simply
           deserializes a previously saved JSON file.
     """
     file_name = None
-    if params_predictor is not None and params_chooser is not None:
-        predictor_uuid, chooser_uuid = simulated_bot_uuids(n_games=n_games, params_predictor=params_predictor, params_chooser=params_chooser)
-        file_name = predictor_uuid + ".json"
+    if params_predictor is not None:
+        file_name = stable_bot_id(params_predictor, 'predictor', n_games) + ".json"
 
     if file_name is None:
         file_name = prep.get_file_by_index_or_name(directory_path=os.path.join(file_paths['player_fits'], 'experiment_0'), file_name_idx=dyad_idx, file_name=file_name)
@@ -1922,12 +1788,8 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
             params_pred = _sample_params_from_bounds(param_info_k)
             pred_altruism_val = float(altruism_targets[pred_idx])
             params_pred[altruism_key] = pred_altruism_val
-            stable_pid = f"k{k_params}_Vij={pred_altruism_val:.2f}_p{pred_idx}"
-            "FIXED predictor UUID across several dyads"
-            predictor_uuid_fixed = simulated_bot_uuids(
-                n_games=n_games, params_predictor=params_pred, params_chooser=params_pred,  # Chooser ignored for predictor UUID.
-                k_of_2=False, predictor_id=stable_pid, chooser_id="seed"  # Temporary chooser_id.
-            )[0]
+            "FIXED predictor UUID across several dyads — index keeps it unique even if params collide"
+            predictor_uuid_fixed = f'synthetic_predictor_{k_params}_{pred_idx}'
 
             predictor_uuids_for_k.append(predictor_uuid_fixed)
 
@@ -1943,7 +1805,6 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
                     utility_settings=u_settings_k,
                     payoff_structures=None,
                     default_utility_settings=False,
-                    embed_true_params=True
                 )
                 "Overwrite predictor UUID in the freshly created dyad to the fixed one"
                 (dyad_key, games_list), = dyad.items()
@@ -3197,15 +3058,15 @@ def run_update_speed_simulation_regression(general_settings: GeneralSettings, fi
             param_key_map.get(param_key, param_key): param_val 
             for param_key, param_val in param_est.items() 
         }
-        true_params_chooser = parse_robot_string(robot_str=chooser_uuid)
+        true_params_chooser = first_game.get("true_params_chooser") or parse_robot_string(robot_str=chooser_uuid)
         true_params_chooser = {
-            param_key_map.get(param_key, param_key): param_val 
-            for param_key, param_val in true_params_chooser.items() 
-        }        
-        true_params_predictor = parse_robot_string(robot_str=predictor_uuid)
+            param_key_map.get(param_key, param_key): param_val
+            for param_key, param_val in true_params_chooser.items()
+        }
+        true_params_predictor = first_game.get("true_params_predictor") or parse_robot_string(robot_str=predictor_uuid)
         true_params_predictor = {
-            param_key_map.get(param_key, param_key): param_val 
-            for param_key, param_val in true_params_predictor.items() 
+            param_key_map.get(param_key, param_key): param_val
+            for param_key, param_val in true_params_predictor.items()
         }
 
         update_speed = compute_belief_update_speed(dyad_games=dyad_games, player_uuid=predictor_uuid, fraction=0.5, 
