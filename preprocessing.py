@@ -322,13 +322,7 @@ def dyads_for_a_player(player_uuid: str | int, experiment_num: int, file_paths: 
         raise ValueError(f"experiment_num({experiment_num}) must be 1, 2, or 3.")
 
     if experiment_num == 0:
-        demo_mode = True  #HACK REMOVE AFTER DEMO
-        if demo_mode:
-            histories_file_path = os.path.join(ROOT, 'demo_files', 'processed', 
-                                           file_paths['file_names'][f'player_pairs_exper0'])
-
-        else:
-            histories_file_path = os.path.join(ROOT, 'processed', 
+        histories_file_path = os.path.join(ROOT, 'processed',
                                            file_paths['file_names'][f'player_pairs_exper0'])
 
         with open(histories_file_path, "r", encoding='utf-8') as file:

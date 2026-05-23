@@ -22,6 +22,13 @@ run_code_settings: RunCodeSettings = {
 def main():
     """Execute main code."""
 
+    "Apply master random seed when reproducibility mode is enabled."
+    _master_seed = general_settings.get('random_seeds', {}).get('seed', None)
+    if _master_seed is not None:
+        random.seed(_master_seed)
+        np.random.seed(_master_seed)
+        print(f"Reproducibility mode active. Master random seed: {_master_seed}.")
+
     "Ensure all output directories exist — safe on a clean clone or a new machine."
     for _dir_key in ('processed', 'param_data', 'player_fits', 'dyad_data', 'discrete', 'visuals', 'bic_aic'):
         os.makedirs(str(file_paths[_dir_key]), exist_ok=True)
@@ -171,8 +178,12 @@ def main():
 
         utility_setting_varieties = gnrl.generate_utility_settings(utility_settings=utility_settings)
         gnrl.identify_redundant_utility_functions(
-            utility_settings=utility_settings, build_equation_function=build_utility_equation,
+            utility_settings=utility_settings,
+            build_equation_function=build_utility_equation,
             file_paths=file_paths,
+            compute_ampd_fn=compute_ampd_distance_matrix,
+            general_settings=general_settings,
+            param_bds=param_bds,
         )
         gnrl.equation_to_settings(
             equation_function=build_utility_equation, utility_settings=utility_settings,

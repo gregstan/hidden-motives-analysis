@@ -690,7 +690,6 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A")
 
         "Use both groups if negativity parameters are included."
         if (loss_av and not (term_type == "self-interest" and fix_self)) or (la_socc and term_type == "social_comparison"):
-            "if loss_av or (la_socc and term_type == 'social_comparison'):" # TODO figure out if this line should be delted
             return group1 + group2
         else:
             return group1

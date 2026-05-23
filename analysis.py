@@ -1,4 +1,4 @@
-﻿import hashlib
+import hashlib
 import time
 from visualization import *
 from visualization import _hsla
@@ -232,7 +232,7 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
                 utility_settings=utility_settings,
                 player_uuid=human_player_uuid,
                 player_role="predictor",
-                choice_temperature=general_settings_.get("softmax_temperature")
+                softmax_temperature=general_settings_.get("softmax_temperature")
             )
             updated_games = loss_function_bayes(dyad_games=updated_games, general_settings=general_settings_)
 
@@ -2276,418 +2276,6 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
     return df, all_ic_results
 
 
-def plot_ic_robustness_analysis(general_settings: Dict[str, Any], file_paths: Dict[str, str], fig_lay: Dict[str, Any]) -> go.Figure:
-    """
-    Plot IC robustness diagnostics from the information criterion analysis results file.
-
-    Loads the stored robustness analysis data from the IC results JSON and generates two
-    line charts: (1) the sum of per-model changes in minimum observed loss across warm-start
-    iterations — measuring how much the loss landscape shifted between iterations — and
-    (2) the number of rank changes per iteration across models, with optional median overlay.
-    These plots indicate whether the IC analysis results have converged as iteration count grows.
-
-    Arguments:
-        • general_settings: Dict[str, Any]
-            Must include 'experiment_num' (int) to locate the correct results file.
-        • file_paths: Dict[str, str]
-            Must include 'bic_aic' path where IC results JSON files are stored.
-        • fig_lay: Dict[str, Any]
-            Figure layout template controlling fonts, colors, and figure sizing.
-
-    Returns:
-        • go.Figure — a Plotly figure with two subplots showing convergence diagnostics.
-    """
-    experiment_num = general_settings.get('experiment_num')
-    "Path to save the final results."
-    all_ic_results_file_path = os.path.join(
-        file_paths["bic_aic"], 
-        f"All_Utility_Forms_IC_Analysis_Experiment{experiment_num}.json"
-    )
-
-    if os.path.exists(all_ic_results_file_path):
-        with open(all_ic_results_file_path, "r", encoding="utf-8") as file:
-            all_ic_results = json.load(file)
-
-    rab_data = all_ic_results.get("robustness_analysis_data", {})
-    n_iters = all_ic_results.get("n_iterations_completed", 1)
-
-    sum_delta_loss = rab_data.get("sum_delta_minimum_loss_by_iter", [])
-    rank_changes   = rab_data.get("rank_change_by_iter", [])
-    rank_med       = rab_data.get("rank_change_median_by_iter", [])
-
-    "Build a 1x2 subplots figure or 2 separate figures"
-    fig = make_subplots(
-        rows=1, cols=2,
-        subplot_titles=[
-            "Sum of Δ Min Loss Per Iteration",
-            "Sum of Rank Changes Per Iteration",
-        ]
-    )
-
-    "X array from 1..n_iters"
-    x_iter = list(range(1, len(sum_delta_loss)+1))
-    line_width = 8
-    "(A) sum_delta_minimum_loss_by_iter"
-    trace_sum_loss = go.Scatter(
-        x=x_iter[1:],
-        y=sum_delta_loss[1:],
-        mode="lines+markers",
-        name="Δ Min Loss",
-        marker=dict(size=fig_lay.get("markersize", 10)+2, color='hsla(115, 65%, 40%, 1.0)'),
-        line=dict(width=line_width, color='hsla(155, 65%, 20%, 1.0)')
-    )
-    fig.add_trace(trace_sum_loss, row=1, col=1)
-
-    "(B) rank_change_by_iter"
-    x_iter2 = list(range(1, len(rank_changes)+1))
-    trace_rank = go.Scatter(
-        x=x_iter2[1:],
-        y=rank_changes[1:],
-        mode="lines+markers",
-        name="Sum of Rank Changes",
-        marker=dict(size=fig_lay.get("markersize", 10)+2, color='hsla(200, 65%, 40%, 1.0)'),
-        line=dict(width=line_width, dash="solid", color='hsla(200, 65%, 20%, 1.0)')
-    )
-    fig.add_trace(trace_rank, row=1, col=2)
-
-    tickvals_x = list(np.linspace(2, x_iter2[-1], len(x_iter2) - 1))
-    ticktext_x = tickvals_x
-    epsilon_x = 5e-02
-
-    fig.update_annotations(font_size=24)
-    fig.update_layout(
-        template=fig_lay.get("template", "plotly_dark"),
-        title="Robustness of IC Results",
-        titlefont_size=fig_lay['titlefont_size'] + 6,
-        margin=dict(l=150, r=100, t=150, b=120),
-        title_x=0.5, title_y= 0.98,
-        xaxis=dict(
-            title="Analysis Iteration",
-            **fig_lay.get("xaxis",{}), 
-            tickvals=tickvals_x,
-            ticktext=ticktext_x,
-            range=[2 - epsilon_x, x_iter2[-1] + epsilon_x]
-        ),
-        xaxis2=dict(
-            title="Analysis Iteration",
-            **fig_lay.get("xaxis",{}), 
-            tickvals=tickvals_x,
-            ticktext=ticktext_x,
-            range=[2 - epsilon_x, x_iter2[-1] + epsilon_x]
-        ),
-        yaxis=dict(
-            title="Sum of Δ Minimum Loss",
-            **fig_lay.get("yaxis",{})
-        ),
-        yaxis2=dict(
-            title="Sum (or Median) Rank Change" if rank_med else "Sum of Rank Changes",
-            **fig_lay.get("yaxis",{})
-        ),
-        font=fig_lay.get("font", {}),
-        hoverlabel=fig_lay.get("hoverlabel", {}),
-        legend=dict(x=0.5, y=-0.2, xanchor="center", orientation="h")
-    )
-
-    if general_settings.get('export_fig'):
-        out_file_name: str = "robustness_analysis.html"
-        out_path = os.path.join(file_paths['visuals'], out_file_name)
-        print(f"Saved robustness figure to {out_path}.")
-        fig.write_html(out_path)
-        
-    return fig
-
-
-def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: dict, include_dropdown: bool = True) -> go.Figure:
-    """
-    Creates a Plotly scatterplot of ΔBIC scores for all utility-model configurations,
-    sorted from lowest (best) to highest. By default, a single trace uses a continuous
-    color scale based on the number of parameters (𝑘). When a dropdown menu is included
-    (include_dropdown=True), users can toggle coloring by each relevant Boolean utility
-    option, revealing two traces (True/False) with distinct legend entries.
-
-    Arguments:
-        • fig_lay: Dict[str, Any]
-            Layout preferences (template, font, axis styles, etc.) used for consistent
-            aesthetics across figures.
-
-        • file_paths: Dict[str, str]
-            File paths. Must include:
-                └─ file_paths["bic_aic"]
-            This function automatically loads a CSV named:
-                All_Utility_Forms_IC_Analysis_Experiment{experiment_num}.csv
-            from that directory, where experiment_num is retrieved from general_settings.
-
-        • general_settings: Dict[str, Any]
-            Must contain 'experiment_num' to identify which CSV file to load. The CSV file
-            is expected to have columns: ΔBIC, k_params, equation, n_data, and zero or more
-            Boolean columns for specific utility options.
-
-        • utility_settings: Dict[str, bool]
-            A dictionary of possible Boolean flags (e.g. 'reference_dependent_utility').
-            This is used to build readable labels for the dropdown if include_dropdown=True.
-
-        • include_dropdown: bool
-            If True, adds an interactive dropdown menu that toggles between:
-                1) A single color-scale trace for 𝑘 parameters (the default).
-                2) Pairs of True/False traces for each recognized Boolean column.
-            If False, only the single color-scale trace is shown, and all Boolean traces
-            remain invisible.
-
-    Returns:
-        • fig: go.Figure
-            The Plotly figure object. The function writes an HTML file named 'ic_scores_scatter.html'
-            to the file_paths["bic_aic"] directory. The x-axis is the model rank (1 = best),
-            and the y-axis is ΔBIC relative to the best model (lower is better).
-
-    Notes:
-        1) Dots are sized ~1.8x larger than the project default and include a subtle outline.
-        2) When coloring by 𝑘, a colorbar labeled “𝑘” is displayed on the right. Boolean columns,
-            if toggled, appear as separate True/False scatter traces with a horizontal legend
-            placed below the chart. Each Boolean option name is converted into a more readable
-            label (e.g., “Ref-Dependent Utility” instead of “reference_dependent_utility”).
-        3) The figure title includes 𝑛 (the maximum n_data from the CSV) and references ΔBIC.
-        4) Hover text shows each model’s rank, ΔBIC, number of parameters, and its utility equation.
-    """
-
-    "1) Determine which CSV to load"
-    experiment_num = general_settings.get("experiment_num", 3)
-    csv_file = os.path.join(
-        file_paths["bic_aic"],
-        f"All_Utility_Forms_IC_Analysis_Experiment{experiment_num}.csv"
-    )
-    if not os.path.exists(csv_file):
-        raise FileNotFoundError(f"Could not locate file: {csv_file}")
-
-    "2) Load DataFrame, check columns"
-    df = pd.read_csv(csv_file)
-    required_cols = ["ΔBIC", "k_params", "equation", "n_data"]
-    for col in required_cols:
-        if col not in df.columns:
-            raise ValueError(f"Missing required column '{col}' in {csv_file}")
-
-    "3) Sort by ΔBIC ascending and compute model rank"
-    df.sort_values(by="ΔBIC", ascending=True, inplace=True)
-    df.reset_index(drop=True, inplace=True)
-    df["model_rank"] = df.index + 1  # Rank from 1..N.
-
-    "Assume all rows share the same n_data or use the max"
-    n_data = int(df["n_data"].max())
-
-    "4) Identify boolean columns"
-    bool_cols = []
-    for col in df.columns:
-        if df[col].dtype == bool or df[col].dtype == "bool":
-            bool_cols.append(col)
-
-    "5) Create a readable label map for these columns"
-    "(Customize as needed)"
-    bool_label_map = {
-        'conditional_welfare_mode':       "Conditional Welfare Mode",
-        'reference_dependent_altruism':   "Ref-Dependent Altruism",
-        'min_max_rawlsian_leontief':      "Min-Max (Rawls/Leontief)",
-        'use_exponential_parameters':     "Use Exponential Params",
-        'apply_exponents_to_payoffs':     "Apply Exponents to Payoffs",
-        'single_exponential_parameter':   "Single Exponential Param",
-        'single_payoffs_not_differences': "Single Payoffs, Not Differences",
-        'payoff_ratios_not_differences':  "Payoff Ratios, Not Differences",
-        'reference_dependent_utility':    "Ref-Dependent Utility",
-        'use_negativity_parameters':      "Use Negativity Params",
-        'negativity_social_comparison':   "Negativity in Social Comparison",
-        'fix_self_interest_parameter':    "Fix Self-Interest Param",
-        'include_social_comparison':      "Include Social Comparison",
-        'include_altruism_term':          "Include Altruism Term"
-    }
-
-    "6) Build a single color-scale trace for k_params"
-    k_min = df["k_params"].min()
-    k_max = df["k_params"].max()
-
-    "Marker size (scaled ~1.8x)"
-    default_marker_size = int(fig_lay.get("markersize", 12) * 2)
-
-    trace_kparams = go.Scatter(
-        x=df["model_rank"],
-        y=df["ΔBIC"],
-        mode="markers",
-        name="Models by 𝑘",
-        visible=True,  # Default.
-        showlegend=False,  # No legend for the continuous color scale.
-        hovertemplate=(
-            "Rank: %{x}; 𝑘 Params: %{customdata[0]}; ΔBIC: %{y:.3f}<br>"
-            "Equation: %{customdata[1]}<extra></extra>"
-        ),
-        customdata=df[["k_params", "equation"]],
-        marker=dict(
-            size=default_marker_size,
-            color=df["k_params"],
-            colorscale="Viridis",
-            cmin=k_min,
-            cmax=k_max,
-            showscale=True,  # Show colorbar.
-            colorbar=dict(
-                title="𝑘",  # Fancy k.
-                x=1.02
-            ),
-            line=dict(width=1.5, color="hsla(0, 50%, 0%, 0.5)")
-        )
-    )
-
-    data_traces = [trace_kparams]
-
-    "7) For each boolean col, create 2 separate scatter traces: True & False"
-    "These traces are invisible by default; dropdown selections show them and hide the k_params trace."
-    hue_true  = "hsla(0, 80%, 40%, 7.0)"     # Red.
-    hue_false = "hsla(180, 80%, 40%, 7.0)"   # Cyan.
-    bool_trace_map = {}
-    current_trace_index = 1
-
-    for bcol in bool_cols:
-        label_ = bool_label_map.get(bcol, bcol)
-
-        df_true  = df[df[bcol] == True ]
-        df_false = df[df[bcol] == False]
-
-        tr_true = go.Scatter(
-            x=df_true["model_rank"],
-            y=df_true["ΔBIC"],
-            mode="markers",
-            name=f"{label_} = True",
-            visible=False,
-            legendgroup=bcol,
-            showlegend=True,
-            hovertemplate=(
-                "Rank: %{x}; 𝑘 Params: %{customdata[0]}; ΔBIC: %{y:.3f}<br>"
-                "Equation: %{customdata[1]}<extra></extra>"
-            ),
-            customdata=df_true[["k_params", "equation"]],
-            marker=dict(
-                size=default_marker_size, 
-                opacity=0.7, color=hue_true, showscale=False,
-                line=dict(width=1.5, color="hsla(0, 50%, 0%, 0.5)")
-            )
-        )
-        tr_false = go.Scatter(
-            x=df_false["model_rank"],
-            y=df_false["ΔBIC"],
-            mode="markers",
-            name=f"{label_} = False",
-            visible=False,
-            legendgroup=bcol,
-            showlegend=True,
-            hovertemplate=(
-                "Rank: %{x}; 𝑘 Params: %{customdata[0]}; ΔBIC: %{y:.3f}<br>"
-                "Equation: %{customdata[1]}<extra></extra>"
-            ),
-            customdata=df_false[["k_params", "equation"]],
-            marker=dict(
-                size=default_marker_size,
-                opacity=0.7, color=hue_false, showscale=False,
-                line=dict(width=1.5, color="hsla(0, 50%, 0%, 0.5)")
-            )
-        )
-
-        data_traces.append(tr_true)
-        data_traces.append(tr_false)
-
-        bool_trace_map[bcol] = (current_trace_index, current_trace_index + 1)
-        current_trace_index += 2
-
-    fig = go.Figure(data=data_traces)
-
-    "8) Overall layout and styling"
-    fig.update_layout(
-        template=fig_lay.get("template", "plotly_dark"),
-        title=f"IC Scores (ΔBIC) for All Utility Functional Forms; 𝑛 = {n_data} Data Points",
-        titlefont_size=fig_lay['titlefont_size'],
-        font=fig_lay.get("font", {}),
-        hoverlabel=fig_lay.get("hoverlabel", {}),
-        margin=dict(l=180, r=150, t=150, b=120),
-        title_x=0.5,
-        xaxis=dict(
-            title="Model Rank (1 = Best)",
-            **fig_lay.get("xaxis", {})
-        ),
-        yaxis=dict(
-            title="ΔBIC (Difference from Best Model)",
-            **fig_lay.get("yaxis", {})
-        ),
-        legend=dict(
-            orientation="h", x=0.0, y=-0.15,
-            font=dict(size=fig_lay.get("font", {}).get("size", 16))
-        )
-    )
-
-    "9) If no dropdown is wanted, hide all Boolean traces"
-    if not include_dropdown:
-        for idx in range(1, len(data_traces)):
-            fig.data[idx].visible = False
-
-        "The single trace for k_params is visible, so the color scale carries the encoding."
-        out_path = os.path.join(file_paths["bic_aic"], "ic_scores_scatter.html")
-        fig.write_html(out_path)
-        print(f"Saved scatter plot to '{out_path}' [No Dropdown Mode].")
-        return fig
-
-    "10) Build a dropdown to toggle coloring"
-    n_traces_total = len(data_traces)
-    def all_invisible():
-        return [False] * n_traces_total
-
-    "Option A: \"Color by k_params\""
-    kparams_vis = all_invisible()
-    kparams_vis[0] = True  # The first trace is the continuous color-scale.
-    "Boolean traces start hidden."
-
-    buttons = []
-    "First button => color by k_params"
-    buttons.append(dict(
-        label="Color by 𝑘",
-        method="update",
-        args=[
-            {"visible": kparams_vis},  # Sets the visible array.
-            {"title": f"IC Scores (ΔBIC) for All Utility Functional Forms; 𝑛 = {n_data} Data Points (Colored by 𝑘)"}
-        ]
-    ))
-
-    "Additional buttons => each boolean col"
-    for bcol in bool_cols:
-        label_ = bool_label_map.get(bcol, bcol)
-        "The pair of traces for this col"
-        idx_true, idx_false = bool_trace_map[bcol]
-        vis_arr = all_invisible()
-        vis_arr[idx_true] = True
-        vis_arr[idx_false] = True
-
-        buttons.append(dict(
-            label=f"Color by {label_}",
-            method="update",
-            args=[
-                {"visible": vis_arr},
-                {"title": f"IC Scores (ΔBIC) for All Utility Functional Forms; 𝑛 = {n_data} Data Points (Colored by {label_})"}
-            ]
-        ))
-
-    fig.update_layout(
-        updatemenus=[dict(
-            type="dropdown",
-            showactive=True,
-            direction="down",
-            x=0.0, y=1.06,
-            xanchor="left",
-            yanchor="top",
-            pad=dict(r=10, t=10),
-            buttons=buttons
-        )]
-    )
-
-    "11) Write out HTML and return figure"
-    out_path = os.path.join(file_paths["visuals"], "ic_scores_scatter.html")
-    print(f"Saved scatter plot to '{out_path}' [Dropdown Mode].")
-    fig.write_html(out_path)
-    
-    return fig
-
-
 def utility_setting_contribution_analysis(*, general_settings: dict, file_paths: dict, utility_settings_universe: dict[str, bool], score_col: str = "BIC", 
                                           use_edge_types: tuple[str, ...] = ("sibling", "parent_child"), include_non_network_toggles: bool = True, 
                                           export_csv: bool = True, out_dirname: str = "pairwise_edge_analysis") -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -3324,13 +2912,6 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
             if 'Vᵢᵢ' in parent_param_keys:
                 parent_parameters['Vᵢᵢ'] = 1.0
 
-        # elif changed_utility_setting == "conditional_welfare_mode": # TODO figure out if this should be removed
-        # "Make 'ahead' and 'behind' branches identical → tie Λ to V."
-        #     if 'Ʌᵢᵢ' in parent_param_keys:
-        #         parent_parameters['Ʌᵢᵢ'] = float(parent_parameters.get('Vᵢᵢ', child_parameter_dict.get('Vᵢᵢ', 0.0)))
-        #     if 'Ʌᵢⱼ' in parent_param_keys:
-        #         parent_parameters['Ʌᵢⱼ'] = float(parent_parameters.get('Vᵢⱼ', child_parameter_dict.get('Vᵢⱼ', 0.0)))
-
         elif changed_utility_setting == "include_altruism_term":
             if parent_settings.get("conditional_welfare_mode", False):
                 "Parent gained an explicit altruism parameter inside conditional welfare."
@@ -3380,7 +2961,7 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
                                             utility_settings: dict[str, bool],
                                             param_info: dict[str, Any],
                                             parameter_values: dict[str, float],
-                                            choice_temperature: float | None = None) -> float:
+                                            softmax_temperature: float | None = None) -> float:
         """
         Produces predictions with agent(), computes loss with loss_function_bayes(),
         and returns sum NLL for a single player/role.
@@ -3418,7 +2999,7 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
                 player_uuid=player_uuid,
                 player_role=player_role,
                 general_settings=general_settings,
-                choice_temperature=choice_temperature
+                softmax_temperature=softmax_temperature
             )
 
             "Compute loss and attach loss_report to the first game."
@@ -3526,7 +3107,7 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
     if isinstance(fit_for_n_players, int) and 0 < fit_for_n_players <= len(participant_uuids):
         participant_uuids = participant_uuids[:fit_for_n_players]  # Alphabetical order preserved.
 
-    choice_temperature = general_settings.get('softmax_temperature', 1.0)
+    softmax_temperature = general_settings.get('softmax_temperature', 1.0)
 
     "Mapping from tuple signature to IC-row index for lookup"
     def row_to_tuple(row: pd.Series) -> tuple[bool, ...]:
@@ -3592,7 +3173,7 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
                 utility_settings=child_settings,
                 param_info=child_param_info,
                 parameter_values=child_parameter_dict,
-                choice_temperature=choice_temperature
+                softmax_temperature=softmax_temperature
             )
             sum_nll_parent += _evaluate_loss_for_model_and_player(
                 player_uuid=player_uuid,
@@ -3602,7 +3183,7 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
                 utility_settings=parent_settings,
                 param_info=parent_param_info,
                 parameter_values=embedded_parent_means,
-                choice_temperature=choice_temperature
+                softmax_temperature=softmax_temperature
             )
 
         "Pretty equations"
@@ -5428,7 +5009,7 @@ def _build_ampd_cache_path(
     parameter_sampling_mode: str,
     parameter_pairing_mode: str,
     player_roles: Optional[List[str]],
-    choice_temperature: float,
+    softmax_temperature: float,
     n_games: int,
     n_iters: int,
     random_seed: Optional[int],
@@ -5449,7 +5030,7 @@ def _build_ampd_cache_path(
         • parameter_sampling_mode: str — 'uniform' or 'realistic'.
         • parameter_pairing_mode: str — 'shared' or 'independent'.
         • player_roles: list[str] | None — roles used for realistic sampling.
-        • choice_temperature: float — softmax temperature τ.
+        • softmax_temperature: float — softmax temperature τ.
         • n_games: int — number of payoff structures evaluated.
         • n_iters: int — number of Monte Carlo parameter draws.
         • random_seed: int | None — seed used; None becomes 'unseeded'.
@@ -5457,7 +5038,7 @@ def _build_ampd_cache_path(
     Returns:
         • str — full path to the master cache CSV file.
     """
-    tau_str = f"{choice_temperature:.4g}".replace(".", "p")
+    tau_str = f"{softmax_temperature:.4g}".replace(".", "p")
     seed_str = str(random_seed) if random_seed is not None else "unseeded"
     parts = ["ampd", metric, parameter_sampling_mode, parameter_pairing_mode]
     if parameter_sampling_mode == "realistic" and player_roles is not None:
@@ -5474,7 +5055,7 @@ def average_model_policy_distance(
     file_paths: FilePaths,
     param_bds: Dict[str, Tuple[float, float]],
     metric: str = "normalized_jsd",
-    choice_temperature: Optional[float] = None,
+    softmax_temperature: Optional[float] = None,
     n_games: int = 625,
     n_iters: int = 250,
     parameter_sampling_mode: str = "uniform",
@@ -5506,7 +5087,7 @@ def average_model_policy_distance(
             Second model, specified as a UtilitySettings dict or a utility_idx integer.
         • general_settings: GeneralSettings
             Used for parameter specification (passed to make_param_info) and for
-            softmax_temperature when choice_temperature is None.
+            softmax_temperature when softmax_temperature is None.
         • file_paths: FilePaths
             Must contain 'processed'; used to load the registry when utility_idx inputs
             are given and to load empirical data for realistic sampling.
@@ -5515,7 +5096,7 @@ def average_model_policy_distance(
             and as fallback for realistic sampling.
         • metric: str (default 'normalized_jsd')
             Distance metric. Currently supported: 'normalized_jsd'.
-        • choice_temperature: float | None
+        • softmax_temperature: float | None
             SoftMax temperature τ. If None, uses general_settings['softmax_temperature'].
         • n_games: int (default 625)
             Number of payoff structures to evaluate. If >= 625, uses the exhaustive
@@ -5777,7 +5358,7 @@ def average_model_policy_distance(
     settings_a = _resolve_settings(model_ref=utility_settings_a)
     settings_b = _resolve_settings(model_ref=utility_settings_b)
 
-    tau = choice_temperature if choice_temperature is not None else float(
+    tau = softmax_temperature if softmax_temperature is not None else float(
         general_settings.get("softmax_temperature", 1.5)
     )
     rng = random.Random(random_seed)
@@ -6041,7 +5622,7 @@ def compute_ampd_distance_matrix(
         parameter_sampling_mode=parameter_sampling_mode,
         parameter_pairing_mode=parameter_pairing_mode,
         player_roles=player_roles,
-        choice_temperature=tau, n_games=n_games, n_iters=n_iters,
+        softmax_temperature=tau, n_games=n_games, n_iters=n_iters,
         random_seed=random_seed,
     )
     alt_path = master_path[:-4] + "_.csv"
@@ -6343,7 +5924,7 @@ def _load_ampd_matrix_from_settings(
         parameter_sampling_mode=_ampd_cfg.get("parameter_sampling_mode", "uniform"),
         parameter_pairing_mode=_ampd_cfg.get("parameter_pairing_mode", "shared"),
         player_roles=_ampd_cfg.get("player_roles", None),
-        choice_temperature=tau,
+        softmax_temperature=tau,
         n_games=_ampd_cfg.get("n_games", 625),
         n_iters=_ampd_cfg.get("n_iters", 250),
         random_seed=_ampd_cfg.get("random_seed", None),
@@ -8997,314 +8578,6 @@ def compute_participant_feature_support(
     return feature_support_df
 
 
-def plot_participant_architecture_mds(
-    general_settings: dict,
-    file_paths: dict,
-    fig_lay: dict,
-    color_by: str = "model_weight_entropy",
-    include_dropdown: bool = True,
-    export_fig: bool = True,
-) -> go.Figure:
-    """
-    Plotly interactive scatter of participants embedded in architecture space via classical
-    MDS on the energy cloud distance matrix. Each point is one participant; nearby points
-    have similar BIC-weight distributions over utility models. Hovering shows participant
-    metadata: top model, runner-up gap, effective number of models, entropy, and feature
-    support probabilities. A dropdown allows switching between color encodings.
-
-    Follows the same structure and style as plot_model_space_mds.
-
-    Arguments:
-        • general_settings: dict — for experiment metadata in the title.
-        • file_paths: dict — must contain 'processed' and 'visuals'.
-        • fig_lay: dict — layout constants from config.py.
-        • color_by: str (default 'model_weight_entropy') — the column used for the default
-            color encoding. One of: 'model_weight_entropy', 'effective_number_of_models',
-            'top_model_delta_BIC', or any 'P_<setting>' column.
-        • include_dropdown: bool (default True) — if True, add a dropdown to switch between
-            color encodings.
-        • export_fig: bool (default True) — if True, write the figure to visuals/.
-
-    Returns:
-        • go.Figure — Plotly figure; also written to visuals/participant_architecture_mds.html
-            if export_fig is True.
-    """
-    embedding_path = os.path.join(file_paths["processed"], "participant_architecture_embedding.csv")
-    feature_support_path = os.path.join(file_paths["processed"], "participant_feature_support.csv")
-
-    if not os.path.exists(embedding_path):
-        raise FileNotFoundError(
-            f"Participant architecture embedding not found: {embedding_path}\n"
-            "Run compute_participant_architecture_embedding first."
-        )
-    embedding_df = pd.read_csv(embedding_path)
-
-    if os.path.exists(feature_support_path):
-        feature_support_df = pd.read_csv(feature_support_path)
-        plot_df = embedding_df.merge(right=feature_support_df, on="player_uuid", how="left", suffixes=("", "_feat"))
-    else:
-        plot_df = embedding_df.copy()
-
-    feature_support_p_cols = [col for col in plot_df.columns if col.startswith("P_")]
-
-    "=== Load compression-curve K=2..K=8 assignments for categorical coloring layers ==="
-    k_library_trace_indices: dict = {}   # k_val → list of trace indices for that K-library
-    _assignments_csv = os.path.join(file_paths["processed"], "population_architecture_assignments.csv")
-    if os.path.exists(_assignments_csv):
-        _assign_all      = pd.read_csv(_assignments_csv, encoding='utf-8-sig')
-        _available_k_set = set(_assign_all['K'].unique())
-        for _k_val in [k_val for k_val in range(2, 9) if k_val in _available_k_set]:
-            _col_name = f'_k{_k_val}_assigned_model'
-            _k_slice  = (
-                _assign_all[_assign_all['K'] == _k_val][['player_uuid', 'assigned_utility_idx']]
-                .rename(columns={'assigned_utility_idx': _col_name})
-            )
-            plot_df = plot_df.merge(_k_slice, on='player_uuid', how='left')
-            k_library_trace_indices[_k_val] = []
-
-    "Load combined fits to extract top-model and runner-up model equations per participant."
-    combined_fits_csv_path = os.path.join(file_paths["processed"], "participant_model_combined_fits.csv")
-    runner_up_lookup: dict = {}
-    top_equation_lookup: dict = {}
-    if os.path.exists(combined_fits_csv_path):
-        combined_fits_df = pd.read_csv(combined_fits_csv_path)
-        for player_uuid_key, participant_group in combined_fits_df.groupby("player_uuid"):
-            participant_sorted = participant_group.sort_values("delta_BIC_individual").reset_index(drop=True)
-            top_equation_lookup[player_uuid_key] = str(participant_sorted.at[0, "equation"]) if "equation" in participant_sorted.columns else "?"
-            if len(participant_sorted) > 1:
-                runner_up_lookup[player_uuid_key] = {
-                    "utility_idx": int(participant_sorted.at[1, "utility_idx"]),
-                    "equation":    str(participant_sorted.at[1, "equation"]) if "equation" in participant_sorted.columns else "?",
-                }
-            else:
-                runner_up_lookup[player_uuid_key] = {"utility_idx": None, "equation": "?"}
-
-    marker_size = int(fig_lay.get("markersize", 16) * 2)
-    marker_outline = dict(width=1.5, color="hsla(0, 0%, 0%, 0.45)")
-
-    def _participant_hover(row: pd.Series) -> str:
-        player_uuid_val      = str(row.get("player_uuid", "?"))
-        top_model_idx        = int(row["top_model_utility_idx"]) if pd.notna(row.get("top_model_utility_idx")) else None
-        top_model_eq         = top_equation_lookup.get(player_uuid_val, "?")
-        runner_up_data       = runner_up_lookup.get(player_uuid_val, {})
-        runner_up_idx        = runner_up_data.get("utility_idx")
-        runner_up_eq         = runner_up_data.get("equation", "?")
-        runner_up_gap_val    = f"{row['top_model_delta_BIC']:.2f}" if pd.notna(row.get("top_model_delta_BIC")) else "?"
-        effective_models_val = f"{row['effective_number_of_models']:.1f}" if pd.notna(row.get("effective_number_of_models")) else "?"
-        entropy_val          = f"{row['model_weight_entropy']:.2f}" if pd.notna(row.get("model_weight_entropy")) else "?"
-        top_model_label      = f"{top_model_idx:03d}" if top_model_idx is not None else "???"
-        runner_up_label      = f"{runner_up_idx:03d}" if runner_up_idx is not None else "???"
-        return (
-            f"Participant {player_uuid_val}<br>"
-            f"Top Model: {top_model_label} - {top_model_eq}<br>"
-            f"Runner up: {runner_up_label} - {runner_up_eq}<br>"
-            f"Runner up gap: {runner_up_gap_val} | Effective models: {effective_models_val} | Entropy: {entropy_val}"
-        )
-
-    plot_df     = plot_df.reset_index(drop=True)
-    hover_texts = [_participant_hover(row) for _, row in plot_df.iterrows()]
-    plot_df['_hover'] = hover_texts
-
-    continuous_color_specs = [
-        ("model_weight_entropy",       "Entropy",         "Viridis",   "Entropy"),
-        ("effective_number_of_models", "Eff. Models",     "Plasma",    "Eff. Models"),
-        ("top_model_delta_BIC",        "Runner-Up Gap",   "Cividis",   "Runner-Up Gap"),
-    ]
-
-    feature_label_map = {
-        "P_conditional_welfare_mode":       "P(Conditional Welfare)",
-        "P_reference_dependent_altruism":   "P(Ref-Dep Altruism)",
-        "P_min_max_rawlsian_leontief":      "P(Min-Max / Rawls)",
-        "P_use_exponential_parameters":     "P(Exponential Params)",
-        "P_apply_exponents_to_payoffs":     "P(Exponents to Payoffs)",
-        "P_single_exponential_parameter":   "P(Single Exponent)",
-        "P_single_payoffs_not_differences": "P(Single Payoffs)",
-        "P_payoff_ratios_not_differences":  "P(Payoff Ratios)",
-        "P_reference_dependent_utility":    "P(Ref-Dep Utility)",
-        "P_use_negativity_parameters":      "P(Negativity Params)",
-        "P_negativity_social_comparison":   "P(Negativity Soc. Comp.)",
-        "P_fix_self_interest_parameter":    "P(Fix Self-Interest)",
-        "P_include_social_comparison":      "P(Social Comparison)",
-        "P_include_altruism_term":          "P(Altruism Term)",
-    }
-
-    data_traces = []
-    default_visible_trace_idx = 0
-
-    for trace_position, (color_col, dropdown_label, colorscale_name, colorbar_title) in enumerate(continuous_color_specs):
-        color_values = plot_df[color_col].values if color_col in plot_df.columns else np.zeros(len(plot_df))
-        is_default_visible = (color_col == color_by)
-        if is_default_visible:
-            default_visible_trace_idx = trace_position
-        data_traces.append(go.Scatter(
-            x=plot_df["mds_x"], y=plot_df["mds_y"],
-            mode="markers",
-            name=f"Participants ({dropdown_label})",
-            visible=is_default_visible,
-            showlegend=False,
-            text=hover_texts,
-            hovertemplate="%{text}<extra></extra>",
-            marker=dict(
-                size=marker_size,
-                color=color_values,
-                colorscale=colorscale_name,
-                showscale=True,
-                colorbar=dict(title=colorbar_title, x=1.02, thickness=36, len=0.75, tickformat='.2f'),
-                line=marker_outline,
-            ),
-        ))
-
-    "Feature support traces (P_<setting> columns), one trace per setting, all hidden by default."
-    feature_trace_start_idx = len(data_traces)
-    for feature_col in feature_support_p_cols:
-        feature_color_values = plot_df[feature_col].values if feature_col in plot_df.columns else np.zeros(len(plot_df))
-        feature_display_label = feature_label_map.get(feature_col, feature_col)
-        data_traces.append(go.Scatter(
-            x=plot_df["mds_x"], y=plot_df["mds_y"],
-            mode="markers",
-            name=feature_display_label,
-            visible=False,
-            showlegend=False,
-            text=hover_texts,
-            hovertemplate="%{text}<extra></extra>",
-            marker=dict(
-                size=marker_size,
-                color=feature_color_values,
-                colorscale="RdBu",
-                cmin=0.0, cmax=1.0,
-                showscale=True,
-                colorbar=dict(title=feature_display_label, x=1.02, thickness=36, len=0.75, tickformat='.2f'),
-                line=marker_outline,
-            ),
-        ))
-
-    "=== Categorical traces: K=2..K=8 compression-curve library assignments ==="
-    for _k_val, _trace_indices_list in sorted(k_library_trace_indices.items()):
-        _k_col    = f'_k{_k_val}_assigned_model'
-        if _k_col not in plot_df.columns:
-            continue
-        _k_models = sorted(plot_df[_k_col].dropna().unique().astype(int))
-        _n_models  = len(_k_models)
-        for _i, _model_idx in enumerate(_k_models):
-            _mask  = (plot_df[_k_col] == _model_idx)
-            _hue   = int(360 * _i / _n_models)
-            _color = _hsla(hue=_hue, saturation_percent=72, lightness_percent=52, alpha=0.92)
-            _trace_indices_list.append(len(data_traces))
-            data_traces.append(go.Scatter(
-                x=plot_df.loc[_mask, "mds_x"],
-                y=plot_df.loc[_mask, "mds_y"],
-                mode="markers",
-                name=f"Model {_model_idx:03d}",
-                visible=False,
-                showlegend=True,
-                text=plot_df.loc[_mask, '_hover'].tolist(),
-                hovertemplate="%{text}<extra></extra>",
-                marker=dict(size=marker_size, color=_color, line=marker_outline),
-            ))
-
-    "Symmetric equal-range axes: furthest outlier across both dims, rounded up to next 0.1."
-    import math
-    xy_max_abs     = max(
-        abs(float(plot_df["mds_x"].max())), abs(float(plot_df["mds_x"].min())),
-        abs(float(plot_df["mds_y"].max())), abs(float(plot_df["mds_y"].min())),
-    )
-    mds_axis_limit = math.ceil(xy_max_abs * 10) / 10
-    mds_axis_range = [-mds_axis_limit, mds_axis_limit]
-
-    "Tick values at 0.1 intervals; y-axis bottom tick is blank to avoid overlap with x-axis labels."
-    tick_vals   = [round(float(val), 1) for val in np.arange(-mds_axis_limit, mds_axis_limit + 0.05, 0.1)]
-    x_tick_text = [f'{val:.1f}' for val in tick_vals]
-    y_tick_text = ['' if idx == 0 else f'{val:.1f}' for idx, val in enumerate(tick_vals)]
-
-    experiment_num = general_settings.get("experiment_num", "?")
-    n_participants = len(plot_df)
-    fig = go.Figure(data=data_traces)
-    fig.update_layout(
-        template=fig_lay.get("template", "plotly_white"),
-        title=f"Participant Utility Function MDS — Energy Distance (Exp {experiment_num-1}, N={n_participants})",
-        titlefont_size=fig_lay["titlefont_size"]-10,
-        title_x=0.5,
-        font=fig_lay.get("font", {}),
-        hoverlabel=fig_lay.get("hoverlabel", {}),
-        margin=dict(l=500, r=560, t=140, b=100),
-        xaxis=dict(
-            title="Utility Function MDS Dimension 1",
-            range=mds_axis_range,
-            tickvals=tick_vals,
-            ticktext=x_tick_text,
-            scaleanchor="y", scaleratio=1,
-            **fig_lay.get("xaxis", {}),
-        ),
-        yaxis=dict(
-            title="Utility Function MDS Dimension 2",
-            range=mds_axis_range,
-            tickvals=tick_vals,
-            ticktext=y_tick_text,
-            **fig_lay.get("yaxis", {}),
-        ),
-    )
-
-    if include_dropdown:
-        n_total_traces = len(data_traces)
-
-        def _visibility_list(on_indices):
-            visibility = [False] * n_total_traces
-            for on_idx in on_indices:
-                visibility[on_idx] = True
-            return visibility
-
-        dropdown_buttons = []
-        for trace_position, (color_col, dropdown_label, _unused_colorscale, _unused_colorbar) in enumerate(continuous_color_specs):
-            dropdown_buttons.append(dict(
-                label=f"Color: {dropdown_label}",
-                method="update",
-                args=[
-                    {"visible": _visibility_list([trace_position])},
-                    {"title": f"Participant Utility Function MDS ({dropdown_label})"},
-                ],
-            ))
-        for _k_val, _trace_indices_list in sorted(k_library_trace_indices.items()):
-            if _trace_indices_list:
-                dropdown_buttons.append(dict(
-                    label=f"Color: K={_k_val} Library",
-                    method="update",
-                    args=[
-                        {"visible": _visibility_list(_trace_indices_list)},
-                        {"title": f"Participant Utility Function MDS (K={_k_val} Library Assignment)"},
-                    ],
-                ))
-        for feature_offset, feature_col in enumerate(feature_support_p_cols):
-            feature_display_label = feature_label_map.get(feature_col, feature_col)
-            feature_trace_idx = feature_trace_start_idx + feature_offset
-            dropdown_buttons.append(dict(
-                label=feature_display_label,
-                method="update",
-                args=[
-                    {"visible": _visibility_list([feature_trace_idx])},
-                    {"title": f"Participant Utility Function MDS ({feature_display_label})"},
-                ],
-            ))
-
-        dropdown_to_side = True
-        fig.update_layout(updatemenus=[dict(
-            buttons=dropdown_buttons,
-            direction="down", yanchor="top", xanchor="left", 
-            x=-0.50 if dropdown_to_side else 0.03, 
-            y=1.15 if dropdown_to_side else 1.00, 
-            bgcolor=(
-                _hsla(hue=0, saturation_percent=0, lightness_percent=20, alpha=0.85) if "dark" in fig_lay.get("template", "")
-                else _hsla(hue=0, saturation_percent=0, lightness_percent=94, alpha=0.92)
-            ),
-            font=dict(size=16, family=fig_lay.get("font", {}).get("family", "Calibri")),
-        )])
-
-    if export_fig:
-        out_path = os.path.join(file_paths["visuals"], "participant_architecture_mds.html")
-        fig.write_html(out_path)
-        print(f"Participant utility function MDS saved: {out_path}")
-    return fig
-
-
 "=========================================================================================="
 "================= Population Architecture Compression Curve ============================="
 "=========================================================================================="
@@ -9934,270 +9207,6 @@ def compute_architecture_compression_curve(
     return curve_df
 
 
-def plot_architecture_compression_curve(
-    general_settings: dict,
-    file_paths: dict,
-    fig_lay: dict,
-    export_fig: bool = True,
-    base_hue: int | None = None,
-) -> go.Figure:
-    """
-    Interactive population utility-function compression-curve chart.
-
-    Arguments:
-        • general_settings: dict; Project settings (kept for API consistency).
-        • file_paths: dict; Project file paths with keys 'processed', 'bic_aic', 'visuals', 'file_names'.
-        • fig_lay: dict; Layout settings from config.py (template, font, base_hue, title_size, etc.).
-        • export_fig: bool; If True, write HTML to visuals/population_architecture_curve.html.
-        • base_hue: int | None; Starting hue for the color scheme. Overrides fig_lay['base_hue']
-          when provided. Curves use base_hue and base_hue+20; criterion markers start at base_hue+40.
-
-    Returns:
-        • go.Figure; A(K) and kneedle-distance traces on a shared [0, 1.1] y-axis, with vertical
-          stopping-criterion markers and per-K hover text showing model counts, μBIC, and equations.
-    """
-    _EQ_CHAR_LIMIT = 115   # equation strings longer than this are truncated with "..."
-
-    proc_dir       = str(file_paths['processed'])
-    base_font_size = fig_lay.get('font', {}).get('size', 16)
-    base_hue       = base_hue if base_hue is not None else fig_lay.get('base_hue', 200)
-
-    "=== Load CSVs ==="
-    curve_df  = pd.read_csv(os.path.join(proc_dir, 'population_architecture_curve.csv'),                encoding='utf-8-sig')
-    assign_df = pd.read_csv(os.path.join(proc_dir, 'population_architecture_assignments.csv'),           encoding='utf-8-sig')
-    fits_df   = pd.read_csv(os.path.join(proc_dir, 'participant_model_combined_fits.csv'),               encoding='utf-8-sig')
-    ic_df     = pd.read_csv(os.path.join(str(file_paths['bic_aic']),
-                                          file_paths['file_names']['information_criterion']),             encoding='utf-8-sig')
-    library_diag_path = os.path.join(proc_dir, 'population_architecture_library_diagnostics.csv')
-    try:
-        library_diag_df = pd.read_csv(library_diag_path, encoding='utf-8-sig')
-    except FileNotFoundError:
-        library_diag_df = pd.DataFrame()
-
-    "=== Build per-model metadata: equation string and population-level BIC for sorting ==="
-    util_setting_keys = list(utility_settings.keys())
-    model_meta        = fits_df.drop_duplicates('utility_idx').set_index('utility_idx')
-    model_equations: dict = {}
-    for model_idx, meta_row in model_meta.iterrows():
-        model_util = {util_key: bool(meta_row.get(util_key, False)) for util_key in util_setting_keys if util_key in meta_row.index}
-        raw_eq     = build_utility_equation(utility_settings=model_util)
-        model_equations[int(model_idx)] = (raw_eq[:_EQ_CHAR_LIMIT] + '…') if len(raw_eq) > _EQ_CHAR_LIMIT else raw_eq
-    ic_bic_by_model = ic_df.set_index('idx')['BIC'].to_dict()
-
-    "=== Per-K player counts and mean individual BIC per assigned model ==="
-    assign_counts = (
-        assign_df.groupby(['K', 'assigned_utility_idx'])
-        .size()
-        .reset_index(name='n_players')
-    )
-    assign_with_bic = assign_df.merge(
-        fits_df[['player_uuid', 'utility_idx', 'BIC_individual']],
-        left_on=['player_uuid', 'assigned_utility_idx'],
-        right_on=['player_uuid', 'utility_idx'],
-        how='left',
-    )
-    mean_bic_by_K_model = (
-        assign_with_bic.groupby(['K', 'assigned_utility_idx'])['BIC_individual'].mean()
-    )
-
-    "=== Per-(K, model) nearest-AMPD lookup from library diagnostics ==="
-    nearest_ampd_lookup: dict = {}
-    if not library_diag_df.empty:
-        for _, diag_row in library_diag_df.iterrows():
-            key = (int(diag_row['K']), int(diag_row['utility_idx']))
-            nearest_ampd_lookup[key] = {
-                'nearest_idx':  diag_row.get('nearest_selected_model_idx'),
-                'ampd_val':     diag_row.get('nearest_selected_model_ampd'),
-                'ampd_pct':     diag_row.get('nearest_selected_model_ampd_percentile'),
-            }
-
-    "=== Marginal-gain K — caps hover display; shows at most K_marginal_gain model lines ==="
-    mg_rows = (
-        curve_df[curve_df['selected_by_marginal_gain'] == True]
-        if 'selected_by_marginal_gain' in curve_df.columns else pd.DataFrame()
-    )
-    K_hover_cap = int(mg_rows['K'].values[0]) if not mg_rows.empty else None
-
-    k_vals  = curve_df['K'].tolist()
-    a_vals  = curve_df['A_K'].tolist()
-    kd_vals = curve_df['kneedle_distance'].tolist()
-
-    "=== Build per-K hover text ==="
-    def _build_hover(row: pd.Series) -> str:
-        K_val  = int(row['K'])
-        A_str  = f"{row['A_K']:.4f}"             if pd.notna(row.get('A_K'))             else "?"
-        dA_str = f"{row['delta_A_K']:.4f}"        if pd.notna(row.get('delta_A_K'))        else "?"
-        d2_str = f"{row['delta2_A_K']:.4f}"       if pd.notna(row.get('delta2_A_K'))       else "?"
-        kd_str = f"{row['kneedle_distance']:.4f}" if pd.notna(row.get('kneedle_distance')) else "?"
-        set_idxs    = json.loads(row.get('architecture_set_idxs', '[]'))
-        k_counts    = (
-            assign_counts[assign_counts['K'] == K_val]
-            .set_index('assigned_utility_idx')['n_players'].to_dict()
-        )
-        sorted_idxs = sorted(set_idxs, key=lambda m: ic_bic_by_model.get(m, float('inf')))
-        n_display   = min(len(sorted_idxs), K_hover_cap) if K_hover_cap is not None else len(sorted_idxs)
-        model_lines = []
-        for model_idx in sorted_idxs[:n_display]:
-            n_pl     = k_counts.get(model_idx, 0)
-            try:
-                mu_bic = mean_bic_by_K_model.loc[(K_val, model_idx)]
-                bic_str = f"{mu_bic:05.1f}"
-            except KeyError:
-                bic_str = "  n/a"
-            equation   = model_equations.get(int(model_idx), '?')
-            k_params_v = (int(model_meta.loc[model_idx]['k_params'])
-                          if model_idx in model_meta.index else '?')
-            diag_entry  = nearest_ampd_lookup.get((K_val, model_idx), {})
-            near_idx    = diag_entry.get('nearest_idx')
-            near_ampd   = diag_entry.get('ampd_val')
-            near_pct    = diag_entry.get('ampd_pct')
-            if near_ampd is not None and pd.notna(near_ampd):
-                near_idx_str = f"{int(near_idx):03d}" if near_idx is not None and pd.notna(near_idx) else "?"
-                ampd_str = f"AMPD({model_idx}, {near_idx_str}): {float(near_ampd):.3f} (p={float(near_pct):.2f})" if pd.notna(near_pct) else f"AMPD_near {near_idx_str}: {float(near_ampd):.3f}"
-            else:
-                ampd_str = f"AMPD({model_idx}, ???): n/a"
-            model_lines.append(
-                f"{model_idx:03d}: 𝑘 = {k_params_v} · {n_pl:02d} players · μBIC: {bic_str} · {ampd_str} · {equation}"
-            )
-        omitted = len(sorted_idxs) - n_display
-        if omitted > 0:
-            model_lines.append(f"… ({omitted} more utility function{'s' if omitted != 1 else ''} not shown)")
-        return (
-            f"K Models = {K_val};  Kneedle dist = {kd_str}<br>"
-            f"A(K) = {A_str},  ΔA = {dA_str},  Δ²A = {d2_str}<br>"
-            f"Utility Function Set:<br>"
-            + "<br>".join(model_lines)
-        )
-
-    hover_texts = curve_df.apply(_build_hover, axis=1).tolist()
-
-    "=== Traces: A(K) at base_hue, kneedle distance at base_hue+20 ==="
-    main_color  = _hsla(hue=base_hue,      alpha=0.9)
-    main_darker = _hsla(hue=base_hue,      lightness_percent=35, alpha=1.0)
-    kd_color    = _hsla(hue=base_hue + 20, alpha=0.55)
-    kd_darker   = _hsla(hue=base_hue + 20, lightness_percent=35, alpha=0.8)
-
-    main_trace = go.Scatter(
-        x=k_vals,
-        y=a_vals,
-        mode='lines+markers',
-        marker=dict(size=20, color=main_color, line=dict(width=3, color=main_darker)),
-        line=dict(color=main_color, width=5),
-        hovertemplate='%{customdata}<extra></extra>',
-        customdata=hover_texts,
-        name='A(K)',
-        showlegend=True,
-    )
-
-    kneedle_trace = go.Scatter(
-        x=k_vals,
-        y=kd_vals,
-        mode='lines+markers',
-        marker=dict(size=20, color=kd_color, line=dict(width=3, color=kd_darker)),
-        line=dict(color=kd_color, width=5, dash='dot'),
-        name='Kneedle distance',
-        showlegend=True,
-        hoverinfo='skip',
-    )
-
-    fig = go.Figure(data=[main_trace, kneedle_trace])
-
-    "Reference lines: A=0 baseline and A=1 fully-individualised ceiling."
-    ref_color = _hsla(hue=0, saturation_percent=0, lightness_percent=63, alpha=0.6)
-    fig.add_hline(y=-0.05, line_dash='dash', line_color=ref_color, line_width=2)
-    fig.add_hline(y=1.00, line_dash='dash', line_color=ref_color, line_width=2)
-    fig.add_annotation(
-        x=1.00, xref='paper',
-        y=1.02, yref='y',
-        text='A = 1  (fully individualised)',
-        showarrow=False,
-        xanchor='right',
-        font=dict(size=max(10, base_font_size - 4), color=ref_color),
-    )
-    "Place the K=1 baseline annotation below the x-axis tick labels using paper coordinates."
-    fig.add_annotation(
-        x=1.00, xref='paper',
-        y=-0.08, yref='paper',
-        text='A = 0  (K=1 baseline: one shared utility function)',
-        showarrow=False,
-        xanchor='right',
-        font=dict(size=max(10, base_font_size - 4), color=ref_color),
-    )
-
-    "Vertical stopping-criterion markers — hue starts at base_hue+40 and increments by 20°."
-    _criteria = [
-        ('selected_by_kneedle_elbow',   'Elbow of curve',  40,  'solid'),
-        ('selected_by_marginal_gain',   'Marginal gain',   60,  'dot'),
-        ('selected_by_cumulative_gain', 'Cumulative gain', 80,  'dashdot'),
-        ('selected_by_max_curvature',   'Max curvature',   100, 'dash'),
-        ('selected_by_meta_bic',        'Meta-BIC',        120, 'longdash'),
-    ]
-    drawn_k: dict = {}
-    for col, label, hue_offset, dash in _criteria:
-        if col not in curve_df.columns:
-            continue
-        sel_rows = curve_df[curve_df[col] == True]
-        if sel_rows.empty:
-            continue
-        k_sel = int(sel_rows['K'].values[0])
-        hue   = (base_hue + hue_offset) % 360
-        color = _hsla(hue=hue, alpha=0.85)
-        if k_sel not in drawn_k:
-            drawn_k[k_sel] = {'labels': [], 'color': color, 'dash': dash}
-            fig.add_vline(x=k_sel, line_dash=dash, line_color=color, line_width=3)
-        drawn_k[k_sel]['labels'].append(label)
-
-    "Vertical rotated annotations placed in the lower portion of the plot to avoid covering curves."
-    for k_sel, info in drawn_k.items():
-        annotation_text = "  |  ".join(info['labels']) + f"  (K={k_sel})"
-        fig.add_annotation(
-            x=k_sel, y=0.28, yref='y', xref='x',
-            text=annotation_text,
-            textangle=-90,
-            showarrow=False,
-            font=dict(size=max(10, base_font_size - 4), color=info['color']),
-            xanchor='left',
-            yanchor='middle',
-        )
-
-    yaxis_title = "A(K) — gain fraction for K models  |  Kneedle dist"
-    fig.update_layout(
-        title=dict(
-            text='Population Utility Function Compression Curve',
-            x=0.5, xanchor='center',
-            y=0.97, yanchor='top',
-            font=dict(size=fig_lay.get('title_size', 22) * 2),
-        ),
-        xaxis=dict(
-            title='Number of utility functions (K)',
-            tickmode='array',
-            tickvals=k_vals,
-            showgrid=True,
-            gridcolor=_hsla(hue=0, saturation_percent=0, lightness_percent=78, alpha=0.4),
-        ),
-        yaxis=dict(
-            title=yaxis_title,
-            range=[0.0, 1.03],
-            tickmode='array',
-            tickvals=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
-            ticktext=['0.0', '0.2', '0.4', '0.6', '0.8', '1.0'],
-            zeroline=True, zerolinewidth=1,
-            zerolinecolor=_hsla(hue=0, saturation_percent=0, lightness_percent=47, alpha=0.5),
-        ),
-        hoverlabel=dict(font=dict(size=max(8, int(base_font_size * 2 * 0.6) - 4))),
-        template=fig_lay.get('template', 'plotly_white'),
-        font=dict(
-            family=fig_lay.get('font', {}).get('family', 'Calibri'),
-            size=base_font_size,
-        ),
-        margin=dict(l=80, r=50, t=120, b=80),
-        autosize=True,
-        legend=dict(yanchor='bottom', y=0.3, xanchor='right', x=0.95),
-    )
-
-    if export_fig:
-        out_path = os.path.join(str(file_paths['visuals']), 'population_architecture_curve.html')
-        fig.write_html(out_path, config={'responsive': True})
 "=========================================================================================="
 "=============================== Model Recovery Simulation ================================"
 "=========================================================================================="

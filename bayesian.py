@@ -242,58 +242,6 @@ def bayesian_update_mcmc(old_means: Dict[str, float], old_stds: Dict[str, float]
 
         return log_prior(parameter_values_dict) + log_likelihood(parameter_values_dict)
 
-    def log_posterior_(parameter_values_dict: Dict[str, float]) -> float:
-        """
-        Posterior ~ Prior * Likelihood, in log space => log_prior + log_likelihood.
-        Includes Jacobian adjustments for parameter transformations.
-
-        TODO Figure out whether this transformed posterior should be used or deleted.
-        """
-        log_jacobian = 0.0
-        transformed_params = {}
-
-        for param_key in param_keys:
-            val = parameter_values_dict[param_key]
-            lower_bound, upper_bound = param_bounds_map[param_key]
-
-            "Apply transformations and calculate Jacobian adjustments"
-            if lower_bound > -np.inf and upper_bound < np.inf:
-                "[a,b] range: scaled logit transform"
-                scaled = (val - lower_bound) / (upper_bound - lower_bound)
-                if scaled <= 0 or scaled >= 1:
-                    return -np.inf
-                transformed = np.log(scaled / (1 - scaled))  # Logit.
-                log_jacobian += np.log((upper_bound - lower_bound) * scaled * (1 - scaled))
-                
-            elif lower_bound > -np.inf and upper_bound == np.inf:
-                "[a,∞) range: log transform"
-                shifted = val - lower_bound
-                if shifted <= 0:
-                    return -np.inf
-                transformed = np.log(shifted)
-                log_jacobian += transformed  # Jacobian: dx/dt = e^t
-                
-            elif lower_bound == -np.inf and upper_bound < np.inf:
-                "(-∞,b] range: reflected log transform"
-                shifted = upper_bound - val
-                if shifted <= 0:
-                    return -np.inf
-                transformed = np.log(shifted)
-                log_jacobian += transformed
-                
-            else:
-                "Unbounded parameters"
-                transformed = val
-                log_jacobian += 0.0
-
-            transformed_params[param_key] = transformed
-
-        "Calculate prior in transformed space (with Jacobian adjustment)"
-        log_prior_val = log_prior(parameter_values_dict)  # Original prior
-        log_likelihood_val = log_likelihood(parameter_values_dict)
-        
-        return log_prior_val + log_likelihood_val + log_jacobian
-
     "D) Prepare MCMC chain. Start from old_means, clamped to param_info bounds"
     current_params = {**copy.deepcopy(old_means), **copy.deepcopy(old_stds)}
     for param_key in param_keys:
@@ -329,7 +277,8 @@ def bayesian_update_mcmc(old_means: Dict[str, float], old_stds: Dict[str, float]
         samples_chain.append(copy.deepcopy(current_params))
 
     acceptance_rate = accepted_count / float(chain_length)
-    # TODO Decide whether to log MCMC acceptance rates for debugging.
+    if general_settings.get('verbose', False):
+        print(f"  MCMC acceptance rate: {acceptance_rate:.3f}")
 
     "F) Convert chain to arrays, discard burn-in, compute mean & std"
     valid_chain = samples_chain[burn_in::thin]
@@ -573,13 +522,12 @@ def prior_grid_from_params(param_vals: Dict[str, Dict[str, Dict[str, float]]], p
             "2) Validate and correct the covariance matrix"
             if covariation_matrix is not None and covariation_matrix.get(player_uuid, {}).get(role_name) is not None:  
                 cov_matrix = covariation_matrix[player_uuid][role_name]
-                # TODO Figure out whether covariance validation should run before PSD repair.
-                if not gnrl.is_positive_semidefinite(matrix=cov_matrix, tol=1e-12):
-                    cov_matrix = gnrl.nearest_psd_matrix(matrix=cov_matrix, min_eigval=0.0)
-
                 if cov_matrix.shape != (len(means), len(means)):
                     err_str = f"Cov matrix for {player_uuid} role={role_name} has shape {cov_matrix.shape}"
                     raise ValueError(f"{err_str}, expected {(len(means), len(means))}.")
+
+                if not gnrl.is_positive_semidefinite(matrix=cov_matrix, tol=1e-12):
+                    cov_matrix = gnrl.nearest_psd_matrix(matrix=cov_matrix, min_eigval=0.0)
 
             else:
                 "Default to diagonal matrix."
@@ -976,7 +924,7 @@ def bayesian_update_grid(prior_array: NDArray[np.float64] | dict[tuple[int, ...]
 
 def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, general_settings: GeneralSettings, 
           initial_params: Dict[str, Dict[str, float]], param_info: ParamInfo, utility_settings: UtilitySettings, 
-          player_uuid: str | None = None, player_role: str | None = None, select: bool = False, choice_temperature: float | None = None) -> List[dict]:
+          player_uuid: str | None = None, player_role: str | None = None, select: bool = False, softmax_temperature: float | None = None) -> List[dict]:
     """
     Run the UBM for a single player over a slice of a dyad's games, updating beliefs game by game.
 
@@ -1013,7 +961,7 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
         • select: bool
             If True, the choice function generates a stochastic binary response (0/1) rather than
             a float probability. Used during simulation to generate artificial choice data.
-        • choice_temperature: float | None
+        • softmax_temperature: float | None
             Overrides general_settings['softmax_temperature'] for the choice probability step.
             If None or out of range, falls back to the temperature in general_settings.
 
@@ -1036,12 +984,12 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
     update_method = general_settings.get('update_method', True)
     include_covariance = general_settings.get('include_covariance', True)
     n_bins_per_dimension = general_settings.get('n_bins_per_dimension', True)
-    softmax_temperature = general_settings.get('softmax_temperature', True)
+    default_softmax_temperature = general_settings.get('softmax_temperature', True)
 
     "Possibly override if there's a param-based temperature"
     if (not general_settings.get('temperature_is_param', False)
-        or not (isinstance(choice_temperature, (int, float)) and 0 < choice_temperature <= 3)):
-        choice_temperature = softmax_temperature
+        or not (isinstance(softmax_temperature, (int, float)) and 0 < softmax_temperature <= 3)):
+        softmax_temperature = default_softmax_temperature
 
     "=== 2) Main Loop Over Games ==="
     idx = game_idx_start
@@ -1152,8 +1100,8 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
         "Make the choice or prediction"
         model_sel_key = "model_choose_A" if role_to_play == 'chooser' else "model_predict_A"
         "Decide which temperature to pass to `choice(...)`"
-        # TODO Check whether predictor temperature should differ from chooser temperature.
-        current_temp = choice_temperature 
+        # Predictor and chooser intentionally share the same temperature — asymmetric temperatures would add a parameter without a clear theoretical motivation.
+        current_temp = softmax_temperature
 
         choice_output = choice(
             current_game=game_dict,
@@ -1310,7 +1258,7 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
 
                         "(iii) Now do the update"
                         role_params = initial_params.get(player_role, {})
-                        likelihood_temp = role_params.get('τ', role_params.get('temp', choice_temperature))
+                        likelihood_temp = role_params.get('τ', role_params.get('temp', softmax_temperature))
                         posterior_data = bayesian_update_grid(
                             prior_array=prior_grid_data['prior_array'],   # Dict or ndarray.
                             meta_data=meta_for_update,
@@ -1349,7 +1297,7 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                             elif 'temp' in role_init:
                                 pred_sub['params']['τ'] = role_init['temp']
                             else:
-                                pred_sub['params']['τ'] = choice_temperature
+                                pred_sub['params']['τ'] = softmax_temperature
 
                         "(iii) Store the new posterior param_vectors"
                         pred_sub['meta_data'] = posterior_data['meta_data']
@@ -1673,7 +1621,7 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
     experiment_num = general_settings.get('experiment_num', 3)
     update_method = general_settings.get('update_method', True)
     include_covariance = general_settings.get('include_covariance', True)
-    softmax_temperature = general_settings.get('softmax_temperature', True)
+    default_softmax_temperature = general_settings.get('softmax_temperature', True)
     temperature_is_param = general_settings.get('temperature_is_param', True)
     optimization_method = general_settings.get('optimization_method', 'local')
 
@@ -1728,13 +1676,15 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
         if temperature_is_param and update_method in ('MCMC', 'grid'):
             initial_params[player_role]['keys'] += ['τ']
             initial_params[player_role]['bounds'] += [(0.5, 3.0)]
-            initial_params[player_role]['guesses'] += [softmax_temperature]
+            initial_params[player_role]['guesses'] += [default_softmax_temperature]
 
     "Remove standard deviation parameters from chooser's params."
-    # TODO Check whether this 2025-04-06 chooser standard-deviation cleanup is still needed.
+    # Chooser parameters do not include prior standard deviations. In the UBM, standard deviations
+    # describe the width of the predictor's belief distribution about the chooser's parameters;
+    # the chooser has no analogous internal uncertainty representation.
     for param_key in list(initial_params['chooser'].keys()):
         if '_std' in param_key:
-            del initial_params['chooser'][param_key] 
+            del initial_params['chooser'][param_key]
 
     loss_report = {
         'chooser': [],
@@ -1788,9 +1738,9 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
 
             param_array: list
             if temperature_is_param:
-                choice_temperature = param_array[-1]
+                softmax_temperature = param_array[-1]
             else:
-                choice_temperature = softmax_temperature
+                softmax_temperature = default_softmax_temperature
 
             role_params = {param_key: param_val for param_key, param_val in zip(initial_params_for_role['keys'], param_array)}
 
@@ -1822,7 +1772,7 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
                                         player_uuid=player_uuid,
                                         player_role=role_to_fit,
                                         general_settings=general_settings,
-                                        choice_temperature=choice_temperature)
+                                        softmax_temperature=softmax_temperature)
                 
                 if general_settings.get('include_covariance') and role_to_fit == 'predictor':
                     prior_param_vector = updated_games[0].get('parameter_estimates', {}).get('grid', {}).get(
@@ -1864,9 +1814,9 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
             """
             param_array = np.asarray(param_array, dtype=float)
             if temperature_is_param:
-                choice_temperature_local = float(param_array[-1])
+                softmax_temperature_local = float(param_array[-1])
             else:
-                choice_temperature_local = float(softmax_temperature)
+                softmax_temperature_local = float(default_softmax_temperature)
 
             role_params_local = {param_key: float(param_val) for param_key, param_val in zip(initial_params_for_role['keys'], param_array)}
             if include_covariance and role_to_fit == 'predictor':
@@ -1890,7 +1840,7 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
                     player_uuid=player_uuid,
                     player_role=role_to_fit,
                     general_settings=general_settings,
-                    choice_temperature=choice_temperature_local
+                    softmax_temperature=softmax_temperature_local
                 )
                 "compute losses"
                 updated_games_local = loss_function_bayes(dyad_games=updated_games_local, general_settings=general_settings)
@@ -2177,18 +2127,18 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
     for dyad_key, dyad_games in player_dyads.items():
 
         if temperature_is_param:
-            choice_temperature = softmax_temperature
+            softmax_temperature = default_softmax_temperature
             chooser_params = best_fitting_params.get('chooser', {})
             choice_temp = chooser_params.get('τ', chooser_params.get('temp'))
             if choice_temp is not None:
-                choice_temperature = choice_temp
+                softmax_temperature = choice_temp
             else:
                 predictor_params = best_fitting_params.get('predictor', {})
                 choice_temp = predictor_params.get('τ', predictor_params.get('temp'))
                 if choice_temp is not None:
-                    choice_temperature = choice_temp
+                    softmax_temperature = choice_temp
         else:
-            choice_temperature = softmax_temperature
+            softmax_temperature = default_softmax_temperature
 
         "Run agent function with parameters in param_array"
         fitted_dyad_games = agent(dyad_games=dyad_games,
@@ -2200,7 +2150,7 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
                                 player_uuid=player_uuid,
                                 player_role=None,
                                 general_settings=general_settings,
-                                choice_temperature=choice_temperature)
+                                softmax_temperature=softmax_temperature)
         
         "Compute loss (using loss_function_bayes)."
         fitted_dyad_games = loss_function_bayes(
@@ -2249,7 +2199,7 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
         if general_settings.get('experiment_num') == 2:
             fitted_dyad_games = typo.avatar_posteriors(
                 dyad_games=fitted_dyad_games, update_method=update_method,
-                temperature=softmax_temperature)
+                temperature=default_softmax_temperature)
 
         fitted_plr_dyads[dyad_key] = fitted_dyad_games
 
@@ -2332,7 +2282,7 @@ def fit_dyad_parameters_bayes(dyad_games: DyadGames, param_info: ParamInfo, util
     fit_roles_together = general_settings.get('fit_roles_together', True)
     include_covariance = general_settings.get('include_covariance', True)
     n_bins_per_dimension = general_settings.get('n_bins_per_dimension', True)
-    softmax_temperature = general_settings.get('softmax_temperature', True)
+    default_softmax_temperature = general_settings.get('softmax_temperature', True)
     temperature_is_param = general_settings.get('temperature_is_param', True)
     
     dyad_file_path = prep._dyad_file_path(dyad_key=tuple(player_uuids), file_paths=file_paths, 
@@ -2442,9 +2392,9 @@ def fit_dyad_parameters_bayes(dyad_games: DyadGames, param_info: ParamInfo, util
 
             if temperature_is_param and role_to_fit == 'predictor' and update_method == 'grid':
                 pred_pd = full_param_dict[player_uuid]['predictor']
-                choice_temperature = pred_pd.get('τ', pred_pd.get('temp'))
+                softmax_temperature = pred_pd.get('τ', pred_pd.get('temp'))
             else:
-                choice_temperature = None
+                softmax_temperature = None
 
             "agent() is assumed to use the provided initial_params for the given player."
             updated_games = agent(dyad_games=dyad_copy,
@@ -2456,7 +2406,7 @@ def fit_dyad_parameters_bayes(dyad_games: DyadGames, param_info: ParamInfo, util
                                   player_uuid=player_uuid,
                                   player_role=role_to_fit,
                                   general_settings=general_settings,
-                                  choice_temperature=choice_temperature)
+                                  softmax_temperature=softmax_temperature)
             "Compute loss (using loss_function_bayes)."
             updated_games = loss_function_bayes(dyad_games=updated_games, general_settings=general_settings)
             loss_val = sum_of_all_loss(updated_games, update_method=update_method,
@@ -2780,9 +2730,9 @@ def run_analysis_bayes(histories_data: Histories, file_paths: FilePaths, param_i
             raise Exception("No 'player_info' found in histories_data.")
 
         if not (isinstance(player_uuids, list) and all(isinstance(player_uuid, str) for player_uuid in player_uuids)):
-            player_uuids = sorted([player_uuid for player_uuid, info in player_info.items() 
+            player_uuids = sorted([player_uuid for player_uuid, info in player_info.items()
                             if info.get('player_type') == 'participant' or (experiment_num == 0 and 'predictor' in player_uuid)])
-            # TODO Check whether experiment 0 should include every predictor-like player UUID here.
+            # Experiment 0 is the simulation study; predictor-bot UUIDs are included so the optimizer can attempt to recover their known ground-truth parameters.
 
         n_items = len(player_uuids)
         args_list = [
@@ -2832,11 +2782,9 @@ def run_analysis_bayes(histories_data: Histories, file_paths: FilePaths, param_i
         "Recycle workers periodically to curb leaks / fragmentation"
         maxtasks = int(general_settings.get('maxtasksperchild', 50))
 
-        # TODO Figure out whether the explicit spawn context, worker initializer, chunksize,
-        # and maxtasksperchild settings should replace the simpler mp.Pool path below.
-
-        with mp.Pool(processes=mp.cpu_count() - 1) as pool:
-            for idx, key_returned in enumerate(pool.imap_unordered(_worker_fit_one, args_list), 1):
+        # Spawn context and worker initializer left as future improvement.
+        with mp.Pool(processes=n_workers, maxtasksperchild=maxtasks) as pool:
+            for idx, key_returned in enumerate(pool.imap_unordered(_worker_fit_one, args_list, chunksize=chunksize), 1):
                 if print_:
                     print(f"Processed {idx} / {n_items} {analysis_unit}s - {key_returned}.")
 

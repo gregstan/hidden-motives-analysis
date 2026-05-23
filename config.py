@@ -199,6 +199,11 @@ class ModelRecoverySettings(TypedDict, total=False):
     random_seed: int
 
 
+class RandomSeeds(TypedDict, total=False):
+    use_seeds: bool
+    seed: int | None
+
+
 class GeneralSettings(TypedDict, total=False):
     update_method: str
     analysis_mode: str
@@ -229,6 +234,7 @@ class GeneralSettings(TypedDict, total=False):
     ampd_settings: AmpdSettings
     individual_architecture_settings: IndividualArchitectureSettings
     model_recovery_settings: ModelRecoverySettings
+    random_seeds: RandomSeeds
 
 
 class RunCodeSettings(TypedDict):
@@ -641,6 +647,14 @@ general_settings: GeneralSettings = {
     'guess_params_randomly': guess_params_randomly,
     'temperature_is_param': temperature_is_param,
     'n_bins_per_dimension': n_bins_per_dimension,
+    'fit_roles_together': fit_roles_together,
+    'use_initial_params': use_initial_params,
+    'penalty_weight': penalty_weight,
+    'learning_rate': learning_rate,
+    'sample_ratio': sample_ratio,
+    'export_fig': export_fig,
+    'write_mode': write_mode,
+    'dark_mode': dark_mode,
     'optimization_policy': {
         'n_random_starts'    : 1,
         'maxiter_global'     : 36,
@@ -655,8 +669,6 @@ general_settings: GeneralSettings = {
         'trust_verbose'      : False,
         'local_methods'      : ['L-BFGS-B'],
     },
-    'fit_roles_together': fit_roles_together,
-    'use_initial_params': use_initial_params,
     'warmstart_policy': {
         "enabled"                         : True,
         "schedule"                        : "binary",
@@ -666,12 +678,6 @@ general_settings: GeneralSettings = {
         "temperature_high"                : 1000.0,
         "disable_dual_annealing_when_warm": True,
     },
-    'penalty_weight': penalty_weight,
-    'learning_rate': learning_rate,
-    'sample_ratio': sample_ratio,
-    'export_fig': export_fig,
-    'write_mode': write_mode,
-    'dark_mode': dark_mode,
     'ampd_settings': {
         'metric':                   'normalized_jsd',
         'n_games':                  625,
@@ -704,7 +710,20 @@ general_settings: GeneralSettings = {
         'ampd_matrix_name_or_path':      None,
         'random_seed':                   42,
     },
+    'random_seeds': {
+        'use_seeds': False,
+        'seed':      42,
+    },
 }
+
+"If use_seeds=False, nullify the seed so all downstream code treats it as unseeded."
+if not general_settings['random_seeds']['use_seeds']:
+    general_settings['random_seeds']['seed'] = None
+
+"Propagate master seed to the three subsystem seed locations so they all use the same value."
+general_settings['ampd_settings']['random_seed']               = general_settings['random_seeds']['seed']
+general_settings['model_recovery_settings']['random_seed']     = general_settings['random_seeds']['seed']
+general_settings['optimization_policy']['dual_annealing_seed'] = general_settings['random_seeds']['seed']
 
 utility_settings: UtilitySettings = {
     'conditional_welfare_mode':       False,

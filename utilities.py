@@ -1152,10 +1152,6 @@ def is_valid_utility_settings(candidate: UtilitySettings, provide_explanation: b
         if not candidate['single_exponential_parameter']:
             explanation += ", then there must be only one exponent."
             return explanation if provide_explanation else False
-        # if candidate['include_social_comparison']: # TODO Can these lines be removed???
-        #     if candidate['single_payoffs_not_differences']:
-        #         explanation += " and that is a social comparison term, then it must apply to payoff differences or ratios."
-        #         return explanation if provide_explanation else False
         if candidate['fix_self_interest_parameter']:
             if candidate['use_negativity_parameters'] and not candidate['conditional_welfare_mode']:
                 explanation = "Redundant setting: negativity adds no effective parameter when Vᵢᵢ is fixed and no other negative terms are present."
@@ -1371,8 +1367,8 @@ def generate_utility_settings(
                 f"Falling through to live generation."
             )
         else:
-            "TODO: Legacy compatibility path. Delete this block after all_utility_functions.csv is proven to replace"
-            "equations_to_setting.json, model_nesting_data.json, and redundant_utility_functions.csv."
+            "Intentional fallback — keep permanently. Regenerates the registry from scratch and warns"
+            "the user when all_utility_functions.csv is absent, ensuring the code works on any machine."
             print(
                 "WARNING: processed/all_utility_functions.csv not found. "
                 "Falling back to live generation. Run generate_utility_settings(..., create_new_file=True) "
@@ -2246,36 +2242,68 @@ def compute_conditional_hamming_distance_matrix(
     return cond_hamming_df
 
 
-def identify_redundant_utility_functions(utility_settings: UtilitySettings, build_equation_function: callable, file_paths: dict[str, str]) -> pd.DataFrame:
+def identify_redundant_utility_functions(
+    utility_settings: UtilitySettings,
+    build_equation_function: callable,
+    file_paths: dict[str, str],
+    compute_ampd_fn: Optional[callable] = None,
+    general_settings: Optional[Dict[str, Any]] = None,
+    param_bds: Optional[Dict[str, Any]] = None,
+) -> pd.DataFrame:
     """
-    Finds redundant utility functions (identical equations) and reports which settings
-    cause the redundancy.
+    Finds redundant utility functions and reports which settings cause the redundancy.
+    Runs two independent checks:
 
-    Procedure:
-        1) Generate all valid utility_settings via generate_utility_settings(…).
-        2) Render each as a pretty equation via build_equation_function(…).
-        3) For each equation, compute:
-            • equation_count: number of occurrences
-            • redundant_with: tuple of utility_idx sharing this equation (sorted)
-            • differing_settings: tuple of setting names that differ within this group (sorted)
-        4) Write a CSV with one row per utility function, with the utility flag columns
-           in canonical order, 'equation' as the rightmost column, and rows grouped so
-           redundant equations are adjacent.
+    CHECK 1 — Equation-string redundancy:
+        Detects models whose utility equations are algebraically identical (same string).
+        These are true duplicates: two different flag combinations that collapse to the
+        same functional form.
+
+        Procedure:
+            1) Generate all valid utility_settings via generate_utility_settings(…).
+            2) Render each as a pretty equation via build_equation_function(…).
+            3) For each equation, compute:
+                • equation_count: number of occurrences
+                • redundant_with: tuple of utility_idx sharing this equation (sorted)
+                • differing_settings: tuple of setting names that differ within the group
+            4) Write a CSV with one row per utility function, flags in canonical order,
+               'equation' rightmost, redundant equations grouped adjacent.
+
+    CHECK 2 — AMPD behavioral redundancy (optional; skipped when compute_ampd_fn is None):
+        Detects model pairs whose equations differ algebraically but whose choice
+        distributions are empirically indistinguishable across Monte Carlo parameter draws
+        and payoff structures. An off-diagonal AMPD value ≤ epsilon is a red flag that
+        two nominally distinct models produce identical behavior.
+
+        Adds two columns to the DataFrame (None when compute_ampd_fn is not provided):
+            • ampd_zero_with: tuple of utility_idx with AMPD ≤ epsilon; None if none.
+            • ampd_zero_differing_settings: flags that differ in each such pair; None if none.
 
     Arguments:
         • utility_settings: dict[str, bool] | tuple[bool]
-            A canonical utility_settings structure used for:
-            - seeding generate_utility_settings to obtain the full set
-            - deriving canonical flag order (list(utility_settings.keys()))
+            Canonical utility_settings structure; seeds generate_utility_settings and
+            determines canonical flag order.
         • build_equation_function: callable
-            Function that takes a dict[str,bool] and returns the pretty equation string.
+            Takes a dict[str, bool] and returns the pretty equation string.
         • file_paths: dict[str, str]
-            Must contain key "bic_aic" for the output CSV location.
+            Must contain 'processed' for the output CSV location.
+        • compute_ampd_fn: callable | None (default None)
+            When provided, called as compute_ampd_fn(general_settings=…, file_paths=…,
+            param_bds=…, utility_settings=…, create_new_file=False) to obtain or
+            compute the 480×480 AMPD distance matrix. When None, Check 2 is skipped
+            and no AMPD columns are added — callers that should not trigger a potentially
+            slow AMPD computation (e.g. quick_demo.py) should leave this as None.
+        • general_settings: dict | None
+            Passed through to compute_ampd_fn. Required when compute_ampd_fn is provided.
+        • param_bds: dict | None
+            Passed through to compute_ampd_fn. Required when compute_ampd_fn is provided.
 
     Returns:
         • pd.DataFrame; columns:
             ['utility_idx', <flags… in canonical order>, 'equation_count',
-             'redundant_with', 'differing_settings', 'equation']
+             'redundant_with', 'differing_settings', 'equation',
+             'ampd_zero_with', 'ampd_zero_differing_settings']
+            The last two columns are present only when compute_ampd_fn is provided.
     """
     "Canonical flag order derived from the provided utility_settings"
     canonical_flags: list[str] = list(convert_utility_settings(utility_settings, into=dict).keys())
@@ -2347,15 +2375,90 @@ def identify_redundant_utility_functions(utility_settings: UtilitySettings, buil
     try: df.to_csv(out_path, index=False, encoding="utf-8-sig")
     except (PermissionError, OSError): pass
 
-    "Console feedback"
+    "Console feedback — Check 1"
     n_total = len(df)
     n_unique = df["equation"].nunique()
     if n_unique == n_total:
-        print(f"All {n_total} utility functions are unique. No redundancies found.")
+        print(f"Check 1 (equation strings): All {n_total} utility functions are unique. No redundancies found.")
     else:
         n_redundant = n_total - n_unique
         n_groups_gt1 = int((df["equation_count"] > 1).sum())
-        print(f"Found {n_redundant} redundant utility functions across {n_groups_gt1} duplicated groups.")
+        print(f"Check 1 (equation strings): Found {n_redundant} redundant utility functions "
+              f"across {n_groups_gt1} duplicated groups.")
+
+    "Check 2 — AMPD behavioral redundancy (skipped when compute_ampd_fn is None)"
+    if compute_ampd_fn is not None and general_settings is not None and param_bds is not None:
+        _ampd_epsilon = 1e-6
+        ampd_matrix: pd.DataFrame = compute_ampd_fn(
+            general_settings=general_settings,
+            file_paths=file_paths,
+            param_bds=param_bds,
+            utility_settings=utility_settings,
+            create_new_file=False,
+        )
+
+        "Map utility_idx → row in df so we can look up flags for any model index"
+        idx_to_flags: dict[int, dict[str, bool]] = {
+            int(row_["utility_idx"]): {f: bool(row_[f]) for f in canonical_flags}
+            for _, row_ in df.iterrows()
+        }
+
+        "Collect off-diagonal pairs with AMPD ≤ epsilon"
+        ampd_zero_with: dict[int, list[int]] = {}
+        n_models = len(ampd_matrix)
+        for i_idx, row_label in enumerate(ampd_matrix.index):
+            i = int(row_label)
+            for j_idx, col_label in enumerate(ampd_matrix.columns):
+                j = int(col_label)
+                if i >= j:
+                    continue   # upper-triangle only; symmetric
+                val = ampd_matrix.iloc[i_idx, j_idx]
+                if pd.notna(val) and float(val) <= _ampd_epsilon:
+                    ampd_zero_with.setdefault(i, []).append(j)
+                    ampd_zero_with.setdefault(j, []).append(i)
+
+        "Compute differing flags for each flagged model's zero-AMPD partners"
+        def _ampd_differing(model_i: int, partners: list[int]) -> tuple[str, ...]:
+            flags_i = idx_to_flags.get(model_i, {})
+            differing: set[str] = set()
+            for partner in partners:
+                flags_j = idx_to_flags.get(partner, {})
+                for flag in canonical_flags:
+                    if flags_i.get(flag) != flags_j.get(flag):
+                        differing.add(flag)
+            return tuple(sorted(differing))
+
+        "Attach columns to df"
+        df["ampd_zero_with"] = df["utility_idx"].apply(
+            lambda idx: tuple(sorted(ampd_zero_with[int(idx)])) if int(idx) in ampd_zero_with else None
+        )
+        df["ampd_zero_differing_settings"] = df.apply(
+            lambda r: _ampd_differing(int(r["utility_idx"]), list(ampd_zero_with[int(r["utility_idx"])]))
+                      if int(r["utility_idx"]) in ampd_zero_with else None,
+            axis=1,
+        )
+
+        "Update CSV with the new columns"
+        try: df.to_csv(out_path, index=False, encoding="utf-8-sig")
+        except (PermissionError, OSError): pass
+
+        "Console feedback — Check 2"
+        n_flagged_pairs = sum(len(v) for v in ampd_zero_with.values()) // 2
+        if n_flagged_pairs == 0:
+            print(f"Check 2 (AMPD behavioral, ε={_ampd_epsilon:.0e}): "
+                  f"All off-diagonal AMPD values > ε. No behavioral redundancies found.")
+        else:
+            print(f"Check 2 (AMPD behavioral, ε={_ampd_epsilon:.0e}): "
+                  f"WARNING — {n_flagged_pairs} off-diagonal pair(s) have AMPD ≤ ε. "
+                  f"These models produce statistically indistinguishable behavior:")
+            printed: set[tuple[int, int]] = set()
+            for model_i, partners in sorted(ampd_zero_with.items()):
+                for model_j in sorted(partners):
+                    if (min(model_i, model_j), max(model_i, model_j)) in printed:
+                        continue
+                    printed.add((min(model_i, model_j), max(model_i, model_j)))
+                    diff_flags = _ampd_differing(model_i=model_i, partners=[model_j])
+                    print(f"  Models ({model_i}, {model_j}): differing flags: {', '.join(diff_flags) or '(none)'}")
 
     return df
 
@@ -2856,7 +2959,6 @@ def map_child_to_parent_special_param_info(
         utility_settings=parent_utility_settings,
         general_settings=general_settings,
         guess_seed=None,
-        # random_guesses_are_unique=not general_settings.get('run_in_parallel', True),  # not used for final guesses TODO delete???
     )
     parent_keys: List[str] = list(parent_param_info["keys"])
 

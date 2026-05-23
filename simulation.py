@@ -109,7 +109,7 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
         chooser_uuid   = f"{dyad_id}_chooser"
         predictor_uuid = f"{dyad_id}_predictor"
     else:
-        predictor_uuid = stable_bot_id(params_predictor, 'predictor', n_games)
+        predictor_uuid = stable_bot_id(params=params_predictor, player_role='predictor', n_games=n_games)
         chooser_uuid   = f'synthetic_chooser_{uuid.uuid4().hex[:12]}'
     dyad_key = f"({predictor_uuid}, {chooser_uuid})"
 
@@ -176,7 +176,7 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
         params_predictor = {param_key: param_val for param_key, param_val in params_predictor.items() if param_key not in ('τ', 'temp')}
         dyad_games = agent(dyad_games=dyad_games, game_idx_start=0, game_idx_stop=n_games - 1, general_settings=general_settings, 
                            utility_settings=utility_settings_, param_info=param_info_, initial_params={'predictor': params_predictor}, 
-                           player_uuid=predictor_uuid, player_role="predictor", select=True, choice_temperature=τ_predictor)
+                           player_uuid=predictor_uuid, player_role="predictor", select=True, softmax_temperature=τ_predictor)
         
         "Make param vectors JSON serializable"
         dyad_games = prep.serialize_param_vectors(dyad_games=dyad_games, general_settings=general_settings)
@@ -514,34 +514,34 @@ def get_simulated_dyad(file_paths: FilePaths, dyad_idx: int | None, n_games: int
     on a particular artificial dyad. It supports two ways of selecting which dyad to load:
 
         1. Direct filename reconstruction:
-            If both `params_predictor` and `params_chooser` are provided, the function
-            calls `simulated_bot_uuids(...)` to reconstruct the predictor UUID and then
-            loads the corresponding `<predictor_uuid>.json` file from `json_path`.
+            If `params_predictor` is provided, the function calls `stable_bot_id(...)` to
+            reconstruct the predictor UUID and loads the corresponding `<predictor_uuid>.json`
+            file from `json_path`. Only `params_predictor` is needed; `params_chooser` is
+            not used for filename reconstruction.
 
         2. Index-based selection:
-            If parameter dictionaries are not provided, the function defers to
-            `prep.get_file_by_index_or_name(...)` using `dyad_idx` to choose 
+            If `params_predictor` is not provided, the function defers to
+            `prep.get_file_by_index_or_name(...)` using `dyad_idx` to choose
             a file from `json_path` (e.g., “the k-th JSON file in that directory”).
 
     Arguments:
         • file_paths: dict[str: str | dict[str: str]];
-            Dictionary of all files paths in this project.    
+            Dictionary of all files paths in this project.
         • dyad_idx: int | None;
-            Index of the dyad JSON file to load when `params_predictor` and `params_chooser`
-            are not supplied. Passed through to `prep.get_file_by_index_or_name` as
-            the `file_name_idx` argument. Ignored if `file_name` is determined by
-            `simulated_bot_uuids(...)`.
+            Index of the dyad JSON file to load when `params_predictor` is not supplied.
+            Passed through to `prep.get_file_by_index_or_name` as the `file_name_idx`
+            argument. Ignored if `file_name` is determined by `stable_bot_id(...)`.
         • n_games: int;
             Number of games that were simulated for this dyad. Used only when reconstructing
-            the UUID via `simulated_bot_uuids(...)` (so that the filename matches exactly).
+            the UUID via `stable_bot_id(...)` (so that the filename matches exactly).
         • params_predictor: dict[str, float] | None;
-            Parameter dictionary for the predictor used during simulation. When provided
-            together with `params_chooser`, this is used to recreate the predictor UUID and
-            thus the JSON filename. If None, dyad selection falls back to `dyad_idx`.
+            Parameter dictionary for the predictor used during simulation. When provided,
+            this is passed to `stable_bot_id(...)` to recreate the predictor UUID and thus
+            the JSON filename. If None, dyad selection falls back to `dyad_idx`.
         • params_chooser: dict[str, float] | None;
-            Parameter dictionary for the chooser used during simulation. Only used to
-            reconstruct the UUID when `params_predictor` is also provided. If None, dyad
-            selection falls back to `dyad_idx`.
+            Not used for filename reconstruction (only `params_predictor` determines the
+            filename). Retained as a parameter for callers that pass it; has no effect on
+            which file is loaded. If None, dyad selection falls back to `dyad_idx`.
 
     Returns:
         • dict[DyadKey, DyadGames];
@@ -564,7 +564,7 @@ def get_simulated_dyad(file_paths: FilePaths, dyad_idx: int | None, n_games: int
     """
     file_name = None
     if params_predictor is not None:
-        file_name = stable_bot_id(params_predictor, 'predictor', n_games) + ".json"
+        file_name = stable_bot_id(params=params_predictor, player_role='predictor', n_games=n_games) + ".json"
 
     if file_name is None:
         file_name = prep.get_file_by_index_or_name(directory_path=os.path.join(file_paths['player_fits'], 'experiment_0'), file_name_idx=dyad_idx, file_name=file_name)
@@ -2693,9 +2693,6 @@ def compute_prediction_accuracy_by_segment(file_paths: Dict[str, Dict[str, str] 
         for dyad_games in player_dyads.values():
             n_games_in_dyad = int(len(dyad_games) / 2) if experiment_num == 2 else len(dyad_games)
             segment_size = n_games_in_dyad // n_segments
-            # TODO Figure out why this is here.
-            # segment_size = 1
-            # if n_games_in_dyad < 8:
             for dyad_game in dyad_games:
                 choice = dyad_game.get('choice')
                 chooser = dyad_game.get('chooser')

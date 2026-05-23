@@ -360,18 +360,26 @@ leaves 79, split 39 left and 40 right (extra `=` on right).
 
 ### Always use keyword arguments in function calls
 
-All non-trivial function calls must use keyword arguments so a reader can tell at a glance what
-each value is. Positional-only calls are acceptable for standard builtins (`len`, `range`, `print`)
-but not for project functions.
+**Every** call to a project-defined function must use keyword arguments — no exceptions.
+Positional-only calls are acceptable for standard Python builtins (`len`, `range`, `print`,
+`sorted`, `isinstance`, etc.) but never for anything defined in this codebase.
+
+This rule applies equally to:
+- calls inside the same module as the definition,
+- single-argument calls (e.g., `f(x=value)` not `f(value)`),
+- calls where the argument order feels "obvious".
 
 ```python
-"Good"
+"Good — every argument is named, even single-argument calls"
+stable_bot_id(params=params_predictor, player_role='predictor', n_games=n_games)
+
 gnrl.classify_pair_relation(
     model_1=child_utility_settings, model_2=parent_utility_settings,
     utility_settings=utility_settings, general_settings=general_settings,
 )
 
-"Bad — reader cannot tell which argument is which"
+"Bad — positional arguments to project functions are never acceptable"
+stable_bot_id(params_predictor, 'predictor', n_games)
 gnrl.classify_pair_relation(child_utility_settings, parent_utility_settings)
 ```
 
@@ -561,7 +569,7 @@ The codebase has been split from the original monolithic `main.py` into focused 
 | `model.py` | `utility_term`, `utility`, `softmax_`, `choice`, `build_utility_equation`, `make_param_info`, `parameter_keys_for_utility_settings` |
 | `optimization.py` | `compute_ic`, `global_local_optimization`, `global_local_then_trust_constr`, `best_initial_guesses`, warm-starting helpers |
 | `bayesian.py` | `bayesian_update_grid`, `agent`, `loss_function_bayes`, `fit_params_by_player`, `run_analysis_bayes`, `_worker_fit_one` |
-| `simulation.py` | `create_simulated_dyad`, `create_simulated_data`, `simulated_bot_uuids`, `run_simulation_recovery_analysis`, `run_param_recovery_by_k`, `verify_particle_filter_fidelity` |
+| `simulation.py` | `create_simulated_dyad`, `create_simulated_data`, `stable_bot_id`, `run_simulation_recovery_analysis`, `run_param_recovery_by_k`, `verify_particle_filter_fidelity` |
 | `visualization.py` | `_hsla`, all `plot_*` functions for belief updates, parameter distributions, accuracy |
 | `analysis.py` | Stage 5: `average_model_policy_distance`, `compute_ampd_distance_matrix`, `compute_model_space_embedding` · Stage 6: `extract_participant_model_combined_fits` · Stage 7: `compute_participant_architecture_embedding`, `compute_participant_feature_support` · Stage 9: `compute_architecture_compression_curve`, `plot_architecture_compression_curve` · Stage 12: `_recovery_fit_worker`, `compute_model_recovery_simulation`, `plot_model_recovery_simulation` |
 | `mle.py` | **legacy** — `loss_function_mle`, `fit_one_player_one_role_mle`, `fit_dyad_parameters_mle`, `run_analysis_mle` and helpers; callable via `analysis_mode='mle'` but not used in the paper analyses |
