@@ -75,7 +75,7 @@
         "reference_dependent_utility": false,
         "use_negativity_parameters": false,
         "negativity_social_comparison": false,
-        "fix_self_interest_parameter": true,
+        "fix_self_interest_parameter": false,
         "include_social_comparison": false,
         "include_altruism_term": false
     },

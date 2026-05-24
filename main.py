@@ -24,6 +24,19 @@ run_code_settings: RunCodeSettings = {
 def main():
     """Execute main code."""
 
+    import sys; sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    for name, spec in CANONICAL_UTILITY_SPECS.items():
+        print(f"\n{'='*70}")
+        print(f"  {name}")
+        print(f"{'='*70}")
+        print("Settings:")
+        for k, v in spec.items():
+            print(f"  {k}: {v}")
+        print("Equation (A):", build_utility_equation(utility_settings=spec, option="A"))
+        print("Equation (B):", build_utility_equation(utility_settings=spec, option="B"))
+    sys.exit(0)
+    print('dog')
+    exit()
     "Apply master random seed when reproducibility mode is enabled."
     _master_seed = general_settings.get('random_seeds', {}).get('seed', None)
     if _master_seed is not None:

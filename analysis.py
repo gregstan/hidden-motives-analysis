@@ -2684,8 +2684,8 @@ def extract_rankings_of_canonical_utility_functions(file_paths: FilePaths, rank_
 
     Matches rows in the stored IC DataFrame against a set of canonical utility specifications
     (Fehr-Schmidt, Bolton-Ockenfels, Charness-Rabin, etc.), finds the best-ranking row per
-    label, and returns a summary DataFrame with each canonical model's IC rank, loss, AIC, BIC,
-    and ΔBIC relative to the best-fitting model in the full comparison.
+    label, and returns a summary DataFrame with each canonical model's IC rank, loss, AIC, 
+    BIC, and ΔBIC relative to the best-fitting model in the full comparison.
 
     Arguments:
         • file_paths: FilePaths

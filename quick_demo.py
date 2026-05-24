@@ -22,7 +22,7 @@ analysis_options = {
 
     # ── Requires raw experiment data ─────────────────────────────────────────────────────
     'run_model_comparison':         False,  # Alternative model contest + typological model comparison.
-    'run_ic_analysis':              False,  # IC utility comparison: 5 forms in light mode, all 480 in full.
+    'run_ic_analysis':              True,  # IC utility comparison: 5 forms in light mode, all 480 in full.
 
     # ── Requires IC results in bic_aic/ ──────────────────────────────────────────────────
     'run_individual_architecture':  True,  # Architecture compression curve: how many utility types does the population need?
@@ -707,9 +707,9 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
                     'exhaustive_M_max': 2,
                     'n_workers': 1,
                 }
-                arch_general_settings = {**general_settings, 'individual_architecture_settings': ia_settings}
+                arch_general_settings = {**general_settings, 'individual_architecture_settings': ia_settings, 'experiment_num': 3}
             else:
-                arch_general_settings = general_settings
+                arch_general_settings = {**general_settings, 'experiment_num': 3}
 
             extract_participant_model_combined_fits(
                 general_settings=arch_general_settings,
