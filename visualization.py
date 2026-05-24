@@ -1725,16 +1725,16 @@ def plot_participant_architecture_mds(
 
     feature_support_p_cols = [col for col in plot_df.columns if col.startswith("P_")]
 
-    "=== Load compression-curve K=2..K=8 assignments for categorical coloring layers ==="
-    k_library_trace_indices: dict = {}   # k_val → list of trace indices for that K-library
+    "=== Load compression-curve M=2..M=8 assignments for categorical coloring layers ==="
+    k_library_trace_indices: dict = {}   # k_val → list of trace indices for that M-library
     _assignments_csv = os.path.join(file_paths["processed"], "population_architecture_assignments.csv")
     if os.path.exists(_assignments_csv):
         _assign_all      = pd.read_csv(_assignments_csv, encoding='utf-8-sig')
-        _available_k_set = set(_assign_all['K'].unique())
+        _available_k_set = set(_assign_all['M'].unique())
         for _k_val in [k_val for k_val in range(2, 9) if k_val in _available_k_set]:
             _col_name = f'_k{_k_val}_assigned_model'
             _k_slice  = (
-                _assign_all[_assign_all['K'] == _k_val][['player_uuid', 'assigned_utility_idx']]
+                _assign_all[_assign_all['M'] == _k_val][['player_uuid', 'assigned_utility_idx']]
                 .rename(columns={'assigned_utility_idx': _col_name})
             )
             plot_df = plot_df.merge(_k_slice, on='player_uuid', how='left')
@@ -1856,7 +1856,7 @@ def plot_participant_architecture_mds(
             ),
         ))
 
-    "=== Categorical traces: K=2..K=8 compression-curve library assignments ==="
+    "=== Categorical traces: M=2..M=8 compression-curve library assignments ==="
     for _k_val, _trace_indices_list in sorted(k_library_trace_indices.items()):
         _k_col    = f'_k{_k_val}_assigned_model'
         if _k_col not in plot_df.columns:
@@ -1944,11 +1944,11 @@ def plot_participant_architecture_mds(
         for _k_val, _trace_indices_list in sorted(k_library_trace_indices.items()):
             if _trace_indices_list:
                 dropdown_buttons.append(dict(
-                    label=f"Color: K={_k_val} Library",
+                    label=f"Color: M={_k_val} Library",
                     method="update",
                     args=[
                         {"visible": _visibility_list(_trace_indices_list)},
-                        {"title": f"Participant Utility Function MDS (K={_k_val} Library Assignment)"},
+                        {"title": f"Participant Utility Function MDS (M={_k_val} Library Assignment)"},
                     ],
                 ))
         for feature_offset, feature_col in enumerate(feature_support_p_cols):
@@ -2002,8 +2002,8 @@ def plot_architecture_compression_curve(
           when provided. Curves use base_hue and base_hue+20; criterion markers start at base_hue+40.
 
     Returns:
-        • go.Figure; A(K) and kneedle-distance traces on a shared [0, 1.1] y-axis, with vertical
-          stopping-criterion markers and per-K hover text showing model counts, μBIC, and equations.
+        • go.Figure; A(M) and kneedle-distance traces on a shared [0, 1.1] y-axis, with vertical
+          stopping-criterion markers and per-M hover text showing model counts, μBIC, and equations.
     """
     _EQ_CHAR_LIMIT = 115   # equation strings longer than this are truncated with "..."
 
@@ -2033,9 +2033,9 @@ def plot_architecture_compression_curve(
         model_equations[int(model_idx)] = (raw_eq[:_EQ_CHAR_LIMIT] + '…') if len(raw_eq) > _EQ_CHAR_LIMIT else raw_eq
     ic_bic_by_model = ic_df.set_index('idx')['BIC'].to_dict()
 
-    "=== Per-K player counts and mean individual BIC per assigned model ==="
+    "=== Per-M player counts and mean individual BIC per assigned model ==="
     assign_counts = (
-        assign_df.groupby(['K', 'assigned_utility_idx'])
+        assign_df.groupby(['M', 'assigned_utility_idx'])
         .size()
         .reset_index(name='n_players')
     )
@@ -2045,58 +2045,58 @@ def plot_architecture_compression_curve(
         right_on=['player_uuid', 'utility_idx'],
         how='left',
     )
-    mean_bic_by_K_model = (
-        assign_with_bic.groupby(['K', 'assigned_utility_idx'])['BIC_individual'].mean()
+    mean_bic_by_M_model = (
+        assign_with_bic.groupby(['M', 'assigned_utility_idx'])['BIC_individual'].mean()
     )
 
-    "=== Per-(K, model) nearest-AMPD lookup from library diagnostics ==="
+    "=== Per-(M, model) nearest-AMPD lookup from library diagnostics ==="
     nearest_ampd_lookup: dict = {}
     if not library_diag_df.empty:
         for _, diag_row in library_diag_df.iterrows():
-            key = (int(diag_row['K']), int(diag_row['utility_idx']))
+            key = (int(diag_row['M']), int(diag_row['utility_idx']))
             nearest_ampd_lookup[key] = {
                 'nearest_idx':  diag_row.get('nearest_selected_model_idx'),
                 'ampd_val':     diag_row.get('nearest_selected_model_ampd'),
                 'ampd_pct':     diag_row.get('nearest_selected_model_ampd_percentile'),
             }
 
-    "=== Marginal-gain K — caps hover display; shows at most K_marginal_gain model lines ==="
+    "=== Marginal-gain M — caps hover display; shows at most M_marginal_gain model lines ==="
     mg_rows = (
         curve_df[curve_df['selected_by_marginal_gain'] == True]
         if 'selected_by_marginal_gain' in curve_df.columns else pd.DataFrame()
     )
-    K_hover_cap = int(mg_rows['K'].values[0]) if not mg_rows.empty else None
+    M_hover_cap = int(mg_rows['M'].values[0]) if not mg_rows.empty else None
 
-    k_vals  = curve_df['K'].tolist()
-    a_vals  = curve_df['A_K'].tolist()
+    k_vals  = curve_df['M'].tolist()
+    a_vals  = curve_df['A_M'].tolist()
     kd_vals = curve_df['kneedle_distance'].tolist()
 
-    "=== Build per-K hover text ==="
+    "=== Build per-M hover text ==="
     def _build_hover(row: pd.Series) -> str:
-        K_val  = int(row['K'])
-        A_str  = f"{row['A_K']:.4f}"             if pd.notna(row.get('A_K'))             else "?"
-        dA_str = f"{row['delta_A_K']:.4f}"        if pd.notna(row.get('delta_A_K'))        else "?"
-        d2_str = f"{row['delta2_A_K']:.4f}"       if pd.notna(row.get('delta2_A_K'))       else "?"
+        M_val  = int(row['M'])
+        A_str  = f"{row['A_M']:.4f}"             if pd.notna(row.get('A_M'))             else "?"
+        dA_str = f"{row['delta_A_M']:.4f}"        if pd.notna(row.get('delta_A_M'))        else "?"
+        d2_str = f"{row['delta2_A_M']:.4f}"       if pd.notna(row.get('delta2_A_M'))       else "?"
         kd_str = f"{row['kneedle_distance']:.4f}" if pd.notna(row.get('kneedle_distance')) else "?"
         set_idxs    = json.loads(row.get('architecture_set_idxs', '[]'))
         k_counts    = (
-            assign_counts[assign_counts['K'] == K_val]
+            assign_counts[assign_counts['M'] == M_val]
             .set_index('assigned_utility_idx')['n_players'].to_dict()
         )
         sorted_idxs = sorted(set_idxs, key=lambda m: ic_bic_by_model.get(m, float('inf')))
-        n_display   = min(len(sorted_idxs), K_hover_cap) if K_hover_cap is not None else len(sorted_idxs)
+        n_display   = min(len(sorted_idxs), M_hover_cap) if M_hover_cap is not None else len(sorted_idxs)
         model_lines = []
         for model_idx in sorted_idxs[:n_display]:
             n_pl     = k_counts.get(model_idx, 0)
             try:
-                mu_bic = mean_bic_by_K_model.loc[(K_val, model_idx)]
+                mu_bic = mean_bic_by_M_model.loc[(M_val, model_idx)]
                 bic_str = f"{mu_bic:05.1f}"
             except KeyError:
                 bic_str = "  n/a"
             equation   = model_equations.get(int(model_idx), '?')
             k_params_v = (int(model_meta.loc[model_idx]['k_params'])
                           if model_idx in model_meta.index else '?')
-            diag_entry  = nearest_ampd_lookup.get((K_val, model_idx), {})
+            diag_entry  = nearest_ampd_lookup.get((M_val, model_idx), {})
             near_idx    = diag_entry.get('nearest_idx')
             near_ampd   = diag_entry.get('ampd_val')
             near_pct    = diag_entry.get('ampd_pct')
@@ -2112,15 +2112,15 @@ def plot_architecture_compression_curve(
         if omitted > 0:
             model_lines.append(f"… ({omitted} more utility function{'s' if omitted != 1 else ''} not shown)")
         return (
-            f"K Models = {K_val};  Kneedle dist = {kd_str}<br>"
-            f"A(K) = {A_str},  ΔA = {dA_str},  Δ²A = {d2_str}<br>"
+            f"M Models = {M_val};  Kneedle dist = {kd_str}<br>"
+            f"A(M) = {A_str},  ΔA = {dA_str},  Δ²A = {d2_str}<br>"
             f"Utility Function Set:<br>"
             + "<br>".join(model_lines)
         )
 
     hover_texts = curve_df.apply(_build_hover, axis=1).tolist()
 
-    "=== Traces: A(K) at base_hue, kneedle distance at base_hue+20 ==="
+    "=== Traces: A(M) at base_hue, kneedle distance at base_hue+20 ==="
     main_color  = _hsla(hue=base_hue,      alpha=0.9)
     main_darker = _hsla(hue=base_hue,      lightness_percent=35, alpha=1.0)
     kd_color    = _hsla(hue=base_hue + 20, alpha=0.55)
@@ -2134,7 +2134,7 @@ def plot_architecture_compression_curve(
         line=dict(color=main_color, width=5),
         hovertemplate='%{customdata}<extra></extra>',
         customdata=hover_texts,
-        name='A(K)',
+        name='A(M)',
         showlegend=True,
     )
 
@@ -2163,11 +2163,11 @@ def plot_architecture_compression_curve(
         xanchor='right',
         font=dict(size=max(10, base_font_size - 4), color=ref_color),
     )
-    "Place the K=1 baseline annotation below the x-axis tick labels using paper coordinates."
+    "Place the M=1 baseline annotation below the x-axis tick labels using paper coordinates."
     fig.add_annotation(
         x=1.00, xref='paper',
         y=-0.08, yref='paper',
-        text='A = 0  (K=1 baseline: one shared utility function)',
+        text='A = 0  (M=1 baseline: one shared utility function)',
         showarrow=False,
         xanchor='right',
         font=dict(size=max(10, base_font_size - 4), color=ref_color),
@@ -2188,7 +2188,7 @@ def plot_architecture_compression_curve(
         sel_rows = curve_df[curve_df[col] == True]
         if sel_rows.empty:
             continue
-        k_sel = int(sel_rows['K'].values[0])
+        k_sel = int(sel_rows['M'].values[0])
         hue   = (base_hue + hue_offset) % 360
         color = _hsla(hue=hue, alpha=0.85)
         if k_sel not in drawn_k:
@@ -2198,7 +2198,7 @@ def plot_architecture_compression_curve(
 
     "Vertical rotated annotations placed in the lower portion of the plot to avoid covering curves."
     for k_sel, info in drawn_k.items():
-        annotation_text = "  |  ".join(info['labels']) + f"  (K={k_sel})"
+        annotation_text = "  |  ".join(info['labels']) + f"  (M={k_sel})"
         fig.add_annotation(
             x=k_sel, y=0.28, yref='y', xref='x',
             text=annotation_text,
@@ -2209,7 +2209,7 @@ def plot_architecture_compression_curve(
             yanchor='middle',
         )
 
-    yaxis_title = "A(K) — gain fraction for K models  |  Kneedle dist"
+    yaxis_title = "A(M) — gain fraction for M models  |  Kneedle dist"
     fig.update_layout(
         title=dict(
             text='Population Utility Function Compression Curve',
@@ -2218,7 +2218,7 @@ def plot_architecture_compression_curve(
             font=dict(size=fig_lay.get('title_size', 22) * 2),
         ),
         xaxis=dict(
-            title='Number of utility functions (K)',
+            title='Number of utility functions (M)',
             tickmode='array',
             tickvals=k_vals,
             showgrid=True,

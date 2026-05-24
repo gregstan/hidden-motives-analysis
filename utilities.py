@@ -295,7 +295,7 @@ def parameter_penalty(
             separately. That way, a parent with (V, Λ) = (v, v) or (E, G) = (e, e) pays
             exactly what the child pays with the single weight = v or e.
 
-        • If a negativity mate is absent (only Vᵢᵢ, Vᵢⱼ, or Ƹᵢⱼ exists), falls back to
+        • If a negativity mate is absent (only Vᵢᵢ, Vᵢⱼ, or αᵢⱼ exists), falls back to
             the usual L2: penalty += (weight)^2.
 
         • Exponents (if penalized) are biased toward 1.0 via (γ - 1)^2. To avoid bias
@@ -366,10 +366,10 @@ def parameter_penalty(
             penalty += Lij * Lij
 
     "Social comparison (anchor = 0.0)."
-    Eij = parameter_value(params, "Ƹᵢⱼ") or parameter_value(params, "Eij")
-    Gij = parameter_value(params, "Ʒᵢⱼ") or parameter_value(params, "Gij")
-    has_E = _has(params, "Ƹᵢⱼ", "Eij")
-    has_G = _has(params, "Ʒᵢⱼ", "Gij")
+    Eij = parameter_value(params, "αᵢⱼ") or parameter_value(params, "Eij")
+    Gij = parameter_value(params, "βᵢⱼ") or parameter_value(params, "Gij")
+    has_E = _has(params, "αᵢⱼ", "Eij")
+    has_G = _has(params, "βᵢⱼ", "Gij")
 
     if has_E and has_G:
         mag = (abs(Eij) + abs(Gij)) / 2.0
@@ -433,7 +433,7 @@ def compute_statistics(joint_pmf: NDArray[np.float64],
             Each array corresponds to one parameter in the same order as specified in param_info.
         • param_info: Dict[str, Any]
             Dictionary containing parameter information. It should include:
-                - "keys": list of parameter names (e.g., ['Vᵢᵢ', 'Vᵢⱼ', 'Ƹᵢⱼ', 'Vᵢᵢ_std', 'Vᵢⱼ_std', 'Ƹᵢⱼ_std']).
+                - "keys": list of parameter names (e.g., ['Vᵢᵢ', 'Vᵢⱼ', 'αᵢⱼ', 'Vᵢᵢ_std', 'Vᵢⱼ_std', 'αᵢⱼ_std']).
                   Only keys not ending with '_std' will be used to label the dimensions for computing means and covariances.
         • print_warnings: bool
             If True, warnings will be printed when encountering invalid PMF or variance computations.
@@ -444,13 +444,13 @@ def compute_statistics(joint_pmf: NDArray[np.float64],
                 {
                     'Vᵢᵢ': <mean of Vᵢᵢ>,
                     'Vᵢⱼ': <mean of Vᵢⱼ>,
-                    'Ƹᵢⱼ': <mean of Ƹᵢⱼ>,
+                    'αᵢⱼ': <mean of αᵢⱼ>,
                     'Vᵢᵢ_std': <standard deviation of Vᵢᵢ>,
                     'Vᵢⱼ_std': <standard deviation of Vᵢⱼ>,
-                    'Ƹᵢⱼ_std': <standard deviation of Ƹᵢⱼ>,
+                    'αᵢⱼ_std': <standard deviation of αᵢⱼ>,
                     'Vᵢᵢ_Vᵢⱼ_cov': <covariance between Vᵢᵢ and Vᵢⱼ>,
-                    'Vᵢᵢ_Ƹᵢⱼ_cov': <covariance between Vᵢᵢ and Ƹᵢⱼ>,
-                    'Vᵢⱼ_Ƹᵢⱼ_cov': <covariance between Vᵢⱼ and Ƹᵢⱼ>
+                    'Vᵢᵢ_αᵢⱼ_cov': <covariance between Vᵢᵢ and αᵢⱼ>,
+                    'Vᵢⱼ_αᵢⱼ_cov': <covariance between Vᵢⱼ and αᵢⱼ>
                 }
     """
     "Extract the names for the parameters (exclude any keys ending with '_std')"
@@ -673,19 +673,19 @@ def build_covariation_matrix(param_info: Dict[str, Any], params: Dict[str, float
     Arguments:
         • param_info: Dict[str, Any];
             - Example: { 
-                'keys': ['Vᵢᵢ', 'Vᵢⱼ', 'Ƹᵢⱼ', 'Vᵢᵢ_std', 'Vᵢⱼ_std', 'Ƹᵢⱼ_std']
+                'keys': ['Vᵢᵢ', 'Vᵢⱼ', 'αᵢⱼ', 'Vᵢᵢ_std', 'Vᵢⱼ_std', 'αᵢⱼ_std']
                 'bounds': [(-1, 1), (-1, 1), (-1, 1), (1e-12, 4), (1e-12, 4), (1e-12, 4)],
                 'guesses': [0.5, 0.6, 0.7, 0.01, 0.02, 0.03], 
                 'covar': { 
-                    'keys': ['Vᵢᵢ_Vᵢⱼ_cov', 'Vᵢᵢ_Ƹᵢⱼ_cov', 'Vᵢⱼ_Ƹᵢⱼ_cov'],
+                    'keys': ['Vᵢᵢ_Vᵢⱼ_cov', 'Vᵢᵢ_αᵢⱼ_cov', 'Vᵢⱼ_αᵢⱼ_cov'],
                     'bounds': [(-16, 16), (-16, 16), (-16, 16)],
                     'guesses': [0, 0, 0],
                 }
             }
         • params: Dict[str, float];
             - Example: {
-                'Vᵢᵢ': 0.45, 'Vᵢⱼ': -0.02, 'Ƹᵢⱼ': -0.11, 
-                'Vᵢᵢ_std': 1.34, 'Vᵢⱼ_std': 0.65, 'Ƹᵢⱼ_std': 0.42
+                'Vᵢᵢ': 0.45, 'Vᵢⱼ': -0.02, 'αᵢⱼ': -0.11, 
+                'Vᵢᵢ_std': 1.34, 'Vᵢⱼ_std': 0.65, 'αᵢⱼ_std': 0.42
             } 
 
     Returns:
@@ -2970,7 +2970,7 @@ def map_child_to_parent_special_param_info(
         if param_name == 'Vᵢᵢ':
             "If child had fixed self-interest, emulate the same behavior."
             return 1.0
-        if param_name in ('Vᵢⱼ', 'Ʌᵢⱼ', 'Ƹᵢⱼ', 'Ʒᵢⱼ'):
+        if param_name in ('Vᵢⱼ', 'Ʌᵢⱼ', 'αᵢⱼ', 'βᵢⱼ'):
             "If the term did not exist before, set to zero."
             return 0.0
         if param_name.startswith('γ'):
@@ -2992,8 +2992,8 @@ def map_child_to_parent_special_param_info(
     "Precompute base weights from the child when present (to tie negative/conditioned sides)."
     child_Vii: Optional[float] = child_fitted_parameters.get('Vᵢᵢ', None)
     child_Vij: Optional[float] = child_fitted_parameters.get('Vᵢⱼ', None)
-    child_Envy: Optional[float] = child_fitted_parameters.get('Ƹᵢⱼ', None)  # envy
-    child_Guilt: Optional[float] = child_fitted_parameters.get('Ʒᵢⱼ', None)  # guilt
+    child_Envy: Optional[float] = child_fitted_parameters.get('αᵢⱼ', None)  # envy
+    child_Guilt: Optional[float] = child_fitted_parameters.get('βᵢⱼ', None)  # guilt
 
     "Pass 1: create a dict of embedded values for the parent means."
     embedded_parent_values: Dict[str, float] = {}
@@ -3017,19 +3017,19 @@ def map_child_to_parent_special_param_info(
             embedded_parent_values['Ʌᵢⱼ'] = float(child_Vij) if child_Vij is not None else 0.0
             continue
 
-        if param_name == 'Ʒᵢⱼ':
+        if param_name == 'βᵢⱼ':
             "Split envy/guilt: set guilt equal to envy to reproduce the child."
             if child_Guilt is not None:
-                embedded_parent_values['Ʒᵢⱼ'] = float(child_Guilt)
+                embedded_parent_values['βᵢⱼ'] = float(child_Guilt)
             elif child_Envy is not None:
-                embedded_parent_values['Ʒᵢⱼ'] = float(child_Envy)
+                embedded_parent_values['βᵢⱼ'] = float(child_Envy)
             else:
-                embedded_parent_values['Ʒᵢⱼ'] = 0.0
+                embedded_parent_values['βᵢⱼ'] = 0.0
             continue
 
-        if param_name == 'Ƹᵢⱼ':
+        if param_name == 'αᵢⱼ':
             "If social comparison is newly introduced, set envy to zero."
-            embedded_parent_values['Ƹᵢⱼ'] = 0.0
+            embedded_parent_values['αᵢⱼ'] = 0.0
             continue
 
         if param_name == 'Vᵢⱼ':
@@ -3266,10 +3266,10 @@ _SUB_TO_GAMMA = {"₁": "γ1", "₂": "γ2", "₃": "γ3"}
 "Regex fragment matching an exponent suffix: ^γ₁, ^γ₂, ^γ₃, or a numeric literal."
 _SC_EXPONENT_TAG = r"\^[^\s)]+?"
 
-"Matches a social comparison term written in grouped form: -Ƹᵢⱼ × (max(envy,0)^p - max(guilt,0)^q)."
+"Matches a social comparison term written in grouped form: -αᵢⱼ × (max(envy,0)^p - max(guilt,0)^q)."
 _SC_GROUPED = _re_eval.compile(
     rf"""
-    -\s*Ƹᵢⱼ\s*[×*]\s*\(\s*
+    -\s*αᵢⱼ\s*[×*]\s*\(\s*
     max\((?P<envy>[^)]*?)\s*,\s*0\)\s*(?P<envy_exponent>{_SC_EXPONENT_TAG})?
     \s*-\s*
     max\((?P<guilt>[^)]*?)\s*,\s*0\)\s*(?P<guilt_exponent>{_SC_EXPONENT_TAG})?
@@ -3277,11 +3277,11 @@ _SC_GROUPED = _re_eval.compile(
     """, _re_eval.VERBOSE
 )
 
-"Matches a social comparison term written in two-term form: -Ƹᵢⱼ × max(envy,0)^p + Ƹᵢⱼ × max(guilt,0)^q."
+"Matches a social comparison term written in two-term form: -αᵢⱼ × max(envy,0)^p + αᵢⱼ × max(guilt,0)^q."
 _SC_TWOTERM = _re_eval.compile(
     rf"""
-    -\s*Ƹᵢⱼ\s*[×*]\s*max\((?P<envy>[^)]*?)\s*,\s*0\)\s*(?P<envy_exponent>{_SC_EXPONENT_TAG})?
-    \s*\+\s*Ƹᵢⱼ\s*[×*]\s*max\((?P<guilt>[^)]*?)\s*,\s*0\)\s*(?P<guilt_exponent>{_SC_EXPONENT_TAG})?
+    -\s*αᵢⱼ\s*[×*]\s*max\((?P<envy>[^)]*?)\s*,\s*0\)\s*(?P<envy_exponent>{_SC_EXPONENT_TAG})?
+    \s*\+\s*αᵢⱼ\s*[×*]\s*max\((?P<guilt>[^)]*?)\s*,\s*0\)\s*(?P<guilt_exponent>{_SC_EXPONENT_TAG})?
     """, _re_eval.VERBOSE
 )
 
@@ -3306,8 +3306,8 @@ def _canon_sc_grouped_to_twoterm(equation_rhs: str) -> str:
     """
     Rewrites any grouped social comparison term in equation_rhs into two-term form.
 
-    Grouped form:   - Ƹᵢⱼ × (max(envy, 0)^p - max(guilt, 0)^q)
-    Two-term form:  - Ƹᵢⱼ × max(envy, 0)^p + Ƹᵢⱼ × max(guilt, 0)^q
+    Grouped form:   - αᵢⱼ × (max(envy, 0)^p - max(guilt, 0)^q)
+    Two-term form:  - αᵢⱼ × max(envy, 0)^p + αᵢⱼ × max(guilt, 0)^q
 
     Arguments:
         • equation_rhs: str — right-hand side of a pretty-printed utility equation.
@@ -3321,8 +3321,8 @@ def _canon_sc_grouped_to_twoterm(equation_rhs: str) -> str:
         envy_exponent    = match.group("envy_exponent") or ""
         guilt_exponent   = match.group("guilt_exponent") or envy_exponent
         return (
-            f"- Ƹᵢⱼ × max({envy_expression}, 0){envy_exponent}"
-            f" + Ƹᵢⱼ × max({guilt_expression}, 0){guilt_exponent}"
+            f"- αᵢⱼ × max({envy_expression}, 0){envy_exponent}"
+            f" + αᵢⱼ × max({guilt_expression}, 0){guilt_exponent}"
         )
     return _SC_GROUPED.sub(_repl, equation_rhs)
 
@@ -3331,8 +3331,8 @@ def _canon_sc_twoterm_to_grouped(equation_rhs: str) -> str:
     """
     Rewrites any two-term social comparison in equation_rhs into grouped form.
 
-    Two-term form:  - Ƹᵢⱼ × max(envy, 0)^p + Ƹᵢⱼ × max(guilt, 0)^q
-    Grouped form:   - Ƹᵢⱼ × (max(envy, 0)^p - max(guilt, 0)^q)
+    Two-term form:  - αᵢⱼ × max(envy, 0)^p + αᵢⱼ × max(guilt, 0)^q
+    Grouped form:   - αᵢⱼ × (max(envy, 0)^p - max(guilt, 0)^q)
 
     Arguments:
         • equation_rhs: str — right-hand side of a pretty-printed utility equation.
@@ -3346,7 +3346,7 @@ def _canon_sc_twoterm_to_grouped(equation_rhs: str) -> str:
         envy_exponent    = match.group("envy_exponent") or ""
         guilt_exponent   = match.group("guilt_exponent") or envy_exponent
         return (
-            f"- Ƹᵢⱼ × (max({envy_expression}, 0){envy_exponent}"
+            f"- αᵢⱼ × (max({envy_expression}, 0){envy_exponent}"
             f" - max({guilt_expression}, 0){guilt_exponent})"
         )
     return _SC_TWOTERM.sub(_repl, equation_rhs)

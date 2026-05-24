@@ -177,8 +177,8 @@ class AmpdSettings(TypedDict, total=False):
 class IndividualArchitectureSettings(TypedDict, total=False):
     population_top_n_models: Optional[int]
     participant_top_r_models: Optional[int]
-    K_max: Optional[int]
-    exhaustive_K_max: int
+    M_max: Optional[int]
+    exhaustive_M_max: int
     score_basis: str
     stopping_criteria: str
     marginal_gain_threshold: float
@@ -272,9 +272,9 @@ def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, gener
         • general_settings: dict[str, Any] | None; Makes std keys follow MCMC/grid conventions. 
 
     Returns:
-        • list[str]; Ordered parameter names, e.g. ['Vᵢᵢ', 'Vᵢⱼ', 'Ƹᵢⱼ', 'γ1', 'γ2', ...]
+        • list[str]; Ordered parameter names, e.g. ['Vᵢᵢ', 'Vᵢⱼ', 'αᵢⱼ', 'γ1', 'γ2', ...]
     """
-    negativity_params = {'Vᵢᵢ': 'Ʌᵢᵢ', 'Vᵢⱼ': 'Ʌᵢⱼ', 'Ƹᵢⱼ': 'Ʒᵢⱼ'}
+    negativity_params = {'Vᵢᵢ': 'Ʌᵢᵢ', 'Vᵢⱼ': 'Ʌᵢⱼ', 'αᵢⱼ': 'βᵢⱼ'}
     param_keys: List[str] = []
 
     if utility_settings['min_max_rawlsian_leontief']:
@@ -314,9 +314,9 @@ def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, gener
                     param_keys.append('Ʌᵢⱼ')
 
             if utility_settings['include_social_comparison']:
-                param_keys.append('Ƹᵢⱼ')
+                param_keys.append('αᵢⱼ')
                 if utility_settings['use_negativity_parameters'] or utility_settings['negativity_social_comparison']:
-                    param_keys.append('Ʒᵢⱼ')
+                    param_keys.append('βᵢⱼ')
 
             if utility_settings['use_exponential_parameters']:
                 if utility_settings['single_exponential_parameter']:
@@ -376,7 +376,7 @@ def make_param_info(param_bds: dict[str, tuple[int | float, int | float]], utili
 
     Conventions and invariants:
         • Parameter names use Unicode symbols consistently with the rest of the codebase:
-            Vᵢᵢ, Vᵢⱼ, Ƹᵢⱼ, Ʌᵢᵢ, Ʌᵢⱼ, Ʒᵢⱼ, and γ1, γ2, γ3, …
+            Vᵢᵢ, Vᵢⱼ, αᵢⱼ, Ʌᵢᵢ, Ʌᵢⱼ, βᵢⱼ, and γ1, γ2, γ3, …
         • The order in 'keys' is *the* canonical order used to interpret vectors passed to optimizers.
           Always derive counts (k) and indexing from this list to avoid drift across components.
         • Standard-deviation keys ('*_std') are appended in the same order as their mean counterparts
@@ -690,8 +690,8 @@ general_settings: GeneralSettings = {
     'individual_architecture_settings': {
         'population_top_n_models':                   120,
         'participant_top_r_models':                  10,
-        'K_max':                                     None,
-        'exhaustive_K_max':                          4,
+        'M_max':                                     None,
+        'exhaustive_M_max':                          4,
         'score_basis':                               'ic_equivalent_participant_score',
         'stopping_criteria':                         'kneedle_elbow',
         'marginal_gain_threshold':                   0.01,
@@ -743,9 +743,9 @@ utility_settings: UtilitySettings = {
 }
 
 param_bds: ParameterBounds = {
-    'Vᵢᵢ': (-1, 1), 'Ʌᵢᵢ': (-1, 1), 'Vᵢⱼ': (-1, 1), 'Ʌᵢⱼ': (-1, 1), 'Ƹᵢⱼ': (-1, 1), 'Ʒᵢⱼ': (-1, 1), 
+    'Vᵢᵢ': (-1, 1), 'Ʌᵢᵢ': (-1, 1), 'Vᵢⱼ': (-1, 1), 'Ʌᵢⱼ': (-1, 1), 'αᵢⱼ': (-1, 1), 'βᵢⱼ': (-1, 1), 
     'γ1': (1e-4, 2), 'γ2': (1e-4, 2), 'γ3': (1e-4, 2), 'Vᵢᵢ_std': (1e-2, 4), 'Ʌᵢᵢ_std': (1e-2, 4), 
-    'Vᵢⱼ_std': (1e-2, 4), 'Ʌᵢⱼ_std': (1e-2, 4), 'Ƹᵢⱼ_std': (1e-2, 4), 'Ʒᵢⱼ_std': (1e-2, 4), 
+    'Vᵢⱼ_std': (1e-2, 4), 'Ʌᵢⱼ_std': (1e-2, 4), 'αᵢⱼ_std': (1e-2, 4), 'βᵢⱼ_std': (1e-2, 4), 
     'γ1_std': (1e-2, 1), 'γ2_std': (1e-2, 1), 'γ3_std': (1e-2, 1),
 }
 

@@ -16,22 +16,22 @@ analysis_options = {
     # ── Synthetic simulation data ────────────────────────────────────────────────────────
     'run_simulation':               False,  # Parameter recovery simulation (core paper result, Figures 5–6).
     'run_particle_filter_test':     False,  # Particle filter vs full-grid posterior fidelity check.
-    'run_recovery_by_k':            True,  # Recovery accuracy across model complexity levels (k params).
-    'run_update_speed_analysis':    True,  # Belief update speed regression over simulated dyads.
-    'visualize_belief_updates':     True,  # Interactive 3D Bayesian update plots (uses simulation data).
+    'run_recovery_by_k':            False,  # Recovery accuracy across model complexity levels (k params).
+    'run_update_speed_analysis':    False,  # Belief update speed regression over simulated dyads.
+    'visualize_belief_updates':     False,  # Interactive 3D Bayesian update plots (uses simulation data).
 
     # ── Requires raw experiment data ─────────────────────────────────────────────────────
-    'run_model_comparison':         False, # Alternative model contest + typological model comparison.
-    'run_ic_analysis':              False, # IC utility comparison: 5 forms in light mode, all 480 in full.
+    'run_model_comparison':         False,  # Alternative model contest + typological model comparison.
+    'run_ic_analysis':              False,  # IC utility comparison: 5 forms in light mode, all 480 in full.
 
     # ── Requires IC results in bic_aic/ ──────────────────────────────────────────────────
-    'run_individual_architecture':  False, # Architecture compression curve: how many utility types does the population need?
-    'run_model_recovery':           False, # Model recovery simulation: data adequacy check for the IC pipeline.
+    'run_individual_architecture':  True,  # Architecture compression curve: how many utility types does the population need?
+    'run_model_recovery':           True,  # Model recovery simulation: data adequacy check for the IC pipeline.
 
     # ── Requires raw experiment data ─────────────────────────────────────────────────────
-    'run_parameter_distribution':   False, # Population parameter distributions and correlations.
-    'run_inequality_aversion':      False, # Inequality aversion bot competition heatmaps.
-}
+    'run_parameter_distribution':   True,  # Population parameter distributions and correlations.
+    'run_inequality_aversion':      True,  # Inequality aversion bot competition heatmaps.
+} 
 
 "=========================================================================================="
 "==================================== Demo Entry Point ===================================="
@@ -69,8 +69,8 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
         • All demo outputs are written under demo_files/ and can be safely deleted.
         • Sections 'run_simulation' through 'visualize_belief_updates' use synthetic data only.
         • 'visualize_belief_updates' requires 'run_simulation' to have produced data first.
-        • 'run_model_comparison', 'run_ic_analysis', and 'run_parameter_distribution'
-            require raw experiment CSVs in raw_data/. 'run_inequality_aversion' is parametric only.
+        • 'run_model_comparison', 'run_ic_analysis', and 'run_parameter_distribution' require
+            raw experiment CSVs in raw_data/. 'run_inequality_aversion' is parametric only.
         • NEVER set light_mode=False for 'run_ic_analysis' without expecting a multi-week run.
     """
 
@@ -83,7 +83,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     "Apply light-mode speed settings to general_settings."
     general_settings['experiment_num'] = 0
     if light_mode:
-        general_settings['use_particle_filter'] = True
+        general_settings['use_particle_filter']  = True
         general_settings['n_bins_per_dimension'] = 5
         general_settings['run_in_parallel']      = True
 
@@ -540,6 +540,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
                 utility_settings=utility_settings,
                 file_paths=demo_real_file_paths,
                 fig_lay=fig_lay,
+                check_for_n_players=2 if light_mode else 'all',
             )
 
             winning_k3_profile = [( 0.0,  0.5), ( 0.0,  1.0), ( 0.5,  0.0)]
@@ -669,14 +670,14 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             )
 
     "=========================================================================================="
-    "====== Section 10: Individual Architecture Compression Curve (K Utility Types) ==========="
+    "====== Section 10: Individual Architecture Compression Curve (M Utility Types) ==========="
     "=========================================================================================="
     """
     Manuscript context: Section 4.5 (how many structurally distinct utility types describe the population?).
     Functions exercised: extract_participant_model_combined_fits, compute_architecture_compression_curve,
     plot_architecture_compression_curve.
     Requires: IC results in bic_aic/ (participant_model_combined_fits.csv is generated on first run).
-    NOTE: light_mode uses only 5 candidate models and K_max=2; for real results run with light_mode=False
+    NOTE: light_mode uses only 5 candidate models and M_max=2; for real results run with light_mode=False
     and real IC data.
     """
 
@@ -702,8 +703,8 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
                     **general_settings.get('individual_architecture_settings', {}),
                     'population_top_n_models': 5,
                     'participant_top_r_models': 3,
-                    'K_max': 2,
-                    'exhaustive_K_max': 2,
+                    'M_max': 2,
+                    'exhaustive_M_max': 2,
                     'n_workers': 1,
                 }
                 arch_general_settings = {**general_settings, 'individual_architecture_settings': ia_settings}

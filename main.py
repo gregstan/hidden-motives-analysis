@@ -1,4 +1,6 @@
 from analysis import *
+from behavioral_distances import *
+from architecture import *
 from mle import run_analysis_mle
 
 "=========================================================================================="

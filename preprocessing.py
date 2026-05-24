@@ -492,7 +492,7 @@ def create_unified_dataframe(general_settings: GeneralSettings, file_paths: File
             'payoff_B_chooser','payoff_B_predictor',
             'choice','prediction','timestamp',
             'c_Vᵢᵢ','c_Vᵢᵢ_se','c_Vᵢⱼ','c_Vᵢⱼ_se',
-            'c_Ƹᵢⱼ','c_Ƹᵢⱼ_se','c_loss', ...
+            'c_αᵢⱼ','c_αᵢⱼ_se','c_loss', ...
             'p_Vᵢᵢ','p_Vᵢᵢ_se', ... 'p_loss'
           ]
     """

@@ -108,7 +108,7 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
         • params: dict[str, float]
             Social-preference parameter values. Recognized keys (all optional; defaults shown):
                 'Vᵢᵢ' (1), 'Ʌᵢᵢ' (0), 'Vᵢⱼ' (0), 'Ʌᵢⱼ' (0),
-                'Ƹᵢⱼ' (0), 'Ʒᵢⱼ' (0), 'γ1' (1), 'γ2' (γ1), 'γ3' (γ1).
+                'αᵢⱼ' (0), 'βᵢⱼ' (0), 'γ1' (1), 'γ2' (γ1), 'γ3' (γ1).
         • utility_settings: UtilitySettings
             Dict of boolean toggles that select the active functional form. The key flags are:
                 'include_altruism_term', 'include_social_comparison', 'use_negativity_parameters',
@@ -132,8 +132,8 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
     Ʌᵢᵢ = params.get('Ʌᵢᵢ', 0)
     Vᵢⱼ = params.get('Vᵢⱼ', 0)
     Ʌᵢⱼ = params.get('Ʌᵢⱼ', 0)
-    Ƹᵢⱼ = params.get('Ƹᵢⱼ', 0)
-    Ʒᵢⱼ = params.get('Ʒᵢⱼ', 0)
+    αᵢⱼ = params.get('αᵢⱼ', 0)
+    βᵢⱼ = params.get('βᵢⱼ', 0)
     exp1 = params.get('γ1', 1)
     exp2 = params.get('γ2', exp1)
     exp3 = params.get('γ3', exp1)
@@ -302,7 +302,7 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
     if utility_settings['include_social_comparison']:
         social_comp = utility_term(
             payoff_1=pay1sc, payoff_2=pay2sc,
-            weight_1=-Ƹᵢⱼ, weight_2=Ʒᵢⱼ if utility_settings['negativity_social_comparison'] else Ƹᵢⱼ,
+            weight_1=-αᵢⱼ, weight_2=βᵢⱼ if utility_settings['negativity_social_comparison'] else αᵢⱼ,
             exponent=exp3, use_exponential_parameters=utility_settings['use_exponential_parameters'],
             payoff_ratios_not_differences=utility_settings['payoff_ratios_not_differences'],
             use_negativity_parameters=True, single_payoffs_not_differences=False
@@ -401,8 +401,8 @@ def choice(current_game: dict[str, Any], agent_params: Dict[str, float], utility
         • agent_params: dict[str, float]
             Social-preference parameters plus optional standard deviations and temperature.
             Example: {
-                'Vᵢᵢ': 0.958, 'Vᵢⱼ': 0.333, 'Ƹᵢⱼ': 0.274, 'γ1': 0.800,
-                'Vᵢᵢ_std': 0.5,  'Vᵢⱼ_std': 0.3,  'Ƹᵢⱼ_std': 0.1,  'γ1_std': 0.9,
+                'Vᵢᵢ': 0.958, 'Vᵢⱼ': 0.333, 'αᵢⱼ': 0.274, 'γ1': 0.800,
+                'Vᵢᵢ_std': 0.5,  'Vᵢⱼ_std': 0.3,  'αᵢⱼ_std': 0.1,  'γ1_std': 0.9,
             }
             Keys ending in '_std' are used to compute the confidence score but not passed to utility().
         • utility_settings: UtilitySettings
@@ -640,15 +640,15 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A")
                 exp_tag = ""
 
             if la_socc:
-                "Two-sided: (-Ƹ)·max(envy,0)^γ - (−Ƹ)·max(guilt,0)^γ == -Ƹ*max(envy)^γ + Ƹ*max(guilt)^γ"
-                left  = f"- Ƹᵢⱼ × max({envy_base}, 0){exp_tag}"
-                right = f"- Ʒᵢⱼ × max({guilt_base}, 0){exp_tag}"
+                "Two-sided: (-α)·max(envy,0)^γ - (−α)·max(guilt,0)^γ == -α*max(envy)^γ + α*max(guilt)^γ"
+                left  = f"- αᵢⱼ × max({envy_base}, 0){exp_tag}"
+                right = f"- βᵢⱼ × max({guilt_base}, 0){exp_tag}"
                 return f" {left} {right}"
             else:
                 "Symmetric: single weight on (envy - guilt)"
                 left  = f"max({envy_base}, 0){exp_tag}"
                 right = f"max({guilt_base}, 0){exp_tag}"
-                return f" - Ƹᵢⱼ × ({left} + {right})"
+                return f" - αᵢⱼ × ({left} + {right})"
 
         else:
             error_str_end = "Use 'self-interest', 'altruism', or 'social_comparison'."

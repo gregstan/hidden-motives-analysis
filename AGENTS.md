@@ -352,11 +352,27 @@ Major sections use the 90-character separator style already present in the file:
 "=========================================================================================="
 ```
 
-The middle line must have an equal number of `=` characters on both sides of the text (with one
-space padding on each side). If the available `=` count is odd, the extra `=` goes **after** the
-text (right side). Example: a 90-character line with "My Title" (8 chars) has 80 `=` characters
-available (after 2 spaces), split 40 left and 40 right — even, so equal. A title with 9 chars
-leaves 79, split 39 left and 40 right (extra `=` on right).
+The middle line must have the title centered within the `=` characters (one space padding on each
+side). Use this formula, where **N** = total `=` count in the top row and **T** = character
+length of the title text:
+
+```
+n_left  = (N - T - 2) // 2      # integer division; the -2 accounts for the two space pads
+n_right = N - T - 2 - n_left    # equals n_left + 1 when (N - T - 2) is odd
+```
+
+When `N - T - 2` is odd the right side gets the extra `=`. Example: a 90-`=` top row with
+"My Title" (8 chars) → `(90 - 8 - 2) // 2 = 40` left and 40 right — even, perfectly centered.
+With "My Titles" (9 chars) → `(90 - 9 - 2) // 2 = 39` left and 40 right.
+
+Section headers must be preceded by **two blank lines** and followed by **one blank line**:
+```python
+<two blank lines>
+"=========================================================================================="
+"===================================== Section Title ======================================"
+"=========================================================================================="
+<one blank line>
+```
 
 ### Always use keyword arguments in function calls
 

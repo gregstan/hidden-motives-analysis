@@ -18,7 +18,7 @@ def bayesian_update_parametric(old_means: Dict[str, float], old_stds: Dict[str, 
     Arguments:
         • old_means: dict
             Dictionary of current parameter means, where keys represent parameters 
-            (e.g., 'Vᵢᵢ', 'Vᵢⱼ', 'Ƹᵢⱼ', 'γ1').
+            (e.g., 'Vᵢᵢ', 'Vᵢⱼ', 'αᵢⱼ', 'γ1').
         • old_stds: dict
             Dictionary of current parameter standard deviations, where keys are suffixed with '_std' 
             (e.g., 'Vᵢᵢ_std', 'Vᵢⱼ_std').
@@ -133,8 +133,8 @@ def bayesian_update_mcmc(old_means: Dict[str, float], old_stds: Dict[str, float]
     old_means, old_stds: Dict[str, float]
         • Prior "mean" and "std" for each parameter (point estimate + uncertainty).
           Example keys:
-              'Vᵢᵢ', 'Vᵢⱼ', 'Ƹᵢⱼ', 'Ʒᵢⱼ', 'γ1'  AND
-              'Vᵢᵢ_std', 'Vᵢⱼ_std', 'Ƹᵢⱼ_std', 'Ʒᵢⱼ_std', 'γ1_std'
+              'Vᵢᵢ', 'Vᵢⱼ', 'αᵢⱼ', 'βᵢⱼ', 'γ1'  AND
+              'Vᵢᵢ_std', 'Vᵢⱼ_std', 'αᵢⱼ_std', 'βᵢⱼ_std', 'γ1_std'
         • Interpreted here as defining a Normal prior for each parameter.
 
     observed_choice: str
@@ -402,7 +402,7 @@ def prior_grid_from_params(param_vals: Dict[str, Dict[str, Dict[str, float]]], p
                     'tickvals': {
                         'Vᵢⱼ': [-1.0, -0.8, -0.6, -0.4, -0.2,  0.0,  0.2,  0.4,  0.6,  0.8,  1.0],
                         'Vᵢᵢ': [-1.0, -0.8, -0.6, -0.4, -0.2,  0.0,  0.2,  0.4,  0.6,  0.8,  1.0],
-                        'Ƹᵢⱼ': [-1.0, -0.8, -0.6, -0.4, -0.2,  0.0,  0.2,  0.4,  0.6,  0.8,  1.0]
+                        'αᵢⱼ': [-1.0, -0.8, -0.6, -0.4, -0.2,  0.0,  0.2,  0.4,  0.6,  0.8,  1.0]
                     }
                 },
                 player_uuid: {
@@ -2243,7 +2243,7 @@ def fit_dyad_parameters_bayes(dyad_games: DyadGames, param_info: ParamInfo, util
         • param_info: ParamInfo; Contains parameter keys, bounds, and initial guesses.
             Example:
                 {
-                    "keys": ["Vᵢᵢ", "Vᵢⱼ", "Ƹᵢⱼ", "Ʒᵢⱼ", "exp1"]  # Plus '_std' and '_cov' keys if used.
+                    "keys": ["Vᵢᵢ", "Vᵢⱼ", "αᵢⱼ", "βᵢⱼ", "exp1"]  # Plus '_std' and '_cov' keys if used.
                     "bounds": [(lower, upper), ...],
                     "guesses": callable or list of floats
                 }
