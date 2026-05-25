@@ -4,7 +4,7 @@ from visualization import *
 from visualization import _hsla
 from utilities import compute_hamming_distance_matrix, compute_conditional_hamming_distance_matrix
 from behavioral_distances import *
-from behavioral_distances import _fmt_duration
+from behavioral_distances import _fmt_duration, _ampd_distance_name, _load_ampd_matrix_from_settings, _classical_mds
 from analysis import *
 
 _UNSET = object()   # sentinel: "caller did not provide - read from general_settings"

@@ -30,13 +30,14 @@ def main():
     # exit()
     verify_same_inputs_same_outputs_for_children_and_parents(
         general_settings=general_settings,
-        file_paths=file_paths,
-        param_bds=param_bds,
         utility_settings=utility_settings,
         player_role_to_fit="chooser",
+        file_paths=file_paths,
+        param_bds=param_bds,
         fit_for_n_players=1,
         random_seed=20250406,
         numeric_tolerance=1e-3,
+        print_failures=False,
         verbose=True,
     )
     exit()
@@ -45,10 +46,10 @@ def main():
         file_paths=file_paths,
         param_bds=param_bds,
         rand_payoff_idx=True,
-        n_trials=12,
         random_seed=None,
         tolerance=1e-12,
         verbose=True,
+        n_trials=12,
     )
     exit()
 

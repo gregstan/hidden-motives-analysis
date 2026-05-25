@@ -343,8 +343,7 @@ def parameter_penalty(
     if has_Vii or has_Lii:
         anchor = 1.0
         if has_Vii and has_Lii:
-            mag = (abs(Vii - anchor) + abs(Lii - anchor)) / 2.0
-            penalty += mag * mag
+            penalty += max(abs(Vii - anchor), abs(Lii - anchor)) ** 2
         elif has_Vii:
             penalty += (Vii - anchor) ** 2
         else:  # has_Lii only
@@ -384,13 +383,12 @@ def parameter_penalty(
     if penalize_exponents:
         gammas = []
         for param_key in params:
-            if param_key.startswith("γ") or param_key.lower().startswith("gamma"):
+            if (param_key.startswith("γ") or param_key.lower().startswith("gamma")) and not param_key.endswith("_std"):
                 val = parameter_value(params, param_key)
                 "Keep zeros too — avoids problems with non-numeric values."
                 gammas.append(val)
         if gammas:
-            mean_gamma = sum(gammas) / len(gammas)
-            penalty += len(gammas) * (mean_gamma - 1.0) ** 2  # parent-fair
+            penalty += sum((gamma - 1.0) ** 2 for gamma in gammas) / len(gammas)
 
     "3) Standard deviations (optional)."
     if penalize_std:

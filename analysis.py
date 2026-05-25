@@ -2777,7 +2777,7 @@ def extract_rankings_of_canonical_utility_functions(file_paths: FilePaths, rank_
 "=========================================================================================="
 
 def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: dict[str, Any], file_paths: dict[str, Any], param_bds: dict[str, tuple[float, float]],
-                                             utility_settings: UtilitySettings, player_role_to_fit: str = "predictor", fit_for_n_players: int | None = None,
+                                             utility_settings: UtilitySettings, player_role_to_fit: str = "chooser", fit_for_n_players: int | None = None,
                                              random_seed: int | None = None, numeric_tolerance: float = 1e-4, csv_file_name: str | None = None, verbose: bool = True,
                                              print_failures: bool = True) -> pd.DataFrame:
     """
@@ -3123,8 +3123,8 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
     ic_dataframe = pd.read_csv(ic_path)
 
     general_settings = copy.deepcopy(general_settings)
-    general_settings['confidence_weighted'] = False
-    general_settings['penalty_weight'] = 0.0
+    # general_settings['confidence_weighted'] = False
+    # general_settings['penalty_weight'] = 0.0
     
     "Build child→parent pairs"
     child_parent_pairs = _enumerate_child_parent_pairs_from_ic(
@@ -3182,8 +3182,10 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
         )
 
         "Ensure *_std keys exist for grid/MCMC updates (predictor priors need sigmas)."
+        # if general_settings.get('update_method') in ('grid', 'MCMC') and player_role_to_fit == "predictor": # Use this line after debugging!
         if general_settings.get('update_method') in ('grid', 'MCMC'):
-            bounds_lookup = {param_key: param_bounds for param_key, param_bounds in zip(parent_param_info['keys'], parent_param_info['bounds'])}
+            bounds_lookup = {param_key: param_bounds for param_key, param_bounds 
+                             in zip(parent_param_info['keys'], parent_param_info['bounds'])}
             min_std_guess = 0.5  # Same convention used elsewhere.
 
             for base_key in [param_key for param_key in parent_param_info['keys'] if not param_key.endswith('_std')]:
