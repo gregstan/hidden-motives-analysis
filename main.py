@@ -35,7 +35,7 @@ def main():
         utility_settings=utility_settings,
         player_role_to_fit="chooser",
         fit_for_n_players=1,
-        random_seed=None,
+        random_seed=20250406,
         numeric_tolerance=1e-3,
         verbose=True,
     )

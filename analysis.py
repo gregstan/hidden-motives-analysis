@@ -2878,7 +2878,7 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
             • dict[str, float]; Parent-parameter means that embed the child.
         """
         parent_parameters: dict[str, float] = {}
-        
+
         "1) Start by copying any overlapping child means into the parent (safe default)."
         for parameter_key in parent_param_keys:
             if parameter_key in child_parameter_dict:
@@ -2901,16 +2901,17 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
                         parent_parameters[parameter_key] = 1.0
 
         elif changed_utility_setting == "single_exponential_parameter":
-            "Child has single γ1; parent untied to separate γ1/γ2/γ3. Tie all parent γ's to γ1."
-            common_gamma = float(child_parameter_dict['γ1']) if 'γ1' in child_parameter_dict else 1.0
-            common_gamma_std = float(child_parameter_dict.get('γ1_std', 1.0))
+            "Tie/untie exponents: if parent has multiple γ's and child had γ1, tie them to γ1."
+            if 'γ1' in child_parameter_dict:
+                common_gamma = float(child_parameter_dict['γ1'])
+            else:
+                common_gamma = 1.0
+            "If parent has γ2 or γ3, set them equal to common γ."
             for gamma_key in ('γ1', 'γ2', 'γ3'):
                 if gamma_key in parent_param_keys:
-                    parent_parameters[gamma_key] = common_gamma
-            "Also propagate the std so the Bayesian prior is symmetric across tied exponents."
-            for gamma_std_key in ('γ1_std', 'γ2_std', 'γ3_std'):
-                if gamma_std_key in parent_param_keys:
-                    parent_parameters[gamma_std_key] = common_gamma_std
+                    "If parent was the *tied* version (γ1 only), writing γ1 is enough."
+                    "If parent has separate γ's, copy common value to each."
+                    parent_parameters[gamma_key] = float(parent_parameters.get(gamma_key, common_gamma))
 
         elif changed_utility_setting == "include_social_comparison":
             "Social comparison added in parent → zero its weights to reproduce child"
@@ -2920,39 +2921,45 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
                 parent_parameters['βᵢⱼ'] = 0.0
 
         elif changed_utility_setting == "include_altruism_term":
-            "Altruism added in parent → zero its weights to reproduce the child."
+            "Altruism added in parent → zero its weights"
             if 'Vᵢⱼ' in parent_param_keys:
                 parent_parameters['Vᵢⱼ'] = 0.0
             if 'Ʌᵢⱼ' in parent_param_keys:
                 parent_parameters['Ʌᵢⱼ'] = 0.0
 
         elif changed_utility_setting == "negativity_social_comparison":
-            "Parent separates envy (αᵢⱼ) and guilt (βᵢⱼ); child used a single αᵢⱼ for both."
-            "Tie both parent weights to the child's αᵢⱼ so the parent reproduces the child."
+            "Parent splits envy/guilt → tie them to the child's single weight (αᵢⱼ_child)"
             single = float(child_parameter_dict.get('αᵢⱼ', parent_parameters.get('αᵢⱼ', 0.0)))
-            single_std = float(child_parameter_dict.get('αᵢⱼ_std', parent_parameters.get('αᵢⱼ_std', 1.0)))
             if 'αᵢⱼ' in parent_param_keys:
                 parent_parameters['αᵢⱼ'] = single
             if 'βᵢⱼ' in parent_param_keys:
                 parent_parameters['βᵢⱼ'] = single
-            "Tie βᵢⱼ_std to αᵢⱼ_std so the two channels have a symmetric prior."
-            if 'βᵢⱼ_std' in parent_param_keys:
-                parent_parameters['βᵢⱼ_std'] = single_std
 
         elif changed_utility_setting == "use_negativity_parameters":
-            "Parent gained negativity mirrors: Ʌᵢᵢ = Vᵢᵢ, Ʌᵢⱼ = Vᵢⱼ."
-            "When fix_self_interest_parameter=True in child, Vᵢᵢ is fixed at 1.0 (not in param dict)."
-            vii_value = (1.0 if child_settings.get('fix_self_interest_parameter', False)
-                         else float(parent_parameters.get('Vᵢᵢ', child_parameter_dict.get('Vᵢᵢ', 0.0))))
+            "Parent gained negativity mirrors → copy Vᵢᵢ→Ʌᵢᵢ and Vᵢⱼ→Ʌᵢⱼ if present"
             if 'Ʌᵢᵢ' in parent_param_keys:
-                parent_parameters['Ʌᵢᵢ'] = vii_value
+                parent_parameters['Ʌᵢᵢ'] = (1.0 if child_settings.get('fix_self_interest_parameter', False) 
+                                            else float(parent_parameters.get('Vᵢᵢ', child_parameter_dict.get('Vᵢᵢ', 0.0))))
             if 'Ʌᵢⱼ' in parent_param_keys:
                 parent_parameters['Ʌᵢⱼ'] = float(parent_parameters.get('Vᵢⱼ', child_parameter_dict.get('Vᵢⱼ', 0.0)))
 
         elif changed_utility_setting == "fix_self_interest_parameter":
-            "Parent released Vᵢᵢ → set it to the fixed constant (1.0) to replicate the child."
+            "Parent released Vᵢᵢ → set it to fixed constant (1.0) to replicate child"
             if 'Vᵢᵢ' in parent_param_keys:
                 parent_parameters['Vᵢᵢ'] = 1.0
+
+        elif changed_utility_setting == "include_altruism_term":
+            if parent_settings.get("conditional_welfare_mode", False):
+                "Parent gained an explicit altruism parameter inside conditional welfare."
+                "To replicate the child (which uses implicit 1 - Vᵢᵢ / 1 - Ʌᵢᵢ), set:"
+                if 'Vᵢⱼ' in parent_param_keys:
+                    parent_parameters['Vᵢⱼ'] = 1.0 - float(parent_parameters.get('Vᵢᵢ', child_parameter_dict.get('Vᵢᵢ', 0.0)))
+                if 'Ʌᵢⱼ' in parent_param_keys:
+                    parent_parameters['Ʌᵢⱼ'] = 1.0 - float(parent_parameters.get('Ʌᵢᵢ', child_parameter_dict.get('Ʌᵢᵢ', 0.0)))
+            else:
+                "Non-conditional case: zeroing altruism reproduces the child"
+                if 'Vᵢⱼ' in parent_param_keys: parent_parameters['Vᵢⱼ'] = 0.0
+                if 'Ʌᵢⱼ' in parent_param_keys: parent_parameters['Ʌᵢⱼ'] = 0.0
 
         "3) Any remaining parent keys not touched yet get a benign default:"
         for parameter_key in parent_param_keys:
@@ -3128,7 +3135,7 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
     )
 
     if verbose:
-        print(f"[Sanity] Identified {len(child_parent_pairs)} child→parent pairs to test.")
+        print(f"[Verify Child-Parent] Identified {len(child_parent_pairs)} child→parent pairs to test.")
 
     "Determine participants"
     experiment_num = int(general_settings.get('experiment_num', 3))
@@ -3258,8 +3265,8 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
 
         results_rows.append(row)
 
-        if verbose and pair_idx % 10 == 0:
-            print(f"[Sanity] Processed {pair_idx}/{len(child_parent_pairs)} pairs...")
+        if verbose and pair_idx % 20 == 0:
+            print(f"[Verify Child-Parent] Processed {pair_idx}/{len(child_parent_pairs)} pairs...")
 
     results_dataframe = pd.DataFrame(results_rows)
 
