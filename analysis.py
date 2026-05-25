@@ -3126,6 +3126,7 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
 
     general_settings = copy.deepcopy(general_settings)
     general_settings['confidence_weighted'] = False
+    general_settings['penalty_weight'] = 0.0
     
     "Build child→parent pairs"
     child_parent_pairs = _enumerate_child_parent_pairs_from_ic(
