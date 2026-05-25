@@ -1477,7 +1477,7 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
 
 def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FilePaths, fig_lay: FigLay, param_bds: ParamBounds, n_games: int, n_predictors: int = 10, 
                             n_choosers_per_predictor: int = 1, k_params_range: tuple[int, int] = (1, 9), n_altruism_steps: int = 7, evenly_space_altruism: bool = True, 
-                            utility_settings_by_k: dict[int, dict[str, bool]] | None = None, analysis_experiment_num: int = 0, random_seed: int | None = 12345, out_dir: str | None = None, 
+                            utility_settings_by_k: dict[int, dict[str, bool]] | None = None, analysis_experiment_num: int = 0, random_seed: int | None = None, out_dir: str | None = None, 
                             figure_filename: str = "param_recovery_by_k.html", csv_filename: str = "param_recovery_by_k.csv", use_existing_fits: bool = False) -> tuple[pd.DataFrame, dict[int, Any]]:
     """
     Run parameter-recovery simulations across utility dimensionalities (k) and summarize accuracy.
@@ -1987,7 +1987,7 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
 
 def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_settings: UtilitySettings, 
                                     param_info: ParamInfo, file_paths: FilePaths, fig_lay: FigLay, sample_ratios: int | list[float] = 5, 
-                                    random_seed: int | None = 1010101, n_predictors: int = 10, n_games_per_dyad: int = 10) -> pd.DataFrame:
+                                    random_seed: int | None = None, n_predictors: int = 10, n_games_per_dyad: int = 10) -> pd.DataFrame:
     """
     Verifies that the particle filter (PF) reproduces the full grid-based posterior update (which occurs when the sample_ratio = 1.0).
     Runs a grid-based predictor over a dyad with a set of priors and provides those same priors to a PF-based predictor and compares 

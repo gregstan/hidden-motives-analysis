@@ -10,7 +10,7 @@ analysis_options = {
     'light_mode': True,           # True: fast/small versions. False: full scale (some sections take hours or months).
 
     # ── No external data required ────────────────────────────────────────────────────────
-    'run_model_demos':              False,  # All 480 utility equations, Bayesian core checks, make_param_info.
+    'run_model_demos':              False,  # All 505 utility equations, Bayesian core checks, make_param_info.
     'run_nesting_tests':            False,  # Model nesting adjacency; equivalence and embedding sanity checks.
 
     # ── Synthetic simulation data ────────────────────────────────────────────────────────
@@ -22,11 +22,11 @@ analysis_options = {
 
     # ── Requires raw experiment data ─────────────────────────────────────────────────────
     'run_model_comparison':         False,  # Alternative model contest + typological model comparison.
-    'run_ic_analysis':              True,  # IC utility comparison: 5 forms in light mode, all 480 in full.
+    'run_ic_analysis':              True,  # IC utility comparison: 5 forms in light mode, all 505 in full.
 
     # ── Requires IC results in bic_aic/ ──────────────────────────────────────────────────
     'run_individual_architecture':  True,  # Architecture compression curve: how many utility types does the population need?
-    'run_model_recovery':           True,  # Model recovery simulation: data adequacy check for the IC pipeline.
+    'run_model_recovery':           False,  # Model recovery simulation: data adequacy check for the IC pipeline.
 
     # ── Requires raw experiment data ─────────────────────────────────────────────────────
     'run_parameter_distribution':   True,  # Population parameter distributions and correlations.
@@ -54,7 +54,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     Covers all major analytical components of the paper in manuscript order: the utility
     model and equations, Bayesian inference machinery, model nesting infrastructure,
     parameter recovery simulations, particle filter validation, belief-update visualization,
-    alternative model comparison, IC utility function comparison across 480 forms,
+    alternative model comparison, IC utility function comparison across 505 forms,
     individual architecture compression curve, model recovery simulation,
     population parameter distributions, and inequality aversion analysis.
 
@@ -155,6 +155,11 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             if src.exists() and not dest.exists():
                 shutil.copy2(src, dest)
                 print(f"  [demo seed] copied {fname} → demo_files/processed/")
+        registry_src  = real_processed / "all_utility_functions.csv"
+        registry_dest = demo_processed  / "all_utility_functions.csv"
+        if registry_src.exists() and not registry_dest.exists():
+            shutil.copy2(registry_src, registry_dest)
+            print("  [demo seed] copied all_utility_functions.csv → demo_files/processed/")
 
     _seed_demo_processed(
         demo_processed=demo_root / "processed",
@@ -186,7 +191,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
         print(f"\ngenerate_utility_settings → {len(all_utility_setting_varieties)} valid utility configurations")
 
         "Print the utility equation string for every configuration."
-        print("\nAll utility equations via build_utility_equation (all 480 forms):")
+        print("\nAll utility equations via build_utility_equation (all 505 forms):")
         for equation_idx, utility_setting_variety in enumerate(all_utility_setting_varieties):
             equation_str = build_utility_equation(utility_settings=utility_setting_variety)
             print(f"  Equation {equation_idx:03d}: {equation_str}")
@@ -203,19 +208,21 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             utility_settings=utility_settings, general_settings=general_settings,
         )
         print(f"\nclassify_pair_relation examples:")
-        print(f"  + social_comparison added: '{parent_child_relation}'  (expected: 'parent_child')")
-        print(f"  single_payoffs vs diffs:   '{sibling_relation}'       (expected: 'sibling')")
+        pc_rel, pc_rev, pc_flag = parent_child_relation
+        sib_rel, sib_rev, sib_flag = sibling_relation
+        print(f"  + social_comparison added: '{pc_rel}' / '{pc_rev}'  (expected: 'child' / 'parent', flag={pc_flag})")
+        print(f"  single_payoffs vs diffs:   '{sib_rel}' / '{sib_rev}'  (expected: 'sibling' / 'sibling', flag={sib_flag})")
 
         "Verify that utility() and build_utility_equation() produce identical choice probabilities."
         n_verification_games = 20 if light_mode else 625
-        print(f"\nRunning verify_utility_vs_string_equation on {n_verification_games} games across all 480 forms...")
+        print(f"\nRunning verify_utility_vs_string_equation on {n_verification_games} games across all 505 forms...")
         verify_utility_vs_string_equation(
             utility_function=utility,
             utility_function_str=build_utility_equation,
             utility_settings=utility_settings,
             param_bds=param_bds,
             n_games=n_verification_games,
-            rng_seed=20250420,
+            random_seed=None,
             exhaustive_if_large=False,
             option="A",
             file_paths=demo_file_paths,
@@ -224,6 +231,41 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             verbose=True,
         )
 
+        "Demo the two new structural families added in the 505-model expansion."
+        print("\n── New family 1: Welfare Efficiency (Engelmann-Strobel) ──")
+        "Build minimal welfare efficiency settings: only the flags that matter for this family."
+        _welf_base = {**utility_settings,
+            'include_welfare_efficiency_term': True,
+            'include_altruism_term':           False,   # blocked by validator when combined with soc_comp
+            'include_social_comparison':       False,
+            'use_exponential_parameters':      False,
+            'single_payoffs_not_differences':  True,
+        }
+        welf_basic = _welf_base
+        welf_full  = {**_welf_base, 'include_social_comparison': True}   # adds Vᵢⱼ×min(πᵢ,πⱼ) — full E&S
+        welf_exp   = {**welf_full,  'use_exponential_parameters': True}
+        print(f"  E&S basic (no maximin)  : {build_utility_equation(welf_basic)}")
+        print(f"  E&S full (with maximin) : {build_utility_equation(welf_full)}")
+        print(f"  E&S full + exponents    : {build_utility_equation(welf_exp)}")
+
+        print("\n── New family 2: Relative Income Penalty (Bolton-Ockenfels ERC) ──")
+        "Build self-contained RIP settings; inherit only structural flags from base."
+        _rip_base = {**utility_settings,
+            'include_relative_income_penalty': True,
+            'include_altruism_term':           False,
+            'include_social_comparison':       False,
+            'use_exponential_parameters':      False,
+            'single_payoffs_not_differences':  True,
+        }
+        rip_basic     = _rip_base
+        rip_canonical = {**_rip_base, 'fix_self_interest_parameter': True,
+                         'use_exponential_parameters': True, 'single_exponential_parameter': True}
+        rip_two_exp   = {**_rip_base, 'fix_self_interest_parameter': False,
+                         'use_exponential_parameters': True, 'single_exponential_parameter': False}
+        print(f"  RIP basic                 : {build_utility_equation(rip_basic)}")
+        print(f"  Canonical ERC (B-O 2000)  : {build_utility_equation(rip_canonical)}")
+        print(f"  RIP two exponents (Vᵢᵢ+pen): {build_utility_equation(rip_two_exp)}")
+
     "=========================================================================================="
     "============== Section 2: Model Nesting Infrastructure and Validity Checks ==============="
     "=========================================================================================="
@@ -231,7 +273,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     Manuscript context: Section 4.4 (nesting logic and parent-fair regularization).
     Functions exercised: model_nesting_adjacency_matrices, summarize_nesting_relationship_counts,
     test_utility_functions, run_child_parent_probability_equivalence_smoketest,
-    run_child_parent_embedding_sanity_checks.
+    verify_same_inputs_same_outputs_for_children_and_parents.
     """
 
     if analysis_options['run_nesting_tests']:
@@ -269,20 +311,20 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             param_bds=param_bds,
             rand_payoff_idx=True,
             n_trials=12 if light_mode else 50,
-            rng_seed=20250420,
+            random_seed=None,
             tolerance=1e-12,
             verbose=True,
         )
 
         fit_for_n_players = 1 if light_mode else 3
-        run_child_parent_embedding_sanity_checks(
+        verify_same_inputs_same_outputs_for_children_and_parents(
             general_settings=general_settings,
             file_paths=demo_file_paths,
             param_bds=param_bds,
             utility_settings=utility_settings,
             player_role_to_fit="chooser",
             fit_for_n_players=fit_for_n_players,
-            random_seed=20250420,
+            random_seed=None,
             numeric_tolerance=1e-3,
             verbose=True,
         )
@@ -393,7 +435,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             fig_lay                  = fig_lay,
             param_bds                = param_bds,
             analysis_experiment_num  = 0,
-            random_seed              = 20250420,
+            random_seed              = None,
         )
 
     "=========================================================================================="
@@ -556,10 +598,10 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             )
 
     "=========================================================================================="
-    "======= Section 9: Information Criterion Utility Function Comparison (480 Models) ========"
+    "======= Section 9: Information Criterion Utility Function Comparison (505 Models) ========"
     "=========================================================================================="
     """
-    Manuscript context: Section 4 (near-comprehensive IC comparison across 480 utility forms).
+    Manuscript context: Section 4 (near-comprehensive IC comparison across 505 utility forms).
     Functions exercised: gnrl.identify_redundant_utility_functions, gnrl.equation_to_settings,
     information_criterion_analysis, plot_ic_scores_delta_bic, plot_ic_robustness_analysis,
     utility_setting_contribution_analysis, extract_rankings_of_canonical_utility_functions.
@@ -567,7 +609,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
 
     if analysis_options['run_ic_analysis']:
-        mode_label = "5 representative forms (light)" if light_mode else "all 480 forms (FULL — may take weeks)"
+        mode_label = "5 representative forms (light)" if light_mode else "all 505 forms (FULL — may take weeks)"
         print("\n" + _section_header(f"SECTION 9: IC utility function comparison [{mode_label}]"))
 
         exper3_pairs_path = (
@@ -598,7 +640,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
 
             """
             In light mode, select one representative form for each k level from k=1 to k=9.
-            In full mode, pass None so information_criterion_analysis generates all 480.
+            In full mode, pass None so information_criterion_analysis generates all 505.
             """
             if light_mode:
                 all_varieties_by_k = gnrl.generate_utility_settings(

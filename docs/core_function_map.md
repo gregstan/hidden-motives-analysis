@@ -307,8 +307,8 @@ It:
 
 These are the “trust but verify” tools used to ensure the model family behaves correctly.
 
-### `run_child_parent_embedding_sanity_checks(...)`
-**Purpose:** Validate that child and parent embeddings / mappings behave as intended across many randomized test cases, within a numeric tolerance.
+### `verify_same_inputs_same_outputs_for_children_and_parents(...)`
+**Purpose:** Confirm that every child model is a true special case of its parent by checking that the parent model — with its extra parameters set to neutral values — produces the same NLL as the child on real participant data. `equal_loss=False` in the output CSV identifies broken embedding rules; `changed_utility_setting` names the flag responsible.
 
 ---
 

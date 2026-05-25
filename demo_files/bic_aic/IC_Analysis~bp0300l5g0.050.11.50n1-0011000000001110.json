@@ -1,0 +1,139 @@
+{
+    "idx": 13,
+    "k_params": 2,
+    "n_data": 200,
+    "loss": 86.2903881361826,
+    "AIC": 176.5807762723652,
+    "BIC": 183.17741100546127,
+    "pvar": 0.0,
+    "U": "Uᵢ(A) = (πᵢᴬ)^γ₁ + Vᵢⱼ(πⱼᴬ)^γ₁",
+    "lvec": [
+        86.2903881361826
+    ],
+    "pvec": [
+        {
+            "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                "chooser": {
+                    "Vᵢⱼ": 0.37800173409470456,
+                    "γ1": 0.0001
+                },
+                "predictor": {
+                    "Vᵢⱼ": -1.0,
+                    "γ1": 0.00010001
+                }
+            },
+            "07a438e9-aa3f-4527-9b48-0fa70da416ea": {
+                "chooser": {
+                    "Vᵢⱼ": 0.4530192860639699,
+                    "γ1": 1.1952025212513282
+                },
+                "predictor": {
+                    "Vᵢⱼ": -0.02679908926287123,
+                    "γ1": 1.5924700602860657
+                }
+            }
+        }
+    ],
+    "plvec": [
+        {
+            "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                "params": {
+                    "chooser": {
+                        "Vᵢⱼ": 0.37800173409470456,
+                        "γ1": 0.0001
+                    },
+                    "predictor": {
+                        "Vᵢⱼ": -1.0,
+                        "γ1": 0.00010001
+                    }
+                },
+                "loss": {
+                    "chooser": 25.646607076771733,
+                    "predictor": 23.566938185000986
+                }
+            },
+            "07a438e9-aa3f-4527-9b48-0fa70da416ea": {
+                "params": {
+                    "chooser": {
+                        "Vᵢⱼ": 0.4530192860639699,
+                        "γ1": 1.1952025212513282
+                    },
+                    "predictor": {
+                        "Vᵢⱼ": -0.02679908926287123,
+                        "γ1": 1.5924700602860657
+                    }
+                },
+                "loss": {
+                    "chooser": 26.0081663790536,
+                    "predictor": 11.068676495356272
+                }
+            }
+        }
+    ],
+    "minvec": {
+        "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+            "params": {
+                "chooser": {
+                    "Vᵢⱼ": 0.37800173409470456,
+                    "γ1": 0.0001
+                },
+                "predictor": {
+                    "Vᵢⱼ": -1.0,
+                    "γ1": 0.00010001
+                }
+            },
+            "loss": {
+                "chooser": 25.646607076771733,
+                "predictor": 23.566938185000986
+            }
+        },
+        "07a438e9-aa3f-4527-9b48-0fa70da416ea": {
+            "params": {
+                "chooser": {
+                    "Vᵢⱼ": 0.4530192860639699,
+                    "γ1": 1.1952025212513282
+                },
+                "predictor": {
+                    "Vᵢⱼ": -0.02679908926287123,
+                    "γ1": 1.5924700602860657
+                }
+            },
+            "loss": {
+                "chooser": 26.0081663790536,
+                "predictor": 11.068676495356272
+            }
+        }
+    },
+    "utility_settings": {
+        "conditional_welfare_mode": false,
+        "reference_dependent_altruism": false,
+        "min_max_rawlsian_leontief": false,
+        "use_exponential_parameters": true,
+        "apply_exponents_to_payoffs": false,
+        "single_exponential_parameter": true,
+        "single_payoffs_not_differences": true,
+        "payoff_ratios_not_differences": false,
+        "reference_dependent_utility": false,
+        "use_negativity_parameters": false,
+        "negativity_social_comparison": false,
+        "fix_self_interest_parameter": true,
+        "include_social_comparison": false,
+        "include_altruism_term": true,
+        "include_welfare_efficiency_term": false,
+        "include_relative_income_penalty": false
+    },
+    "nesting_violations": {
+        "counts": {
+            "violations": {
+                "parents": 0,
+                "children": 0
+            },
+            "observances": {
+                "parents": 0,
+                "children": 0
+            }
+        },
+        "parents": {},
+        "children": {}
+    }
+}

@@ -1,0 +1,139 @@
+{
+    "idx": 12,
+    "k_params": 2,
+    "n_data": 200,
+    "loss": 109.74416043862465,
+    "AIC": 223.4883208772493,
+    "BIC": 230.08495561034536,
+    "pvar": 0.0,
+    "U": "Uᵢ(A) = Vᵢᵢ(πᵢᴬ) + (1 - Vᵢᵢ)(πⱼᴬ) if πᵢᴬ ≥ πⱼᴬ else Ʌᵢᵢ(πᵢᴬ) + (1 - Ʌᵢᵢ)(πⱼᴬ)",
+    "lvec": [
+        109.74416043862465
+    ],
+    "pvec": [
+        {
+            "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                "chooser": {
+                    "Vᵢᵢ": -0.8227081763990756,
+                    "Ʌᵢᵢ": 0.3161347292072276
+                },
+                "predictor": {
+                    "Vᵢᵢ": 0.307047575712204,
+                    "Ʌᵢᵢ": 0.5341806337237358
+                }
+            },
+            "07a438e9-aa3f-4527-9b48-0fa70da416ea": {
+                "chooser": {
+                    "Vᵢᵢ": 0.191830158205302,
+                    "Ʌᵢᵢ": 1.0
+                },
+                "predictor": {
+                    "Vᵢᵢ": 1.0,
+                    "Ʌᵢᵢ": 1.0
+                }
+            }
+        }
+    ],
+    "plvec": [
+        {
+            "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                "params": {
+                    "chooser": {
+                        "Vᵢᵢ": -0.8227081763990756,
+                        "Ʌᵢᵢ": 0.3161347292072276
+                    },
+                    "predictor": {
+                        "Vᵢᵢ": 0.307047575712204,
+                        "Ʌᵢᵢ": 0.5341806337237358
+                    }
+                },
+                "loss": {
+                    "chooser": 31.42048682436485,
+                    "predictor": 31.682340828035134
+                }
+            },
+            "07a438e9-aa3f-4527-9b48-0fa70da416ea": {
+                "params": {
+                    "chooser": {
+                        "Vᵢᵢ": 0.191830158205302,
+                        "Ʌᵢᵢ": 1.0
+                    },
+                    "predictor": {
+                        "Vᵢᵢ": 1.0,
+                        "Ʌᵢᵢ": 1.0
+                    }
+                },
+                "loss": {
+                    "chooser": 27.579180159872102,
+                    "predictor": 19.062152626352564
+                }
+            }
+        }
+    ],
+    "minvec": {
+        "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+            "params": {
+                "chooser": {
+                    "Vᵢᵢ": -0.8227081763990756,
+                    "Ʌᵢᵢ": 0.3161347292072276
+                },
+                "predictor": {
+                    "Vᵢᵢ": 0.307047575712204,
+                    "Ʌᵢᵢ": 0.5341806337237358
+                }
+            },
+            "loss": {
+                "chooser": 31.42048682436485,
+                "predictor": 31.682340828035134
+            }
+        },
+        "07a438e9-aa3f-4527-9b48-0fa70da416ea": {
+            "params": {
+                "chooser": {
+                    "Vᵢᵢ": 0.191830158205302,
+                    "Ʌᵢᵢ": 1.0
+                },
+                "predictor": {
+                    "Vᵢᵢ": 1.0,
+                    "Ʌᵢᵢ": 1.0
+                }
+            },
+            "loss": {
+                "chooser": 27.579180159872102,
+                "predictor": 19.062152626352564
+            }
+        }
+    },
+    "utility_settings": {
+        "conditional_welfare_mode": true,
+        "reference_dependent_altruism": false,
+        "min_max_rawlsian_leontief": false,
+        "use_exponential_parameters": false,
+        "apply_exponents_to_payoffs": false,
+        "single_exponential_parameter": true,
+        "single_payoffs_not_differences": true,
+        "payoff_ratios_not_differences": false,
+        "reference_dependent_utility": false,
+        "use_negativity_parameters": false,
+        "negativity_social_comparison": false,
+        "fix_self_interest_parameter": false,
+        "include_social_comparison": false,
+        "include_altruism_term": false,
+        "include_welfare_efficiency_term": false,
+        "include_relative_income_penalty": false
+    },
+    "nesting_violations": {
+        "counts": {
+            "violations": {
+                "parents": 0,
+                "children": 0
+            },
+            "observances": {
+                "parents": 0,
+                "children": 0
+            }
+        },
+        "parents": {},
+        "children": {}
+    }
+}

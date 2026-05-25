@@ -1,5 +1,5 @@
 ﻿comparison,n_edges,mean_Δ,median_Δ
-Single vs Differences (Δ = BIC[Single]-BIC[Diff]),6,-6.636707823199089,1.8733719393046755
-Ratios vs Differences (Δ = BIC[Ratios]-BIC[Diff]),4,27.57217097542636,30.352103459206916
-Reference on vs off (non-single) (Δ = BIC[Ref]-BIC[NoRef]),7,-1.8183111239418923,6.001578599641988
+Single vs Differences (Δ = BIC[Single]-BIC[Diff]),6,-7.301605589558264,1.0955886569923052
+Ratios vs Differences (Δ = BIC[Ratios]-BIC[Diff]),4,25.84519119752128,29.275136099067396
+Reference on vs off (non-single) (Δ = BIC[Ref]-BIC[NoRef]),7,-1.4306639028629888,6.996917487276079
 Exponent placement: pre-payoff vs post-transform (Δ = BIC[Pre]-BIC[Post]),0,,

@@ -117,7 +117,7 @@ def extract_participant_model_combined_fits(
     n_models_in_json = len(ic_results)
     print(
         f"  {n_models_in_json} models found in IC JSON "
-        f"(utility universe has 480 — {480 - n_models_in_json} not present in this file)."
+        f"(utility universe has 505 — {505 - n_models_in_json} not present in this file)."
     )
 
     "Iterate over all models and extract per-participant loss data from each model's minvec."

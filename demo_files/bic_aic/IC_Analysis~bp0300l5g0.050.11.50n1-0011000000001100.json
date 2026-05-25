@@ -1,0 +1,127 @@
+{
+    "idx": 7,
+    "k_params": 1,
+    "n_data": 200,
+    "loss": 113.82664239468386,
+    "AIC": 229.65328478936772,
+    "BIC": 232.95160215591577,
+    "pvar": 0.0,
+    "U": "Uᵢ(A) = πᵢᴬ + Vᵢⱼ(πⱼᴬ)",
+    "lvec": [
+        113.82664239468386
+    ],
+    "pvec": [
+        {
+            "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                "chooser": {
+                    "Vᵢⱼ": -0.13076955825090408
+                },
+                "predictor": {
+                    "Vᵢⱼ": -0.5181686095893383
+                }
+            },
+            "07a438e9-aa3f-4527-9b48-0fa70da416ea": {
+                "chooser": {
+                    "Vᵢⱼ": 0.623527716845274
+                },
+                "predictor": {
+                    "Vᵢⱼ": 0.06336043939199953
+                }
+            }
+        }
+    ],
+    "plvec": [
+        {
+            "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                "params": {
+                    "chooser": {
+                        "Vᵢⱼ": -0.13076955825090408
+                    },
+                    "predictor": {
+                        "Vᵢⱼ": -0.5181686095893383
+                    }
+                },
+                "loss": {
+                    "chooser": 36.997216026754785,
+                    "predictor": 30.826726165912994
+                }
+            },
+            "07a438e9-aa3f-4527-9b48-0fa70da416ea": {
+                "params": {
+                    "chooser": {
+                        "Vᵢⱼ": 0.623527716845274
+                    },
+                    "predictor": {
+                        "Vᵢⱼ": 0.06336043939199953
+                    }
+                },
+                "loss": {
+                    "chooser": 26.975048758234156,
+                    "predictor": 19.02765144378194
+                }
+            }
+        }
+    ],
+    "minvec": {
+        "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+            "params": {
+                "chooser": {
+                    "Vᵢⱼ": -0.13076955825090408
+                },
+                "predictor": {
+                    "Vᵢⱼ": -0.5181686095893383
+                }
+            },
+            "loss": {
+                "chooser": 36.997216026754785,
+                "predictor": 30.826726165912994
+            }
+        },
+        "07a438e9-aa3f-4527-9b48-0fa70da416ea": {
+            "params": {
+                "chooser": {
+                    "Vᵢⱼ": 0.623527716845274
+                },
+                "predictor": {
+                    "Vᵢⱼ": 0.06336043939199953
+                }
+            },
+            "loss": {
+                "chooser": 26.975048758234156,
+                "predictor": 19.02765144378194
+            }
+        }
+    },
+    "utility_settings": {
+        "conditional_welfare_mode": false,
+        "reference_dependent_altruism": false,
+        "min_max_rawlsian_leontief": false,
+        "use_exponential_parameters": false,
+        "apply_exponents_to_payoffs": false,
+        "single_exponential_parameter": true,
+        "single_payoffs_not_differences": true,
+        "payoff_ratios_not_differences": false,
+        "reference_dependent_utility": false,
+        "use_negativity_parameters": false,
+        "negativity_social_comparison": false,
+        "fix_self_interest_parameter": true,
+        "include_social_comparison": false,
+        "include_altruism_term": true,
+        "include_welfare_efficiency_term": false,
+        "include_relative_income_penalty": false
+    },
+    "nesting_violations": {
+        "counts": {
+            "violations": {
+                "parents": 0,
+                "children": 0
+            },
+            "observances": {
+                "parents": 0,
+                "children": 0
+            }
+        },
+        "parents": {},
+        "children": {}
+    }
+}

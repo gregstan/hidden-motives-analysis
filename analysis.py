@@ -302,7 +302,7 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
             histories_data=histories_and_info,
             file_paths=file_paths_naive,
             param_info=param_info_,
-            print_=False
+            print_=True
         )
 
         "Accumulate NLL across all players/dyads"
@@ -1139,7 +1139,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         • utility_setting_varieties: Optional[List[UtilitySettings]]; If provided, this exact list of utility
             configurations is used instead of generating all valid configurations via
             gnrl.generate_utility_settings. Each entry must pass gnrl.is_valid_utility_settings or a
-            ValueError is raised. Pass None (the default) to run the full comparison across all 480 forms.
+            ValueError is raised. Pass None (the default) to run the full comparison across all 505 forms.
 
     Returns:
         • df: pd.DataFrame; Dataframe summarizing the IC metrics (loss, AIC, BIC) for each utility configuration.
@@ -1612,6 +1612,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
 
     "Use static updating by default"
     if dynamic_updating:
+        print("Dynamic updating is ENABLED. IC analysis will run for a very long time.")
         update_method = 'grid'
         general_settings['use_particle_filter'] = True
     else:
@@ -1647,7 +1648,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         "Sort by k ascending so child-to-parent warm starts work correctly, matching generate_utility_settings."
         utility_setting_varieties = sorted(
             utility_setting_varieties,
-            key=lambda setting_variety: gnrl.count_free_parameters(parameter_keys_for_utility_settings(setting_variety, general_settings=general_settings)),
+            key=lambda setting_variety: gnrl.count_free_parameters(utility_settings=setting_variety, general_settings=general_settings),
         )
     else:
         utility_setting_varieties = gnrl.generate_utility_settings(utility_settings=utility_settings, sort_by_k=True)
@@ -2385,7 +2386,7 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
     dup_sigs: dict[tuple, list[int]] = {}
     for mid, sig in zip(df_models["model_id"], df_models["__signature__"]):
         if sig in sig_to_model_id:
-            "Track duplicates to catch structural problems (shouldn’t happen for 480 unique forms)"
+            "Track duplicates to catch structural problems (shouldn't happen for 505 unique forms)"
             dup_sigs.setdefault(sig, []).append(int(mid))
         else:
             sig_to_model_id[sig] = int(mid)
@@ -2695,9 +2696,9 @@ def extract_rankings_of_canonical_utility_functions(file_paths: FilePaths, rank_
         • print_: bool
             If True, prints the ranking table to stdout for inspection.
         • canonical_specs: dict[str, dict] | None
-            Mapping of label → utility settings dict. If None, defaults to the module-level
-            CANONICAL_UTILITY_SPECS. The active specs are always saved to
-            bic_aic/canonical_utility_settings.json for downstream use.
+            Mapping of label → utility settings dict. If None, defaults to the module-
+            level CANONICAL_UTILITY_SPECS. The active specs are always saved to bic_aic/
+            canonical_utility_settings.json for downstream use.
 
     Returns:
         • pd.DataFrame — rows indexed by canonical model label, with columns:
@@ -2775,38 +2776,54 @@ def extract_rankings_of_canonical_utility_functions(file_paths: FilePaths, rank_
 "============================ Nesting Network and Verification ============================"
 "=========================================================================================="
 
-def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], file_paths: dict[str, Any], param_bds: dict[str, tuple[float, float]], 
+def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: dict[str, Any], file_paths: dict[str, Any], param_bds: dict[str, tuple[float, float]],
                                              utility_settings: UtilitySettings, player_role_to_fit: str = "predictor", fit_for_n_players: int | None = None,
-                                             random_seed: int | None = 12345, numeric_tolerance: float = 1e-4, csv_file_name: str | None = None, verbose: bool = True) -> pd.DataFrame:
+                                             random_seed: int | None = None, numeric_tolerance: float = 1e-4, csv_file_name: str | None = None, verbose: bool = True) -> pd.DataFrame:
     """
-    Runs the child-vs-special-parent equality test across the entire model space.
+    Structural validity test: confirms that every child model is a true special case of its parent.
 
-    For each minimal (child, parent) pair:
-        1) Sample a random child parameter vector within `param_bds`.
-        2) Embed those child means into the parent's parameter space to create a special parent.
-        3) For a subset (or all) participants:
-            dyads_for_a_player → agent → loss_function_bayes → create_loss_report
-            Sum NLL across dyads for `player_role_to_fit`, *for child and for parent*.
-        4) Write a wide CSV with requested columns in file_paths['bic_aic'].
+    For every minimal (child, parent) pair in the model space:
+        1) Draw a random child parameter vector within `param_bds`.
+        2) "Embed" those child parameters into the parent's parameter space using the canonical
+           neutral-value rules in `_embed_child_parameters_into_parent_means` — e.g., setting
+           the parent's extra social-comparison weight to 0, tying γ values when moving from
+           a single to multiple exponents, etc.
+        3) Evaluate the summed NLL over `fit_for_n_players` real participants (alphabetical order)
+           for both the child model with its parameters and the parent model with the embedded
+           parameters. If the nesting relationship is correct, the two losses must agree to
+           within `numeric_tolerance`.
+        4) Write a wide CSV (one row per pair) to file_paths['bic_aic'].
+
+    How to read the output CSV:
+        • `equal_loss = True` → the nesting holds; child and parent are numerically equivalent
+          at the embedded parameter point. This is the expected result for a correct implementation.
+        • `equal_loss = False` → the embedding is broken for this pair. The parent does not
+          reproduce the child's loss, which means either `_embed_child_parameters_into_parent_means`
+          maps the parameters incorrectly or the `utility()` function does not implement the
+          claimed nesting. `changed_utility_setting` names the flag that differs between the
+          child and its parent, which identifies which embedding rule failed.
+        • `loss_parent_minus_child` is signed: positive means the parent scored worse than the
+          child even though it should score identically; a large absolute value indicates a
+          meaningful discrepancy.
+        • `changed_utility_setting`: the single boolean flag that was flipped going from 
+          child (off) to parent (on). This is the structural axis being tested for that row.
+        • `equation_child` / `equation_parent`: the human-readable utility equations, 
+          useful for spotting whether the functional forms are logically compatible.
 
     Arguments:
-        • general_settings: Global settings dict. The following keys are read:
-            - experiment_num
-            - softmax_temperature
-            - (others are forwarded to `agent` and loss functions as-is)
+        • general_settings: Global settings dict (experiment_num, softmax_temperature, etc.).
         • file_paths: File path mapping (must include 'bic_aic' and 'file_names' → 'information_criterion').
         • param_bds: The global ParameterBounds with all keys (means and _std).
-        • ordered_flag_keys: The canonical order of the 13 utility settings
-            (e.g., pass `list(utility_settings.keys())` from the current model).
+        • utility_settings: The canonical utility settings dict; flag order is derived from its keys.
         • player_role_to_fit: 'predictor' (default) or 'chooser'.
-        • fit_for_n_players: int | None; Number of participants to evaluate (alphabetical order). None → all.
+        • fit_for_n_players: int | None; number of participants to evaluate (alphabetical). None → all.
         • random_seed: Seed for reproducibility.
         • numeric_tolerance: Tolerance for |loss_parent - loss_child|.
-        • csv_file_name: Optional override for CSV name. Default: "child_parent_embedding_sanity_checks.csv".
-        • verbose: If True, prints progress summaries.
+        • csv_file_name: Optional override for the output CSV filename.
+        • verbose: If True, prints progress and a failure summary.
 
     Returns:
-        • pd.DataFrame; The full table that was also written to CSV.
+        • pd.DataFrame; the full table (also written to CSV).
     """
     ordered_flag_keys = list(utility_settings.keys())
 
@@ -2843,10 +2860,10 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
 
         Mapping conventions (consistent with prior discussions):
             • use_exponential_parameters=True in parent:
-                - If child has no γ’s: set all parent γ* to 1.0.
-                - If child uses a single γ (γ1) and parent has multiple γ’s: tie all parent γ* to child's γ1.
+                - If child has no γ's: set all parent γ* to 1.0.
+                - If child uses a single γ (γ1) and parent has multiple γ's: tie all parent γ* to child's γ1.
             • single_exponential_parameter flip (tie ↔ untie):
-                - If parent has multiple γ’s but child has γ1 only: copy γ1 to every parent γ*.
+                - If parent has multiple γ's but child has γ1 only: copy γ1 to every parent γ*.
             • include_social_comparison added in parent: set αᵢⱼ=0 and βᵢⱼ=0 in parent.
             • include_altruism_term added in parent: set Vᵢⱼ=0 and Ʌᵢⱼ=0 in parent (if present).
             • negativity_social_comparison added in parent: set βᵢⱼ = αᵢⱼ (tie guilt to envy).
@@ -2884,17 +2901,16 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
                         parent_parameters[parameter_key] = 1.0
 
         elif changed_utility_setting == "single_exponential_parameter":
-            "Tie/untie exponents: if parent has multiple γ's and child had γ1, tie them to γ1."
-            if 'γ1' in child_parameter_dict:
-                common_gamma = float(child_parameter_dict['γ1'])
-            else:
-                common_gamma = 1.0
-            "If parent has γ2 or γ3, set them equal to common γ."
+            "Child has single γ1; parent untied to separate γ1/γ2/γ3. Tie all parent γ's to γ1."
+            common_gamma = float(child_parameter_dict['γ1']) if 'γ1' in child_parameter_dict else 1.0
+            common_gamma_std = float(child_parameter_dict.get('γ1_std', 1.0))
             for gamma_key in ('γ1', 'γ2', 'γ3'):
                 if gamma_key in parent_param_keys:
-                    "If parent was the *tied* version (γ1 only), writing γ1 is enough."
-                    "If parent has separate γ’s, copy common value to each."
-                    parent_parameters[gamma_key] = float(parent_parameters.get(gamma_key, common_gamma))
+                    parent_parameters[gamma_key] = common_gamma
+            "Also propagate the std so the Bayesian prior is symmetric across tied exponents."
+            for gamma_std_key in ('γ1_std', 'γ2_std', 'γ3_std'):
+                if gamma_std_key in parent_param_keys:
+                    parent_parameters[gamma_std_key] = common_gamma_std
 
         elif changed_utility_setting == "include_social_comparison":
             "Social comparison added in parent → zero its weights to reproduce child"
@@ -2904,44 +2920,39 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
                 parent_parameters['βᵢⱼ'] = 0.0
 
         elif changed_utility_setting == "include_altruism_term":
-            "Altruism added in parent → zero its weights"
+            "Altruism added in parent → zero its weights to reproduce the child."
             if 'Vᵢⱼ' in parent_param_keys:
                 parent_parameters['Vᵢⱼ'] = 0.0
             if 'Ʌᵢⱼ' in parent_param_keys:
                 parent_parameters['Ʌᵢⱼ'] = 0.0
 
         elif changed_utility_setting == "negativity_social_comparison":
-            "Parent splits envy/guilt → tie them to the child's single weight (βᵢⱼ_child)"
-            single = float(child_parameter_dict.get('βᵢⱼ', parent_parameters.get('βᵢⱼ', 0.0)))
+            "Parent separates envy (αᵢⱼ) and guilt (βᵢⱼ); child used a single αᵢⱼ for both."
+            "Tie both parent weights to the child's αᵢⱼ so the parent reproduces the child."
+            single = float(child_parameter_dict.get('αᵢⱼ', parent_parameters.get('αᵢⱼ', 0.0)))
+            single_std = float(child_parameter_dict.get('αᵢⱼ_std', parent_parameters.get('αᵢⱼ_std', 1.0)))
             if 'αᵢⱼ' in parent_param_keys:
                 parent_parameters['αᵢⱼ'] = single
             if 'βᵢⱼ' in parent_param_keys:
                 parent_parameters['βᵢⱼ'] = single
+            "Tie βᵢⱼ_std to αᵢⱼ_std so the two channels have a symmetric prior."
+            if 'βᵢⱼ_std' in parent_param_keys:
+                parent_parameters['βᵢⱼ_std'] = single_std
 
         elif changed_utility_setting == "use_negativity_parameters":
-            "Parent gained negativity mirrors → copy Vᵢᵢ→Ʌᵢᵢ and Vᵢⱼ→Ʌᵢⱼ if present"
+            "Parent gained negativity mirrors: Ʌᵢᵢ = Vᵢᵢ, Ʌᵢⱼ = Vᵢⱼ."
+            "When fix_self_interest_parameter=True in child, Vᵢᵢ is fixed at 1.0 (not in param dict)."
+            vii_value = (1.0 if child_settings.get('fix_self_interest_parameter', False)
+                         else float(parent_parameters.get('Vᵢᵢ', child_parameter_dict.get('Vᵢᵢ', 0.0))))
             if 'Ʌᵢᵢ' in parent_param_keys:
-                parent_parameters['Ʌᵢᵢ'] = float(parent_parameters.get('Vᵢᵢ', child_parameter_dict.get('Vᵢᵢ', 0.0)))
+                parent_parameters['Ʌᵢᵢ'] = vii_value
             if 'Ʌᵢⱼ' in parent_param_keys:
                 parent_parameters['Ʌᵢⱼ'] = float(parent_parameters.get('Vᵢⱼ', child_parameter_dict.get('Vᵢⱼ', 0.0)))
 
         elif changed_utility_setting == "fix_self_interest_parameter":
-            "Parent released Vᵢᵢ → set it to fixed constant (1.0) to replicate child"
+            "Parent released Vᵢᵢ → set it to the fixed constant (1.0) to replicate the child."
             if 'Vᵢᵢ' in parent_param_keys:
                 parent_parameters['Vᵢᵢ'] = 1.0
-
-        elif changed_utility_setting == "include_altruism_term":
-            if parent_settings.get("conditional_welfare_mode", False):
-                "Parent gained an explicit altruism parameter inside conditional welfare."
-                "To replicate the child (which uses implicit 1 - Vᵢᵢ / 1 - Ʌᵢᵢ), set:"
-                if 'Vᵢⱼ' in parent_param_keys:
-                    parent_parameters['Vᵢⱼ'] = 1.0 - float(parent_parameters.get('Vᵢᵢ', child_parameter_dict.get('Vᵢᵢ', 0.0)))
-                if 'Ʌᵢⱼ' in parent_param_keys:
-                    parent_parameters['Ʌᵢⱼ'] = 1.0 - float(parent_parameters.get('Ʌᵢᵢ', child_parameter_dict.get('Ʌᵢᵢ', 0.0)))
-            else:
-                "Non-conditional case: zeroing altruism reproduces the child"
-                if 'Vᵢⱼ' in parent_param_keys: parent_parameters['Vᵢⱼ'] = 0.0
-                if 'Ʌᵢⱼ' in parent_param_keys: parent_parameters['Ʌᵢⱼ'] = 0.0
 
         "3) Any remaining parent keys not touched yet get a benign default:"
         for parameter_key in parent_param_keys:
@@ -3053,7 +3064,7 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
         """
         "Build tuple signatures and index map"
         def row_to_tuple(row: pd.Series) -> tuple[bool, ...]:
-            return tuple(bool(row[key]) for key in ordered_flag_keys)
+            return tuple(bool(row[key]) if key in row.index else False for key in ordered_flag_keys)
 
         ic_dataframe = ic_dataframe.copy()
         ic_dataframe['utility_tuple'] = ic_dataframe.apply(row_to_tuple, axis=1)
@@ -3129,7 +3140,7 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
 
     "Mapping from tuple signature to IC-row index for lookup"
     def row_to_tuple(row: pd.Series) -> tuple[bool, ...]:
-        return tuple(bool(row[key]) for key in ordered_flag_keys)
+        return tuple(bool(row[key]) if key in row.index else False for key in ordered_flag_keys)
     ic_dataframe['utility_tuple'] = ic_dataframe.apply(row_to_tuple, axis=1)
 
     rng = random.Random(random_seed)
@@ -3259,14 +3270,24 @@ def run_child_parent_embedding_sanity_checks(general_settings: dict[str, Any], f
     csv_name += f"-{general_settings.get('update_method', None)}-{player_role_to_fit}-{fit_for_n_players}.csv"
     csv_path = os.path.join(file_paths["bic_aic"], csv_name)
     results_dataframe.to_csv(csv_path, index=False, encoding="utf-8-sig")
+
     if verbose:
-        print(f"[Sanity] Wrote: {csv_path}")
+        n_total = len(results_dataframe)
+        n_pass = int(results_dataframe['equal_loss'].sum())
+        n_fail = n_total - n_pass
+        print(f"[Verify] Wrote: {csv_path}")
+        print(f"[Verify] Results: {n_pass}/{n_total} passed  ({n_fail} failures)")
+        if n_fail > 0:
+            fail_counts = results_dataframe[~results_dataframe['equal_loss']]['changed_utility_setting'].value_counts()
+            print(f"[Verify] Failures by changed_utility_setting:")
+            for flag_name, count in fail_counts.items():
+                print(f"[Verify]   {flag_name:<40s} {count}")
 
     return results_dataframe
 
 
 def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[str, Any], file_paths: dict[str, Any], param_bds: dict[str, tuple[float, float]], 
-                                                       n_trials: int = 12, rand_payoff_idx: bool = False, rng_seed: int | None = None, tolerance: float = 1e-10, verbose: bool = True) -> pd.DataFrame:
+                                                       n_trials: int = 12, rand_payoff_idx: bool = False, random_seed: int | None = None, tolerance: float = 1e-10, verbose: bool = True) -> pd.DataFrame:
     """
     Verifies nesting by comparing *choice probabilities* of each child with the
     probabilities of its embedded special parent on a small synthetic set of games.
@@ -3284,7 +3305,7 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
         • param_bds: dict[str, tuple[float, float]]; 
         • n_trials: int; 
         • rand_payoff_idx: bool; 
-        • rng_seed: int | None; 
+        • random_seed: int | None; 
         • tolerance: float; 
         • verbose: bool; 
         
@@ -3292,8 +3313,8 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
         • pd.DataFrame with one row per (child, parent) pair and max_abs_delta across trials.
     """
     "--- Helpers ---------------------------------------------------------------"
-    def _generate_synthetic_games(n_games: int = 10, rng_seed: int = 20250417) -> list[dict]:
-        rng = random.Random() if rng_seed is None else random.Random(rng_seed)
+    def _generate_synthetic_games(n_games: int = 10, random_seed: int = None) -> list[dict]:
+        rng = random.Random() if random_seed is None else random.Random(random_seed)
         games: list[dict] = []
         for _ in range(n_games):
             As = rng.randint(1, 5)
@@ -3559,9 +3580,9 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
         print(f"[Prob-Sanity] Candidate child→parent pairs from adjacency: {len(candidate_pairs)}")
 
     "Synthetic games + random generator"
-    games = _generate_synthetic_games(n_games=n_trials, rng_seed=rng_seed)
+    games = _generate_synthetic_games(n_games=n_trials, random_seed=random_seed)
     temp = float(1.5) if "softmax_temperature" not in utility_settings else float(utility_settings["softmax_temperature"])
-    rng = random.Random() if rng_seed is None else random.Random(rng_seed)
+    rng = random.Random() if random_seed is None else random.Random(random_seed)
 
     results: list[dict[str, Any]] = []
     for jdx, (child_idx, parent_idx, changed) in enumerate(candidate_pairs, start=1):
@@ -3751,7 +3772,7 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
 
 
 def verify_utility_vs_string_equation(utility_function: Callable, utility_function_str: Callable, utility_settings: UtilitySettings, param_bds: dict[str, tuple[float, float]], 
-                                      file_paths: FilePaths, n_games: int = 5**4, rng_seed: int | None = 20250417, exhaustive_if_large: bool = True, option: str = "A", 
+                                      file_paths: FilePaths, n_games: int = 5**4, random_seed: int | None = None, exhaustive_if_large: bool = True, option: str = "A", 
                                       comparison_tol: float = 1e-6, decimals: int = 6, verbose: bool = True) -> pd.DataFrame:
     """
     Exhaustively (or randomly) verifies that utility_function(...) and the numeric
@@ -3787,7 +3808,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
             Number of payoff configurations to test per utility setting. If exhaustive_if_large=True 
             and n_games > 5**4, the routine evaluates the *entire* 5^4 = 625 grid over {1..5}^4.
 
-        • rng_seed : int | None
+        • random_seed : int | None
             Seed for reproducible sampling. If None, system entropy is used.
 
         • exhaustive_if_large : bool (default True)
@@ -3848,10 +3869,10 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
             }
 
     use_exhaustive = exhaustive_if_large and (n_games >= 5**4)
-    payoff_iterable = list(_all_payoff_tuples()) if use_exhaustive else list(_random_payoff_tuples(n_games, rng_seed))
+    payoff_iterable = list(_all_payoff_tuples()) if use_exhaustive else list(_random_payoff_tuples(n_games, random_seed))
 
     "---------- (3) Parameter sampling --------------------------------------------"
-    rng_params = random.Random() if rng_seed is None else random.Random(rng_seed)
+    rng_params = random.Random() if random_seed is None else random.Random(random_seed)
 
     def _sample_means_for(utility_settings: dict[str, bool]) -> dict[str, float]:
         """
@@ -4297,7 +4318,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
             .agg(
                 all_match=("match", "all"),
                 n_rows=("match", "size"),
-                max_abs_Δ=("utility_Δ", lambda utility_delta_series: float(utility_delta_series.abs().max(skipna=True) if len(utility_delta_series) else 0.0)),
+                max_abs_Δ=("utility_Δ", lambda utility_delta_series: float(pd.to_numeric(utility_delta_series, errors='coerce').abs().max(skipna=True) or 0.0)),
                 U_function=("U_function", "first"),
                 **{flag_key: (flag_key, "first") for flag_key in ordered_flag_keys}
             )
@@ -5919,9 +5940,9 @@ def inequality_aversion_sanity_check(file_paths: FilePaths, param_strong: float,
         • param_weak : float
             The smaller value used for the 'weak' inequality parameter in its respective bot.
         • self : float
-            Weight Vᵢᵢ placed on the chooser’s own payoff in both bots.
+            Weight Vᵢᵢ placed on the chooser's own payoff in both bots.
         • altr : float
-            Weight Vᵢⱼ placed on the other person’s payoff in both bots.
+            Weight Vᵢⱼ placed on the other person's payoff in both bots.
         • temperature : float
             Softmax temperature used to convert ΔU into p(choose A); larger values = more noise.
         • filter_constant_sum : bool

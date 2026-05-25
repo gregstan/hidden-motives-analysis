@@ -170,7 +170,7 @@ Additional docs:
 
 ### Model nesting and IC analysis
 - `model_nesting_adjacency_matrices`: [`analysis.py`](analysis.py)
-- `run_child_parent_embedding_sanity_checks`: [`analysis.py`](analysis.py)
+- `verify_same_inputs_same_outputs_for_children_and_parents`: [`analysis.py`](analysis.py)
 - `run_child_parent_probability_equivalence_smoketest`: [`analysis.py`](analysis.py)
 - `information_criterion_analysis`: [`analysis.py`](analysis.py)
 

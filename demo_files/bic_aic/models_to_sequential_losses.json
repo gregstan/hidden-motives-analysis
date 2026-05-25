@@ -1,92 +1,110 @@
 {
-    "(False, False, False, False, False, True, False, False, False, False, False, True, False, False)": [
+    "(False, False, True, False, False, False, False, False, False, False, False, False, True, False, False, False)": [
         149.70928840412407
     ],
-    "(False, False, False, False, False, True, True, False, False, False, False, True, False, False)": [
+    "(False, False, True, False, False, False, False, False, False, False, False, False, True, True, False, False)": [
         118.69452110145139
     ],
-    "(False, False, False, False, False, True, False, False, True, False, False, True, False, False)": [
+    "(False, False, True, False, False, False, False, False, False, False, False, True, True, False, False, False)": [
         118.69452110145139
     ],
-    "(False, False, False, False, False, True, False, False, False, False, False, False, False, False)": [
-        90.51175717883987
+    "(False, False, False, False, False, False, False, False, False, False, False, False, True, False, False, False)": [
+        90.48922057456886
     ],
-    "(False, False, False, False, False, True, True, False, False, False, False, False, False, False)": [
-        97.28070998901148
+    "(False, False, False, False, False, False, False, False, False, False, False, False, True, True, False, False)": [
+        97.28030773386183
     ],
-    "(False, False, False, False, False, True, False, False, True, False, False, False, False, False)": [
-        97.28116465969657
+    "(False, False, False, False, False, False, False, False, False, False, False, True, True, False, False, False)": [
+        97.27981103279274
     ],
-    "(False, False, False, False, False, True, False, False, False, True, False, False, False, False)": [
-        90.60142229352053
+    "(False, False, False, False, False, True, False, True, False, False, False, True, True, False, False, False)": [
+        119.95986895038448
     ],
-    "(False, False, False, True, False, True, False, False, False, False, False, False, False, False)": [
-        88.26414587530535
+    "(False, False, False, False, False, True, True, False, False, False, False, True, False, True, False, False)": [
+        113.82664239468386
     ],
-    "(False, False, False, True, False, True, True, False, False, False, False, False, False, False)": [
-        88.9590867010903
+    "(False, False, False, False, False, False, False, False, False, False, False, False, True, False, False, True)": [
+        90.5647221044666
     ],
-    "(False, False, False, True, False, True, False, False, False, True, False, False, False, False)": [
-        88.09437003476098
+    "(False, False, False, False, False, False, False, False, False, False, False, False, True, False, True, False)": [
+        88.66388711309527
     ],
-    "(False, False, False, True, False, True, False, False, True, True, False, False, False, False)": [
-        92.35667891751956
+    "(False, False, False, False, False, False, False, False, False, False, False, False, True, True, True, False)": [
+        88.73911387286522
     ],
-    "(False, False, False, True, False, True, False, True, False, True, False, False, False, False)": [
-        95.31151693080227
+    "(False, False, False, False, False, True, True, False, False, False, True, True, True, False, False, False)": [
+        104.99500266865948
     ],
-    "(False, False, False, True, False, False, False, False, False, False, False, False, True, False)": [
-        81.31659425217896
+    "(True, False, False, False, False, True, True, False, False, False, False, False, False, False, False, False)": [
+        109.74416043862465
     ],
-    "(False, False, False, True, False, False, True, False, False, False, False, False, True, False)": [
-        82.4950253656987
+    "(False, False, False, True, False, True, True, False, False, False, False, True, False, True, False, False)": [
+        86.2903881361826
     ],
-    "(False, False, False, True, False, False, False, False, True, False, False, False, True, False)": [
-        89.03091830565954
+    "(False, False, True, False, False, True, False, False, False, False, False, False, False, False, False, False)": [
+        94.13871475079476
     ],
-    "(False, False, False, True, False, False, False, False, False, False, True, False, True, False)": [
-        78.92193502774408
+    "(False, False, False, False, False, False, False, False, False, False, False, False, True, False, True, True)": [
+        88.51130430401206
     ],
-    "(False, False, False, True, False, False, True, False, False, False, True, False, True, False)": [
-        79.41035944989633
+    "(False, False, False, False, False, False, False, False, False, False, False, True, True, False, True, True)": [
+        92.49080606405337
     ],
-    "(False, False, False, True, False, True, False, False, False, True, True, False, True, False)": [
-        80.73287736795612
+    "(False, False, False, False, False, False, False, False, False, True, False, False, True, False, True, True)": [
+        95.52799288936161
     ],
-    "(False, False, False, True, False, False, False, False, False, True, True, False, True, False)": [
-        78.9265687736148
+    "(False, False, False, False, False, True, False, False, False, False, False, False, False, False, True, False)": [
+        81.56523543419237
     ],
-    "(False, False, False, True, False, False, False, False, True, True, True, False, True, False)": [
-        81.92735807343581
+    "(False, False, False, False, False, True, False, False, False, False, False, False, False, True, True, False)": [
+        81.53200390624012
     ],
-    "(False, False, False, True, False, False, False, True, False, True, True, False, True, False)": [
-        94.49537058093559
+    "(False, False, False, False, False, True, False, False, False, False, False, True, False, False, True, False)": [
+        88.59952708820146
     ],
-    "(False, False, False, True, False, False, False, False, False, False, True, False, True, True)": [
-        75.66314354860015
+    "(False, False, False, False, False, True, False, False, True, False, False, False, False, False, True, False)": [
+        79.25245620670415
     ],
-    "(False, False, False, True, False, False, True, False, False, False, True, False, True, True)": [
-        77.63703821004698
+    "(False, False, False, False, False, True, False, False, True, False, False, False, False, True, True, False)": [
+        80.27281810392651
     ],
-    "(False, False, False, True, False, True, False, False, False, True, True, False, True, True)": [
-        78.4061247571117
+    "(False, False, False, False, False, True, False, False, True, False, False, False, True, False, True, True)": [
+        80.8399989038302
     ],
-    "(False, False, False, True, False, False, False, False, False, True, True, True, True, True)": [
-        75.8440873850329
+    "(False, False, False, False, False, True, False, False, True, False, False, False, False, False, True, True)": [
+        79.20957876848871
     ],
-    "(False, False, False, True, False, False, False, False, True, True, True, True, True, True)": [
-        77.65090336509692
+    "(False, False, False, False, False, True, False, False, True, False, False, True, False, False, True, True)": [
+        82.30507855780233
     ],
-    "(False, False, False, True, False, False, False, True, False, True, True, True, True, True)": [
-        90.62738903691906
+    "(False, False, False, False, False, True, False, False, True, True, False, False, False, False, True, True)": [
+        94.60813647911435
     ],
-    "(False, False, False, True, False, False, False, False, False, True, True, False, True, True)": [
-        75.88040280279789
+    "(False, False, False, True, False, True, False, False, True, False, False, False, False, False, True, False)": [
+        76.20224074835664
     ],
-    "(False, False, False, True, False, False, False, False, True, True, True, False, True, True)": [
-        76.97743547469311
+    "(False, False, False, True, False, True, False, False, True, False, False, False, False, True, True, False)": [
+        77.4587469940215
     ],
-    "(False, False, False, True, False, False, False, True, False, True, True, False, True, True)": [
-        93.45549439840241
+    "(False, False, False, True, False, True, False, False, True, False, False, False, True, False, True, True)": [
+        77.9700145447077
+    ],
+    "(False, False, True, True, False, True, False, False, True, False, False, False, False, False, True, True)": [
+        75.80674276875206
+    ],
+    "(False, False, True, True, False, True, False, False, True, False, False, True, False, False, True, True)": [
+        79.30520151239008
+    ],
+    "(False, False, True, True, False, True, False, False, True, True, False, False, False, False, True, True)": [
+        90.77474846235286
+    ],
+    "(False, False, False, True, False, True, False, False, True, False, False, False, False, False, True, True)": [
+        75.86219704590361
+    ],
+    "(False, False, False, True, False, True, False, False, True, False, False, True, False, False, True, True)": [
+        77.47129828332992
+    ],
+    "(False, False, False, True, False, True, False, False, True, True, False, False, False, False, True, True)": [
+        90.16932745137021
     ]
 }

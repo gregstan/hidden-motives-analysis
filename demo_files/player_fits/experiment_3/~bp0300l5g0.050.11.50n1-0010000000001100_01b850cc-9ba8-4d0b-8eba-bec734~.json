@@ -1,0 +1,3980 @@
+{
+    "(01b850cc-9ba8-4d0b-8eba-bec734ed8847, f7862b18-f9f6-4c7d-bc9b-5f8c15cca4e7)": [
+        {
+            "chooser": "f7862b18-f9f6-4c7d-bc9b-5f8c15cca4e7",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.1797078768909755,
+            "payoff_A_chooser": 2,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 5,
+            "choice": "A",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733260810,
+            "round": 0,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.5,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.25,
+                                "raw_neglogprob": 0.6931471805599453,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.6931471805599453
+                            }
+                        }
+                    }
+                }
+            },
+            "loss_report": {
+                "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                    "predictor": {
+                        "n_data": 6,
+                        "raw_ssr_sum": 1.8249170512201336,
+                        "raw_neglogprob_sum": 5.162631672986391,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 5.162631672986391,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    },
+                    "chooser": {
+                        "n_data": 4,
+                        "raw_ssr_sum": 2.6145064270343914,
+                        "raw_neglogprob_sum": 6.902188634015564,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 6.902188634015564,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    }
+                }
+            },
+            "reports": {
+                "chooser": {
+                    "final": {
+                        "x": [],
+                        "fun": 37.12299723225531,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 37.12299723225531
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                },
+                "predictor": {
+                    "final": {
+                        "x": [],
+                        "fun": 32.79918339110518,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 32.79918339110518
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "f7862b18-f9f6-4c7d-bc9b-5f8c15cca4e7",
+            "matching_probability": 0.1797078768909755,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 1,
+            "choice": "A",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733260893,
+            "round": 6,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.33924363123418283,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.4365989788645885,
+                                "raw_neglogprob": 1.0810367535187386,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.0810367535187386
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "f7862b18-f9f6-4c7d-bc9b-5f8c15cca4e7",
+            "matching_probability": 0.1797078768909755,
+            "payoff_A_chooser": 2,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 4,
+            "payoff_B_predictor": 4,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733260912,
+            "round": 7,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.20860852732604496,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.6263004630210514,
+                                "raw_neglogprob": 1.5672958584108816,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.5672958584108816
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "f7862b18-f9f6-4c7d-bc9b-5f8c15cca4e7",
+            "matching_probability": 0.1797078768909755,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 1,
+            "payoff_B_chooser": 4,
+            "payoff_B_predictor": 5,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261043,
+            "round": 16,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.11920292202211755,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.7758034925743759,
+                                "raw_neglogprob": 2.1269280110429727,
+                                "param_penalty": 0.0,
+                                "loss_final": 2.1269280110429727
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "f7862b18-f9f6-4c7d-bc9b-5f8c15cca4e7",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.1797078768909755,
+            "payoff_A_chooser": 5,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 4,
+            "payoff_B_predictor": 4,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261083,
+            "round": 19,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.6607563687658172,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.11508624133295418,
+                                "raw_neglogprob": 0.414370086852072,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.414370086852072
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "f7862b18-f9f6-4c7d-bc9b-5f8c15cca4e7",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.1797078768909755,
+            "payoff_A_chooser": 5,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 5,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261132,
+            "round": 23,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.8807970779778823,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.01420933661861107,
+                                "raw_neglogprob": 0.12692801104297263,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.12692801104297263
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "f7862b18-f9f6-4c7d-bc9b-5f8c15cca4e7",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.1797078768909755,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 1,
+            "payoff_B_predictor": 4,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261188,
+            "round": 27,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.8807970779778823,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.7758034925743758,
+                                "raw_neglogprob": 2.1269280110429714,
+                                "param_penalty": 0.0,
+                                "loss_final": 2.1269280110429714
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "f7862b18-f9f6-4c7d-bc9b-5f8c15cca4e7",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.1797078768909755,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 1,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 1,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261219,
+            "round": 30,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.791391472673955,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.6263004630210514,
+                                "raw_neglogprob": 1.5672958584108816,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.5672958584108816
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "f7862b18-f9f6-4c7d-bc9b-5f8c15cca4e7",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.1797078768909755,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 5,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 1,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261272,
+            "round": 34,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.791391472673955,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.04351751767314124,
+                                "raw_neglogprob": 0.2339625250775483,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.2339625250775483
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "f7862b18-f9f6-4c7d-bc9b-5f8c15cca4e7",
+            "matching_probability": 0.007162041181736795,
+            "payoff_A_chooser": 5,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 5,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261949,
+            "round": 67,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.8807970779778823,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.7758034925743758,
+                                "raw_neglogprob": 2.1269280110429714,
+                                "param_penalty": 0.0,
+                                "loss_final": 2.1269280110429714
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "(01b850cc-9ba8-4d0b-8eba-bec734ed8847, 56db9ffc-32e9-471f-abd4-5ee41d33f84d)": [
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "56db9ffc-32e9-471f-abd4-5ee41d33f84d",
+            "matching_probability": 0.2456964006259781,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 3,
+            "choice": "A",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733260819,
+            "round": 1,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.06496916912866404,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.8742826546799409,
+                                "raw_neglogprob": 2.7338424427098116,
+                                "param_penalty": 0.0,
+                                "loss_final": 2.7338424427098116
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            },
+            "loss_report": {
+                "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                    "chooser": {
+                        "n_data": 2,
+                        "raw_ssr_sum": 0.9893688960128951,
+                        "raw_neglogprob_sum": 3.1482125295618837,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 3.1482125295618837,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    },
+                    "predictor": {
+                        "n_data": 2,
+                        "raw_ssr_sum": 0.6865989788645886,
+                        "raw_neglogprob_sum": 1.774183934078684,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 1.774183934078684,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    }
+                }
+            },
+            "reports": {
+                "chooser": {
+                    "final": {
+                        "x": [],
+                        "fun": 37.12299723225531,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 37.12299723225531
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                },
+                "predictor": {
+                    "final": {
+                        "x": [],
+                        "fun": 32.79918339110518,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 32.79918339110518
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "56db9ffc-32e9-471f-abd4-5ee41d33f84d",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.2456964006259781,
+            "payoff_A_chooser": 5,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 4,
+            "choice": "A",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261030,
+            "round": 15,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.5,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.25,
+                                "raw_neglogprob": 0.6931471805599453,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.6931471805599453
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "56db9ffc-32e9-471f-abd4-5ee41d33f84d",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.2456964006259781,
+            "payoff_A_chooser": 2,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 1,
+            "payoff_B_predictor": 2,
+            "choice": "A",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261285,
+            "round": 35,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.6607563687658172,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.43659897886458865,
+                                "raw_neglogprob": 1.0810367535187388,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.0810367535187388
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "56db9ffc-32e9-471f-abd4-5ee41d33f84d",
+            "matching_probability": 0.2456964006259781,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 1,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 2,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261319,
+            "round": 38,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.33924363123418283,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.11508624133295423,
+                                "raw_neglogprob": 0.41437008685207216,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.41437008685207216
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "(01b850cc-9ba8-4d0b-8eba-bec734ed8847, d46081e5-af46-4b37-b1de-79015b143ff4)": [
+        {
+            "chooser": "d46081e5-af46-4b37-b1de-79015b143ff4",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.10693792383933232,
+            "payoff_A_chooser": 5,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 4,
+            "payoff_B_predictor": 3,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733260839,
+            "round": 2,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.6607563687658172,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.11508624133295418,
+                                "raw_neglogprob": 0.414370086852072,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.414370086852072
+                            }
+                        }
+                    }
+                }
+            },
+            "loss_report": {
+                "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                    "predictor": {
+                        "n_data": 10,
+                        "raw_ssr_sum": 3.3652664047474756,
+                        "raw_neglogprob_sum": 9.388409155127997,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 9.388409155127997,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    },
+                    "chooser": {
+                        "n_data": 5,
+                        "raw_ssr_sum": 2.0586899062604123,
+                        "raw_neglogprob_sum": 6.202250246242349,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 6.202250246242349,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    }
+                }
+            },
+            "reports": {
+                "chooser": {
+                    "final": {
+                        "x": [],
+                        "fun": 37.12299723225531,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 37.12299723225531
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                },
+                "predictor": {
+                    "final": {
+                        "x": [],
+                        "fun": 32.79918339110518,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 32.79918339110518
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "d46081e5-af46-4b37-b1de-79015b143ff4",
+            "matching_probability": 0.10693792383933232,
+            "payoff_A_chooser": 3,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 2,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": true,
+            "timestamp": 1733260855,
+            "round": 3,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.5,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.25,
+                                "raw_neglogprob": 0.6931471805599453,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.6931471805599453
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "d46081e5-af46-4b37-b1de-79015b143ff4",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.10693792383933232,
+            "payoff_A_chooser": 3,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 4,
+            "payoff_B_predictor": 2,
+            "choice": "A",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733260877,
+            "round": 5,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.33924363123418283,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.11508624133295423,
+                                "raw_neglogprob": 0.41437008685207216,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.41437008685207216
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "d46081e5-af46-4b37-b1de-79015b143ff4",
+            "matching_probability": 0.10693792383933232,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 1,
+            "payoff_B_chooser": 1,
+            "payoff_B_predictor": 5,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733260940,
+            "round": 9,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.8807970779778823,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.7758034925743758,
+                                "raw_neglogprob": 2.1269280110429714,
+                                "param_penalty": 0.0,
+                                "loss_final": 2.1269280110429714
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "d46081e5-af46-4b37-b1de-79015b143ff4",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.10693792383933232,
+            "payoff_A_chooser": 2,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 2,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733260967,
+            "round": 11,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.11920292202211755,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.7758034925743759,
+                                "raw_neglogprob": 2.1269280110429727,
+                                "param_penalty": 0.0,
+                                "loss_final": 2.1269280110429727
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "d46081e5-af46-4b37-b1de-79015b143ff4",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.10693792383933232,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 5,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 1,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261013,
+            "round": 14,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.6607563687658171,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.11508624133295427,
+                                "raw_neglogprob": 0.41437008685207216,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.41437008685207216
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "d46081e5-af46-4b37-b1de-79015b143ff4",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.25828111011638316,
+            "payoff_A_chooser": 2,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 1,
+            "choice": "A",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261593,
+            "round": 43,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.33924363123418283,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.11508624133295423,
+                                "raw_neglogprob": 0.41437008685207216,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.41437008685207216
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "d46081e5-af46-4b37-b1de-79015b143ff4",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.25828111011638316,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 1,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 5,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261653,
+            "round": 47,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.3392436312341828,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.43659897886458865,
+                                "raw_neglogprob": 1.0810367535187388,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.0810367535187388
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "d46081e5-af46-4b37-b1de-79015b143ff4",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.25828111011638316,
+            "payoff_A_chooser": 2,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 4,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261685,
+            "round": 49,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.11920292202211755,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.7758034925743759,
+                                "raw_neglogprob": 2.1269280110429727,
+                                "param_penalty": 0.0,
+                                "loss_final": 2.1269280110429727
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "d46081e5-af46-4b37-b1de-79015b143ff4",
+            "matching_probability": 0.25828111011638316,
+            "payoff_A_chooser": 5,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 1,
+            "payoff_B_predictor": 3,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261713,
+            "round": 51,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.935030830871336,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.8742826546799409,
+                                "raw_neglogprob": 2.733842442709812,
+                                "param_penalty": 0.0,
+                                "loss_final": 2.733842442709812
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "d46081e5-af46-4b37-b1de-79015b143ff4",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.25828111011638316,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 5,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261741,
+            "round": 53,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.3392436312341828,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.43659897886458865,
+                                "raw_neglogprob": 1.0810367535187388,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.0810367535187388
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "d46081e5-af46-4b37-b1de-79015b143ff4",
+            "matching_probability": 0.25828111011638316,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 5,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 1,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261784,
+            "round": 56,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.6607563687658171,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.11508624133295427,
+                                "raw_neglogprob": 0.41437008685207216,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.41437008685207216
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "d46081e5-af46-4b37-b1de-79015b143ff4",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.25828111011638316,
+            "payoff_A_chooser": 5,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 5,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261920,
+            "round": 65,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.791391472673955,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.04351751767314124,
+                                "raw_neglogprob": 0.2339625250775483,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.2339625250775483
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "d46081e5-af46-4b37-b1de-79015b143ff4",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.25828111011638316,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 1,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 5,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261932,
+            "round": 66,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.3392436312341828,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.43659897886458865,
+                                "raw_neglogprob": 1.0810367535187388,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.0810367535187388
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "d46081e5-af46-4b37-b1de-79015b143ff4",
+            "matching_probability": 0.25828111011638316,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 3,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733262008,
+            "round": 71,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.2086085273260449,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.04351751767314122,
+                                "raw_neglogprob": 0.2339625250775483,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.2339625250775483
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "(01b850cc-9ba8-4d0b-8eba-bec734ed8847, f7c97106-afa2-4709-b205-ea7ffd67ec68)": [
+        {
+            "chooser": "f7c97106-afa2-4709-b205-ea7ffd67ec68",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.0187793427230047,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 5,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 1,
+            "choice": "A",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733260867,
+            "round": 4,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.6607563687658171,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.4365989788645885,
+                                "raw_neglogprob": 1.0810367535187386,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.0810367535187386
+                            }
+                        }
+                    }
+                }
+            },
+            "loss_report": {
+                "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                    "predictor": {
+                        "n_data": 8,
+                        "raw_ssr_sum": 3.632803569834149,
+                        "raw_neglogprob_sum": 10.00350862973078,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 10.00350862973078,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    },
+                    "chooser": {
+                        "n_data": 4,
+                        "raw_ssr_sum": 0.3792955779515652,
+                        "raw_neglogprob_sum": 1.23444527845499,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 1.23444527845499,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    }
+                }
+            },
+            "reports": {
+                "chooser": {
+                    "final": {
+                        "x": [],
+                        "fun": 37.12299723225531,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 37.12299723225531
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                },
+                "predictor": {
+                    "final": {
+                        "x": [],
+                        "fun": 32.79918339110518,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 32.79918339110518
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "f7c97106-afa2-4709-b205-ea7ffd67ec68",
+            "matching_probability": 0.0187793427230047,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 5,
+            "payoff_B_chooser": 4,
+            "payoff_B_predictor": 5,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261072,
+            "round": 18,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.11920292202211755,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.014209336618611037,
+                                "raw_neglogprob": 0.12692801104297252,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.12692801104297252
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "f7c97106-afa2-4709-b205-ea7ffd67ec68",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.0187793427230047,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 2,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": true,
+            "timestamp": 1733261163,
+            "round": 25,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.791391472673955,
+                                "confidence": 1.0
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "f7c97106-afa2-4709-b205-ea7ffd67ec68",
+            "matching_probability": 0.19785138764547897,
+            "payoff_A_chooser": 2,
+            "payoff_A_predictor": 5,
+            "payoff_B_chooser": 1,
+            "payoff_B_predictor": 2,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": true,
+            "abdicated_predictor": false,
+            "timestamp": 1733261731,
+            "round": 52,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.6607563687658172,
+                                "confidence": 1.0
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "f7c97106-afa2-4709-b205-ea7ffd67ec68",
+            "matching_probability": 0.19785138764547897,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 4,
+            "payoff_B_predictor": 5,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261759,
+            "round": 54,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.5,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.25,
+                                "raw_neglogprob": 0.6931471805599453,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.6931471805599453
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "f7c97106-afa2-4709-b205-ea7ffd67ec68",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.19785138764547897,
+            "payoff_A_chooser": 3,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 1,
+            "payoff_B_predictor": 2,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261800,
+            "round": 57,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.791391472673955,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.04351751767314124,
+                                "raw_neglogprob": 0.2339625250775483,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.2339625250775483
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "f7c97106-afa2-4709-b205-ea7ffd67ec68",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.19785138764547897,
+            "payoff_A_chooser": 3,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 1,
+            "payoff_B_predictor": 1,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261815,
+            "round": 58,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.791391472673955,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.6263004630210514,
+                                "raw_neglogprob": 1.5672958584108816,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.5672958584108816
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "f7c97106-afa2-4709-b205-ea7ffd67ec68",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.19785138764547897,
+            "payoff_A_chooser": 2,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 4,
+            "payoff_B_predictor": 5,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261830,
+            "round": 59,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.20860852732604496,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.6263004630210514,
+                                "raw_neglogprob": 1.5672958584108816,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.5672958584108816
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "f7c97106-afa2-4709-b205-ea7ffd67ec68",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.19785138764547897,
+            "payoff_A_chooser": 5,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 5,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261859,
+            "round": 61,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.5,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.25,
+                                "raw_neglogprob": 0.6931471805599453,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.6931471805599453
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "f7c97106-afa2-4709-b205-ea7ffd67ec68",
+            "matching_probability": 0.19785138764547897,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 5,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 4,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733262055,
+            "round": 74,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.33924363123418283,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.11508624133295423,
+                                "raw_neglogprob": 0.41437008685207216,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.41437008685207216
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "f7c97106-afa2-4709-b205-ea7ffd67ec68",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.19785138764547897,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 4,
+            "payoff_B_predictor": 5,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733262067,
+            "round": 75,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.11920292202211755,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.7758034925743759,
+                                "raw_neglogprob": 2.1269280110429727,
+                                "param_penalty": 0.0,
+                                "loss_final": 2.1269280110429727
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "f7c97106-afa2-4709-b205-ea7ffd67ec68",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.19785138764547897,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 1,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733262113,
+            "round": 78,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.06496916912866404,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.8742826546799409,
+                                "raw_neglogprob": 2.7338424427098116,
+                                "param_penalty": 0.0,
+                                "loss_final": 2.7338424427098116
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "(01b850cc-9ba8-4d0b-8eba-bec734ed8847, 948c936f-74c4-4f6e-9c84-8d05a39d3da9)": [
+        {
+            "chooser": "948c936f-74c4-4f6e-9c84-8d05a39d3da9",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.23004694835680753,
+            "payoff_A_chooser": 2,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 4,
+            "payoff_B_predictor": 1,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": true,
+            "abdicated_predictor": false,
+            "timestamp": 1733260929,
+            "round": 8,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.20860852732604496,
+                                "confidence": 1.0
+                            }
+                        }
+                    }
+                }
+            },
+            "loss_report": {
+                "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                    "predictor": {
+                        "n_data": 4,
+                        "raw_ssr_sum": 0.0,
+                        "raw_neglogprob_sum": 0.0,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 0.0,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    },
+                    "chooser": {
+                        "n_data": 10,
+                        "raw_ssr_sum": 2.503304917627008,
+                        "raw_neglogprob_sum": 6.800218523386284,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 6.800218523386284,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    }
+                }
+            },
+            "reports": {
+                "chooser": {
+                    "final": {
+                        "x": [],
+                        "fun": 37.12299723225531,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 37.12299723225531
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                },
+                "predictor": {
+                    "final": {
+                        "x": [],
+                        "fun": 32.79918339110518,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 32.79918339110518
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "948c936f-74c4-4f6e-9c84-8d05a39d3da9",
+            "matching_probability": 0.23004694835680753,
+            "payoff_A_chooser": 3,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 3,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": true,
+            "timestamp": 1733261061,
+            "round": 17,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.5,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.25,
+                                "raw_neglogprob": 0.6931471805599453,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.6931471805599453
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "948c936f-74c4-4f6e-9c84-8d05a39d3da9",
+            "matching_probability": 0.23004694835680753,
+            "payoff_A_chooser": 2,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 4,
+            "payoff_B_predictor": 2,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261119,
+            "round": 22,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.20860852732604496,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.04351751767314124,
+                                "raw_neglogprob": 0.2339625250775483,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.2339625250775483
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "948c936f-74c4-4f6e-9c84-8d05a39d3da9",
+            "matching_probability": 0.23004694835680753,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 5,
+            "choice": "A",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261231,
+            "round": 31,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.2086085273260449,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.6263004630210514,
+                                "raw_neglogprob": 1.5672958584108818,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.5672958584108818
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "948c936f-74c4-4f6e-9c84-8d05a39d3da9",
+            "matching_probability": 0.23004694835680753,
+            "payoff_A_chooser": 3,
+            "payoff_A_predictor": 1,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 1,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261294,
+            "round": 36,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.2086085273260449,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.04351751767314122,
+                                "raw_neglogprob": 0.2339625250775483,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.2339625250775483
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "948c936f-74c4-4f6e-9c84-8d05a39d3da9",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.12533572068039392,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 1,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 5,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": true,
+            "abdicated_predictor": false,
+            "timestamp": 1733261642,
+            "round": 46,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.2086085273260449,
+                                "confidence": 1.0
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "948c936f-74c4-4f6e-9c84-8d05a39d3da9",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.12533572068039392,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 4,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": true,
+            "abdicated_predictor": false,
+            "timestamp": 1733261775,
+            "round": 55,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.6607563687658171,
+                                "confidence": 1.0
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "948c936f-74c4-4f6e-9c84-8d05a39d3da9",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.12533572068039392,
+            "payoff_A_chooser": 5,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 1,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": true,
+            "abdicated_predictor": false,
+            "timestamp": 1733261849,
+            "round": 60,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.791391472673955,
+                                "confidence": 1.0
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "948c936f-74c4-4f6e-9c84-8d05a39d3da9",
+            "matching_probability": 0.12533572068039392,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 5,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": true,
+            "timestamp": 1733261878,
+            "round": 62,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.33924363123418283,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.4365989788645885,
+                                "raw_neglogprob": 1.0810367535187386,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.0810367535187386
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "948c936f-74c4-4f6e-9c84-8d05a39d3da9",
+            "matching_probability": 0.12533572068039392,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 1,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": true,
+            "timestamp": 1733261893,
+            "round": 63,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.6607563687658171,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.11508624133295427,
+                                "raw_neglogprob": 0.41437008685207216,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.41437008685207216
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "948c936f-74c4-4f6e-9c84-8d05a39d3da9",
+            "matching_probability": 0.12533572068039392,
+            "payoff_A_chooser": 2,
+            "payoff_A_predictor": 5,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 3,
+            "choice": "A",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": true,
+            "timestamp": 1733261908,
+            "round": 64,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.33924363123418283,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.4365989788645885,
+                                "raw_neglogprob": 1.0810367535187386,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.0810367535187386
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "948c936f-74c4-4f6e-9c84-8d05a39d3da9",
+            "matching_probability": 0.12533572068039392,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 3,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": true,
+            "timestamp": 1733261967,
+            "round": 68,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.6607563687658171,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.11508624133295427,
+                                "raw_neglogprob": 0.41437008685207216,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.41437008685207216
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "948c936f-74c4-4f6e-9c84-8d05a39d3da9",
+            "matching_probability": 0.12533572068039392,
+            "payoff_A_chooser": 5,
+            "payoff_A_predictor": 1,
+            "payoff_B_chooser": 4,
+            "payoff_B_predictor": 4,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": true,
+            "abdicated_predictor": true,
+            "timestamp": 1733261997,
+            "round": 70,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.6607563687658172,
+                                "confidence": 1.0
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "948c936f-74c4-4f6e-9c84-8d05a39d3da9",
+            "matching_probability": 0.12533572068039392,
+            "payoff_A_chooser": 3,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 3,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": true,
+            "timestamp": 1733262131,
+            "round": 79,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.6607563687658172,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.43659897886458865,
+                                "raw_neglogprob": 1.0810367535187388,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.0810367535187388
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "(01b850cc-9ba8-4d0b-8eba-bec734ed8847, 47171824-3af8-4ebd-987d-3eb88573ab8e)": [
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "47171824-3af8-4ebd-987d-3eb88573ab8e",
+            "matching_probability": 0.07537819509650497,
+            "payoff_A_chooser": 2,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 3,
+            "choice": "A",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733260952,
+            "round": 10,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.11920292202211755,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.7758034925743759,
+                                "raw_neglogprob": 2.1269280110429727,
+                                "param_penalty": 0.0,
+                                "loss_final": 2.1269280110429727
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            },
+            "loss_report": {
+                "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                    "chooser": {
+                        "n_data": 8,
+                        "raw_ssr_sum": 2.4774791761320194,
+                        "raw_neglogprob_sum": 6.945480589166304,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 6.945480589166304,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    },
+                    "predictor": {
+                        "n_data": 4,
+                        "raw_ssr_sum": 0.815894556816154,
+                        "raw_neglogprob_sum": 2.315482031973729,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 2.315482031973729,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    }
+                }
+            },
+            "reports": {
+                "chooser": {
+                    "final": {
+                        "x": [],
+                        "fun": 37.12299723225531,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 37.12299723225531
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                },
+                "predictor": {
+                    "final": {
+                        "x": [],
+                        "fun": 32.79918339110518,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 32.79918339110518
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "47171824-3af8-4ebd-987d-3eb88573ab8e",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.07537819509650497,
+            "payoff_A_chooser": 5,
+            "payoff_A_predictor": 1,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 5,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733260982,
+            "round": 12,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.8807970779778823,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.01420933661861107,
+                                "raw_neglogprob": 0.12692801104297263,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.12692801104297263
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "47171824-3af8-4ebd-987d-3eb88573ab8e",
+            "matching_probability": 0.07537819509650497,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 4,
+            "choice": "A",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261107,
+            "round": 21,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.2086085273260449,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.6263004630210514,
+                                "raw_neglogprob": 1.5672958584108818,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.5672958584108818
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "47171824-3af8-4ebd-987d-3eb88573ab8e",
+            "matching_probability": 0.07537819509650497,
+            "payoff_A_chooser": 5,
+            "payoff_A_predictor": 5,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 1,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261208,
+            "round": 29,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.5,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.25,
+                                "raw_neglogprob": 0.6931471805599453,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.6931471805599453
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "47171824-3af8-4ebd-987d-3eb88573ab8e",
+            "matching_probability": 0.07537819509650497,
+            "payoff_A_chooser": 3,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 1,
+            "payoff_B_predictor": 1,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261259,
+            "round": 33,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.791391472673955,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.04351751767314124,
+                                "raw_neglogprob": 0.2339625250775483,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.2339625250775483
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "47171824-3af8-4ebd-987d-3eb88573ab8e",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.07537819509650497,
+            "payoff_A_chooser": 5,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 1,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261332,
+            "round": 39,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.5,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.25,
+                                "raw_neglogprob": 0.6931471805599453,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.6931471805599453
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "47171824-3af8-4ebd-987d-3eb88573ab8e",
+            "matching_probability": 0.18218442256042972,
+            "payoff_A_chooser": 5,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 4,
+            "payoff_B_predictor": 1,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": true,
+            "timestamp": 1733261554,
+            "round": 40,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.6607563687658172,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.11508624133295418,
+                                "raw_neglogprob": 0.414370086852072,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.414370086852072
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "47171824-3af8-4ebd-987d-3eb88573ab8e",
+            "matching_probability": 0.18218442256042972,
+            "payoff_A_chooser": 2,
+            "payoff_A_predictor": 5,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 1,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261578,
+            "round": 42,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.33924363123418283,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.11508624133295423,
+                                "raw_neglogprob": 0.41437008685207216,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.41437008685207216
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "47171824-3af8-4ebd-987d-3eb88573ab8e",
+            "matching_probability": 0.18218442256042972,
+            "payoff_A_chooser": 3,
+            "payoff_A_predictor": 1,
+            "payoff_B_chooser": 4,
+            "payoff_B_predictor": 4,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261624,
+            "round": 45,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.33924363123418283,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.11508624133295423,
+                                "raw_neglogprob": 0.41437008685207216,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.41437008685207216
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "47171824-3af8-4ebd-987d-3eb88573ab8e",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.18218442256042972,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 3,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261980,
+            "round": 69,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.33924363123418283,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.11508624133295423,
+                                "raw_neglogprob": 0.41437008685207216,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.41437008685207216
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "47171824-3af8-4ebd-987d-3eb88573ab8e",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.18218442256042972,
+            "payoff_A_chooser": 2,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 1,
+            "payoff_B_predictor": 1,
+            "choice": "A",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733262023,
+            "round": 72,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.6607563687658172,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.43659897886458865,
+                                "raw_neglogprob": 1.0810367535187388,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.0810367535187388
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "47171824-3af8-4ebd-987d-3eb88573ab8e",
+            "matching_probability": 0.18218442256042972,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 5,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 4,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733262100,
+            "round": 77,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.3392436312341828,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.43659897886458865,
+                                "raw_neglogprob": 1.0810367535187388,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.0810367535187388
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "(01b850cc-9ba8-4d0b-8eba-bec734ed8847, d85e7c87-2722-4952-a4b7-8cf7805dac37)": [
+        {
+            "chooser": "d85e7c87-2722-4952-a4b7-8cf7805dac37",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.08581116327595202,
+            "payoff_A_chooser": 2,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 4,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261000,
+            "round": 13,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.33924363123418283,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.4365989788645885,
+                                "raw_neglogprob": 1.0810367535187386,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.0810367535187386
+                            }
+                        }
+                    }
+                }
+            },
+            "loss_report": {
+                "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                    "predictor": {
+                        "n_data": 1,
+                        "raw_ssr_sum": 0.4365989788645885,
+                        "raw_neglogprob_sum": 1.0810367535187386,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 1.0810367535187386,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    },
+                    "chooser": {
+                        "n_data": 1,
+                        "raw_ssr_sum": 0.8742826546799409,
+                        "raw_neglogprob_sum": 2.7338424427098116,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 2.7338424427098116,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    }
+                }
+            },
+            "reports": {
+                "chooser": {
+                    "final": {
+                        "x": [],
+                        "fun": 37.12299723225531,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 37.12299723225531
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                },
+                "predictor": {
+                    "final": {
+                        "x": [],
+                        "fun": 32.79918339110518,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 32.79918339110518
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "d85e7c87-2722-4952-a4b7-8cf7805dac37",
+            "matching_probability": 0.08581116327595202,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 1,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 1,
+            "choice": "A",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261095,
+            "round": 20,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.06496916912866404,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.8742826546799409,
+                                "raw_neglogprob": 2.7338424427098116,
+                                "param_penalty": 0.0,
+                                "loss_final": 2.7338424427098116
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "(01b850cc-9ba8-4d0b-8eba-bec734ed8847, d8c5d3eb-c11c-4209-aa4d-8fa881c9e2ce)": [
+        {
+            "chooser": "d8c5d3eb-c11c-4209-aa4d-8fa881c9e2ce",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.0015649452269170582,
+            "payoff_A_chooser": 2,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 4,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261145,
+            "round": 24,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.11920292202211755,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.014209336618611037,
+                                "raw_neglogprob": 0.12692801104297252,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.12692801104297252
+                            }
+                        }
+                    }
+                }
+            },
+            "loss_report": {
+                "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                    "predictor": {
+                        "n_data": 4,
+                        "raw_ssr_sum": 0.264209336618611,
+                        "raw_neglogprob_sum": 0.8200751916029179,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 0.8200751916029179,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    },
+                    "chooser": {
+                        "n_data": 1,
+                        "raw_ssr_sum": 0.4365989788645885,
+                        "raw_neglogprob_sum": 1.0810367535187386,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 1.0810367535187386,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    }
+                }
+            },
+            "reports": {
+                "chooser": {
+                    "final": {
+                        "x": [],
+                        "fun": 37.12299723225531,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 37.12299723225531
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                },
+                "predictor": {
+                    "final": {
+                        "x": [],
+                        "fun": 32.79918339110518,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 32.79918339110518
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "d8c5d3eb-c11c-4209-aa4d-8fa881c9e2ce",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.0015649452269170582,
+            "payoff_A_chooser": 5,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 5,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261250,
+            "round": 32,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.5,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.25,
+                                "raw_neglogprob": 0.6931471805599453,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.6931471805599453
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "d8c5d3eb-c11c-4209-aa4d-8fa881c9e2ce",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.10743061772605192,
+            "payoff_A_chooser": 5,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 4,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": true,
+            "timestamp": 1733261569,
+            "round": 41,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.8807970779778823,
+                                "confidence": 1.0
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "d8c5d3eb-c11c-4209-aa4d-8fa881c9e2ce",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.10743061772605192,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 3,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": true,
+            "abdicated_predictor": false,
+            "timestamp": 1733261672,
+            "round": 48,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.33924363123418283,
+                                "confidence": 1.0
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "d8c5d3eb-c11c-4209-aa4d-8fa881c9e2ce",
+            "matching_probability": 0.10743061772605192,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 1,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 2,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733262039,
+            "round": 73,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.33924363123418283,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.4365989788645885,
+                                "raw_neglogprob": 1.0810367535187386,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.0810367535187386
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "(01b850cc-9ba8-4d0b-8eba-bec734ed8847, d383d0be-6c2c-4b5a-9fae-b7bd10e621a3)": [
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "d383d0be-6c2c-4b5a-9fae-b7bd10e621a3",
+            "matching_probability": 0.056077203964527915,
+            "payoff_A_chooser": 1,
+            "payoff_A_predictor": 2,
+            "payoff_B_chooser": 5,
+            "payoff_B_predictor": 3,
+            "choice": "B",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261174,
+            "round": 26,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.06496916912866404,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.004220992937268953,
+                                "raw_neglogprob": 0.0671757760431446,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.0671757760431446
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            },
+            "loss_report": {
+                "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                    "chooser": {
+                        "n_data": 4,
+                        "raw_ssr_sum": 0.7343374894749988,
+                        "raw_neglogprob_sum": 2.075322235199377,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 2.075322235199377,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    },
+                    "predictor": {
+                        "n_data": 2,
+                        "raw_ssr_sum": 0.7900128291929869,
+                        "raw_neglogprob_sum": 2.253856022085944,
+                        "param_penalty_sum": 0.0,
+                        "loss_final_sum": 2.253856022085944,
+                        "confidence_weighted": false,
+                        "loss_funct_type": "log",
+                        "penalty_weight": 0.05,
+                        "update_method": "naive"
+                    }
+                }
+            },
+            "reports": {
+                "chooser": {
+                    "final": {
+                        "x": [],
+                        "fun": 37.12299723225531,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 37.12299723225531
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                },
+                "predictor": {
+                    "final": {
+                        "x": [],
+                        "fun": 32.79918339110518,
+                        "min_raw_neglog_sum": {
+                            "params": {},
+                            "loss": 32.79918339110518
+                        }
+                    },
+                    "random_search": {
+                        "x_initial_guess": []
+                    },
+                    "local": {
+                        "success": true,
+                        "message": "No free parameters for this role."
+                    },
+                    "warmstart_meta": {
+                        "enabled": true,
+                        "phase": "cold",
+                        "temperature": 0.0,
+                        "x_initial_guess_before": [],
+                        "x_initial_guess_after": [],
+                        "optimization_method_effective": "none",
+                        "selected_child_key": null,
+                        "exception": null,
+                        "used": false,
+                        "model_bit_string": "0010000000001100",
+                        "model_equation": "Uᵢ(A) = πᵢᴬ",
+                        "model_utility_settings": {
+                            "apply_exponents_to_payoffs": false,
+                            "conditional_welfare_mode": false,
+                            "fix_self_interest_parameter": true,
+                            "include_altruism_term": false,
+                            "include_relative_income_penalty": false,
+                            "include_social_comparison": false,
+                            "include_welfare_efficiency_term": false,
+                            "min_max_rawlsian_leontief": false,
+                            "negativity_social_comparison": false,
+                            "payoff_ratios_not_differences": false,
+                            "reference_dependent_altruism": false,
+                            "reference_dependent_utility": false,
+                            "single_exponential_parameter": true,
+                            "single_payoffs_not_differences": true,
+                            "use_exponential_parameters": false,
+                            "use_negativity_parameters": false
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "d383d0be-6c2c-4b5a-9fae-b7bd10e621a3",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.056077203964527915,
+            "payoff_A_chooser": 5,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 4,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261199,
+            "round": 28,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.8807970779778823,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.01420933661861107,
+                                "raw_neglogprob": 0.12692801104297263,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.12692801104297263
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "d383d0be-6c2c-4b5a-9fae-b7bd10e621a3",
+            "matching_probability": 0.056077203964527915,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 4,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 2,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261307,
+            "round": 37,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.791391472673955,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.04351751767314124,
+                                "raw_neglogprob": 0.2339625250775483,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.2339625250775483
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "d383d0be-6c2c-4b5a-9fae-b7bd10e621a3",
+            "predictor": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "matching_probability": 0.1217547000895255,
+            "payoff_A_chooser": 4,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 1,
+            "payoff_B_predictor": 4,
+            "choice": "A",
+            "prediction": "B",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261608,
+            "round": 44,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {}
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {
+                                "model_predict_A": 0.8807970779778823,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.7758034925743758,
+                                "raw_neglogprob": 2.1269280110429714,
+                                "param_penalty": 0.0,
+                                "loss_final": 2.1269280110429714
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "d383d0be-6c2c-4b5a-9fae-b7bd10e621a3",
+            "matching_probability": 0.1217547000895255,
+            "payoff_A_chooser": 3,
+            "payoff_A_predictor": 3,
+            "payoff_B_chooser": 2,
+            "payoff_B_predictor": 3,
+            "choice": "B",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733261698,
+            "round": 50,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.6607563687658172,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.43659897886458865,
+                                "raw_neglogprob": 1.0810367535187388,
+                                "param_penalty": 0.0,
+                                "loss_final": 1.0810367535187388
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "chooser": "01b850cc-9ba8-4d0b-8eba-bec734ed8847",
+            "predictor": "d383d0be-6c2c-4b5a-9fae-b7bd10e621a3",
+            "matching_probability": 0.1217547000895255,
+            "payoff_A_chooser": 3,
+            "payoff_A_predictor": 5,
+            "payoff_B_chooser": 3,
+            "payoff_B_predictor": 3,
+            "choice": "A",
+            "prediction": "A",
+            "abdicated_chooser": false,
+            "abdicated_predictor": false,
+            "timestamp": 1733262082,
+            "round": 76,
+            "parameter_estimates": {
+                "naive": {
+                    "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                        "chooser": {
+                            "params": {},
+                            "output": {
+                                "model_choose_A": 0.5,
+                                "confidence": 1.0,
+                                "raw_ssr": 0.25,
+                                "raw_neglogprob": 0.6931471805599453,
+                                "param_penalty": 0.0,
+                                "loss_final": 0.6931471805599453
+                            }
+                        },
+                        "predictor": {
+                            "params": {},
+                            "output": {}
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

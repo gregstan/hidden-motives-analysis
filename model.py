@@ -276,25 +276,44 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
             else:
                 if separate_terms:
                     return {'self_interest': 0.0, 'altruism': float(max(Vᵢᵢ * basei, Vᵢⱼ * basej)), 'social_comp': 0.0}
-                return max(Vᵢᵢ * basei, Vᵢⱼ * basej)            
+                return max(Vᵢᵢ * basei, Vᵢⱼ * basej)
+
+    elif utility_settings.get('include_welfare_efficiency_term'):
+        "Engelmann-Strobel welfare efficiency family — single payoffs only."
+        "normalize_conditional_welfare_params gates the [-1,1]→[0,1] remap: same pattern as conditional_welfare_mode."
+        Vᵢᵢ_used    = (Vᵢᵢ + 1) / 2 if normalize_conditional_welfare_params else Vᵢᵢ
+        _has_maximin = utility_settings['include_social_comparison']
+        si_coeff     = (1 - Vᵢᵢ_used - Vᵢⱼ) if _has_maximin else (1 - Vᵢᵢ_used)
+        _exp_j       = exp1 if utility_settings['single_exponential_parameter'] else exp2
+        if utility_settings['use_exponential_parameters']:
+            si_part   = si_coeff  * (payAi ** exp1)
+            welf_part = Vᵢᵢ_used * ((payAi + payAj) / 2) ** exp1
+            maximin   = Vᵢⱼ * (min(payAi, payAj) ** _exp_j) if _has_maximin else 0.0
+        else:
+            si_part   = si_coeff  * payAi
+            welf_part = Vᵢᵢ_used * (payAi + payAj) / 2
+            maximin   = Vᵢⱼ * min(payAi, payAj) if _has_maximin else 0.0
+        if separate_terms:
+            return {'self_interest': float(si_part + welf_part), 'altruism': 0.0, 'social_comp': float(maximin)}
+        return si_part + welf_part + maximin
 
     "Self-interest term"
-    self_interest = utility_term(payoff_1=pay1si, payoff_2=pay2si, 
-                                 weight_1=1 if utility_settings['fix_self_interest_parameter'] else Vᵢᵢ, 
-                                 weight_2=Ʌᵢᵢ if utility_settings['use_negativity_parameters'] else 0.0, 
-                                 exponent=exp1, use_negativity_parameters=utility_settings['use_negativity_parameters'], 
-                                 use_exponential_parameters=utility_settings['use_exponential_parameters'], 
-                                 single_payoffs_not_differences=utility_settings['single_payoffs_not_differences'], 
-                                 payoff_ratios_not_differences=utility_settings['payoff_ratios_not_differences'])  
+    self_interest = utility_term(payoff_1=pay1si, payoff_2=pay2si,
+                                 weight_1=1 if utility_settings['fix_self_interest_parameter'] else Vᵢᵢ,
+                                 weight_2=Ʌᵢᵢ if utility_settings['use_negativity_parameters'] else 0.0,
+                                 exponent=exp1, use_negativity_parameters=utility_settings['use_negativity_parameters'],
+                                 use_exponential_parameters=utility_settings['use_exponential_parameters'],
+                                 single_payoffs_not_differences=utility_settings['single_payoffs_not_differences'],
+                                 payoff_ratios_not_differences=utility_settings['payoff_ratios_not_differences'])
 
     "Altruism term"
     if utility_settings['include_altruism_term']:
-        altruism = utility_term(payoff_1=pay1al, payoff_2=pay2al, weight_1=Vᵢⱼ, exponent=exp2, 
-                                weight_2=Ʌᵢⱼ if utility_settings['use_negativity_parameters'] else 0.0, 
-                                use_negativity_parameters=utility_settings['use_negativity_parameters'], 
-                                use_exponential_parameters=utility_settings['use_exponential_parameters'], 
-                                single_payoffs_not_differences=utility_settings['single_payoffs_not_differences'], 
-                                payoff_ratios_not_differences=utility_settings['payoff_ratios_not_differences'])  
+        altruism = utility_term(payoff_1=pay1al, payoff_2=pay2al, weight_1=Vᵢⱼ, exponent=exp2,
+                                weight_2=Ʌᵢⱼ if utility_settings['use_negativity_parameters'] else 0.0,
+                                use_negativity_parameters=utility_settings['use_negativity_parameters'],
+                                use_exponential_parameters=utility_settings['use_exponential_parameters'],
+                                single_payoffs_not_differences=utility_settings['single_payoffs_not_differences'],
+                                payoff_ratios_not_differences=utility_settings['payoff_ratios_not_differences'])
     else:
         altruism = 0.0
 
@@ -310,11 +329,37 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
     else:
         social_comp = 0.0
 
+    total = self_interest + altruism + social_comp
+
+    if utility_settings.get('include_relative_income_penalty'):
+        "ERC-style relative income penalty: -αᵢⱼ × (σᵢᴬ − 1/2) where σᵢᴬ = πᵢᴬ/(πᵢᴬ+πⱼᴬ)."
+        "Canonical ERC: when fix_self_interest_parameter=True + use_exponential_parameters=True,"
+        "the exponent applies only to the penalty (SI stays linear). Recompute without exp."
+        if utility_settings['fix_self_interest_parameter'] and utility_settings['use_exponential_parameters']:
+            self_interest = utility_term(
+                payoff_1=pay1si, payoff_2=pay2si, weight_1=1, weight_2=0.0, exponent=exp1,
+                use_negativity_parameters=False, use_exponential_parameters=False,
+                single_payoffs_not_differences=utility_settings['single_payoffs_not_differences'],
+                payoff_ratios_not_differences=utility_settings['payoff_ratios_not_differences'])
+            total = self_interest + altruism + social_comp
+        _denom  = payAi + payAj
+        _sigma  = payAi / _denom if _denom > 0 else 0.5
+        _dev    = _sigma - 0.5
+        if utility_settings['use_exponential_parameters']:
+            _exp_rip = (params.get('γ1', 1) if utility_settings.get('single_exponential_parameter')
+                        else params.get('γ3', params.get('γ1', 1)))
+            _penalty = -αᵢⱼ * (max(_dev, 0.0) ** _exp_rip - max(-_dev, 0.0) ** _exp_rip)
+        else:
+            _penalty = -αᵢⱼ * _dev
+        if separate_terms:
+            return {'self_interest': float(self_interest), 'altruism': float(altruism),
+                    'social_comp': float(social_comp + _penalty)}
+        return total + _penalty
 
     if separate_terms:
         return {'self_interest': float(self_interest), 'altruism': float(altruism), 'social_comp': float(social_comp)}
 
-    return self_interest + altruism + social_comp
+    return total
 
 
 def softmax_(uA: float, uB: float, temperature: float = 1.5, use_fallback: bool = True) -> float:
@@ -455,7 +500,7 @@ def choice(current_game: dict[str, Any], agent_params: Dict[str, float], utility
     return {"model_choose_A": p_choose_A, "confidence": confidence}
 
 
-def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A") -> str:
+def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A", in_latex: bool = False) -> str:
     """
     Build a human-readable symbolic string representation of the active utility function.
 
@@ -476,7 +521,7 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A")
             Controls which payoff symbols are assigned to self vs. other.
 
     Returns:
-        • str — the formatted utility equation, e.g. 'Uᵢ(A) = Vᵢᵢ(πᵢᴬ − πᵢᴮ) + Vᵢⱼ(πⱼᴬ − πⱼᴮ)'.
+        • str — the formatted utility equation, e.g. 'Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ) + Vᵢⱼ(πⱼᴬ - πⱼᴮ)'.
     """
     if isinstance(utility_settings, tuple):
         utility_settings = gnrl.convert_utility_settings(utility_settings=utility_settings, into=dict)
@@ -484,6 +529,8 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A")
     "Extract booleans"
     con_welf = utility_settings.get('conditional_welfare_mode', False)
     min_max  = utility_settings.get('min_max_rawlsian_leontief', False)
+    inc_welf = utility_settings.get('include_welfare_efficiency_term', False)
+    inc_rip  = utility_settings.get('include_relative_income_penalty', False)
     loss_av  = utility_settings.get('use_negativity_parameters', False)
     use_exp  = utility_settings.get('use_exponential_parameters', False)
     pay_expo = utility_settings.get('apply_exponents_to_payoffs', False)
@@ -824,7 +871,34 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A")
 
         return utility_
 
+    elif inc_welf:
+        "Engelmann-Strobel welfare efficiency family — single payoffs only."
+        "Equations use Vᵢᵢ directly; remapping to [0,1] happens inside utility() when normalize_conditional_welfare_params=True."
+        si_coeff = "(1 - Vᵢᵢ - Vᵢⱼ)" if soc_comp else "(1 - Vᵢᵢ)"
+        if use_exp:
+            exp_si   = "^γ₁"
+            exp_welf = "^γ₁"
+            exp_mm   = "^γ₁" if one_exp else "^γ₂"
+        else:
+            exp_si = exp_welf = exp_mm = ""
+        result = f"{utility_}{si_coeff}{payAi}{exp_si} + Vᵢᵢ × (({payAi} + {payAj})/2){exp_welf}"
+        if soc_comp:
+            result += f" + Vᵢⱼ × min({payAi}, {payAj}){exp_mm}"
+        return result
+
+    rip_str = ""
+    if inc_rip:
+        exp_tag = ("^γ₁" if one_exp else "^γ₃") if use_exp else ""
+        rip_str = f" - αᵢⱼ × ({payAi}/({payAi} + {payAj}) - 1/2){exp_tag}"
+
+    "Canonical ERC: suppress exponent on SI term when fix_self + use_exp in RIP family."
+    if inc_rip and fix_self and use_exp:
+        use_exp = False
+        _si_str = term("self-interest")
+        use_exp = True
+    else:
+        _si_str = term("self-interest")
     return _apply_gamma_to_payoffs(
-        utility_ + term("self-interest") + term("altruism") + term("social_comparison"), 
+        utility_ + _si_str + term("altruism") + term("social_comparison") + rip_str,
         utility_settings)
 

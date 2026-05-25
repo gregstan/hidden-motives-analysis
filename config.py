@@ -126,6 +126,8 @@ class UtilitySettings(TypedDict):
     conditional_welfare_mode: bool
     reference_dependent_altruism: bool
     min_max_rawlsian_leontief: bool
+    include_welfare_efficiency_term: bool
+    include_relative_income_penalty: bool
     use_exponential_parameters: bool
     apply_exponents_to_payoffs: bool
     single_exponential_parameter: bool
@@ -303,6 +305,15 @@ def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, gener
                 if not utility_settings['single_exponential_parameter'] and utility_settings['include_altruism_term']:
                     param_keys.append('γ2')
 
+        elif utility_settings.get('include_welfare_efficiency_term'):
+            "Vᵢᵢ already added above; social comparison activates maximin via Vᵢⱼ."
+            if utility_settings['include_social_comparison']:
+                param_keys.append('Vᵢⱼ')
+            if utility_settings['use_exponential_parameters']:
+                param_keys.append('γ1')
+                if not utility_settings['single_exponential_parameter'] and utility_settings['include_social_comparison']:
+                    param_keys.append('γ2')
+
         else:
             # if utility_settings['use_negativity_parameters'] and not utility_settings['fix_self_interest_parameter']:
             if utility_settings['use_negativity_parameters']:
@@ -317,6 +328,10 @@ def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, gener
                 param_keys.append('αᵢⱼ')
                 if utility_settings['use_negativity_parameters'] or utility_settings['negativity_social_comparison']:
                     param_keys.append('βᵢⱼ')
+
+            if utility_settings.get('include_relative_income_penalty'):
+                if 'αᵢⱼ' not in param_keys:
+                    param_keys.append('αᵢⱼ')
 
             if utility_settings['use_exponential_parameters']:
                 if utility_settings['single_exponential_parameter']:
@@ -706,7 +721,7 @@ general_settings: GeneralSettings = {
         'n_games_grid':                  [20, 40, 60, 90, 120, 180, 240],
         'softmax_temperature':           0.5,
         'candidate_model_selection_mode': 'hamming',
-        'n_candidate_models':            480,
+        'n_candidate_models':            505,
         'ampd_matrix_name_or_path':      None,
         'random_seed':                   42,
     },
@@ -729,6 +744,8 @@ utility_settings: UtilitySettings = {
     'conditional_welfare_mode':       False,
     'reference_dependent_altruism':   False,
     'min_max_rawlsian_leontief':      False,
+    'include_welfare_efficiency_term': False,
+    'include_relative_income_penalty': False,
     'use_exponential_parameters':     True,
     'apply_exponents_to_payoffs':     False,
     'single_exponential_parameter':   False,
@@ -875,7 +892,12 @@ valid_analysis_types = [
 ]
 
 def _load_canonical_utility_specs() -> dict[str, dict]:
+    _new_flags = ('include_welfare_efficiency_term', 'include_relative_income_penalty')
     with open(ROOT / "canonical_utility_settings.json", "r", encoding="utf-8") as _f:
-        return json.load(_f)
+        raw = json.load(_f)
+    return {
+        name: {**spec, **{flag: False for flag in _new_flags if flag not in spec}}
+        for name, spec in raw.items()
+    }
 
 CANONICAL_UTILITY_SPECS: dict[str, dict] = _load_canonical_utility_specs()

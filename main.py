@@ -23,20 +23,59 @@ run_code_settings: RunCodeSettings = {
 
 def main():
     """Execute main code."""
+    # from utilities import generate_utility_settings
+    # all_settings = generate_utility_settings(utility_settings=utility_settings)
+    # for idx, model in enumerate(all_settings):
+    #     print(idx, build_utility_equation(model))
+    # exit()
+    verify_same_inputs_same_outputs_for_children_and_parents(
+        general_settings=general_settings,
+        file_paths=file_paths,
+        param_bds=param_bds,
+        utility_settings=utility_settings,
+        player_role_to_fit="chooser",
+        fit_for_n_players=1,
+        random_seed=None,
+        numeric_tolerance=1e-3,
+        verbose=True,
+    )
+    exit()
+    run_child_parent_probability_equivalence_smoketest(
+        utility_settings=utility_settings,
+        file_paths=file_paths,
+        param_bds=param_bds,
+        rand_payoff_idx=True,
+        n_trials=12,
+        random_seed=None,
+        tolerance=1e-12,
+        verbose=True,
+    )
+    exit()
 
     import sys; sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-    for name, spec in CANONICAL_UTILITY_SPECS.items():
-        print(f"\n{'='*70}")
-        print(f"  {name}")
-        print(f"{'='*70}")
-        print("Settings:")
-        for k, v in spec.items():
-            print(f"  {k}: {v}")
-        print("Equation (A):", build_utility_equation(utility_settings=spec, option="A"))
-        print("Equation (B):", build_utility_equation(utility_settings=spec, option="B"))
+    from utilities import generate_utility_settings
+    all_settings = generate_utility_settings(utility_settings=utility_settings)
+    new_models = [s for s in all_settings
+                  if s.get('include_welfare_efficiency_term') or s.get('include_relative_income_penalty')]
+    
+    welf = [s for s in new_models if s.get('include_welfare_efficiency_term')]
+    rip  = [s for s in new_models if s.get('include_relative_income_penalty')]
+    rip_single = [s for s in rip if s.get('single_payoffs_not_differences')]
+    rip_diff   = [s for s in rip if not s.get('single_payoffs_not_differences')]
+    print(f"\nTotal: {len(all_settings)} models  |  New: {len(new_models)}  (welfare efficiency: {len(welf)}, RIP: {len(rip)})")
+    print(f"  RIP breakdown: {len(rip_single)} single-payoff + {len(rip_diff)} difference-form")
+    print(f"  (blocking difference forms in RIP would give {480 + len(welf) + len(rip_single)} total)")
+    for label, group, skip_key in [
+        ("WELFARE EFFICIENCY", welf, 'include_welfare_efficiency_term'),
+        ("RELATIVE INCOME PENALTY", rip, 'include_relative_income_penalty'),
+    ]:
+        print(f"\n{'='*80}\n{label} ({len(group)} models)\n{'='*80}")
+        for i, s in enumerate(group, 1):
+            active = [k for k, v in s.items() if v and k != skip_key]
+            print(f"\n[{i}] {build_utility_equation(utility_settings=s, option='A')}")
+            print(f"     Active: {active}")
     sys.exit(0)
-    print('dog')
-    exit()
+
     "Apply master random seed when reproducibility mode is enabled."
     _master_seed = general_settings.get('random_seeds', {}).get('seed', None)
     if _master_seed is not None:
@@ -94,7 +133,7 @@ def main():
             fig_lay=fig_lay,
             param_bds=param_bds,
             analysis_experiment_num=0,
-            random_seed=2025,
+            random_seed=None,
         )
 
         plot_param_recovery_by_round(df_merged=df_merged, fig_lay=fig_lay)
@@ -239,14 +278,14 @@ def main():
         )
         gnrl.test_utility_functions(utility_settings=utility_settings, setting_to_flip='include_social_comparison', print_=True)
 
-        run_child_parent_embedding_sanity_checks(
+        verify_same_inputs_same_outputs_for_children_and_parents(
             general_settings=general_settings,
             file_paths=file_paths,
             param_bds=param_bds,
             utility_settings=utility_settings,
             player_role_to_fit="chooser",
             fit_for_n_players=1,
-            random_seed=20250406,
+            random_seed=None,
             numeric_tolerance=1e-3,
             verbose=True,
         )
@@ -257,7 +296,7 @@ def main():
             param_bds=param_bds,
             rand_payoff_idx=True,
             n_trials=12,
-            rng_seed=None,
+            random_seed=None,
             tolerance=1e-12,
             verbose=True,
         )
@@ -265,7 +304,7 @@ def main():
         verify_utility_vs_string_equation(
             utility_function=utility, utility_function_str=build_utility_equation,
             utility_settings=utility_settings, param_bds=param_bds, n_games=625,
-            rng_seed=20250417, exhaustive_if_large=True, option="A", file_paths=file_paths,
+            random_seed=None, exhaustive_if_large=True, option="A", file_paths=file_paths,
             comparison_tol=1e-6, decimals=6, verbose=True,
         )
 

@@ -1384,7 +1384,7 @@ def plot_ic_robustness_analysis(general_settings: Dict[str, Any], file_paths: Di
     return fig
 
 
-def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: dict, include_dropdown: bool = True) -> go.Figure:
+def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: dict, include_dropdown: bool = True, annotate_canonical_models: bool = True) -> go.Figure:
     """
     Creates a Plotly scatterplot of ΔBIC scores for all utility-model configurations,
     sorted from lowest (best) to highest. By default, a single trace uses a continuous
@@ -1419,6 +1419,12 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
                 2) Pairs of True/False traces for each recognized Boolean column.
             If False, only the single color-scale trace is shown, and all Boolean traces
             remain invisible.
+
+        • annotate_canonical_models: bool (default True)
+            If True, adds arrow annotations for the six canonical social-preference models
+            (Fehr-Schmidt, Bolton-Ockenfels, Charness-Rabin, Andreoni-Miller,
+            Engelmann-Strobel, Messick-McClintock), each showing its BIC rank.
+            Reads canonical_utility_settings.json from the project root.
 
     Returns:
         • fig: go.Figure
@@ -1604,7 +1610,78 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
         )
     )
 
-    "9) If no dropdown is wanted, hide all Boolean traces"
+    "9) Canonical model annotations"
+    if annotate_canonical_models:
+        import json as _json
+        from pathlib import Path as _Path
+
+        _root = _Path(str(file_paths['bic_aic'])).parent
+        _json_path = _root / 'canonical_utility_settings.json'
+
+        _short_labels = {
+            'Fehr–Schmidt (1999) inequity aversion':     'Fehr-Schmidt<br>Inequity Aversion',
+            'Bolton–Ockenfels ERC (2000)':               'Bolton-Ockenfels ERC',
+            'Charness–Rabin (2002) conditional welfare': 'Charness-Rabin<br>Cond. Welfare',
+            'Andreoni–Miller (2002) CES (warm glow)':    'Andreoni-Miller CES',
+            'Engelmann–Strobel (2004) maximin‑efficiency': 'Engelmann-Strobel<br>Maximin-Eff.',
+            'Messick–McClintock (1968) SVO linear':      'Messick-McClintock<br>SVO Linear',
+        }
+
+        if _json_path.exists():
+            with open(_json_path, 'r', encoding='utf-8') as _f:
+                _canonical_specs = _json.load(_f)
+
+            _annotation_data = []
+            for _name, _spec in _canonical_specs.items():
+                _mask = pd.Series([True] * len(df), index=df.index)
+                for _flag, _val in _spec.items():
+                    if _flag in df.columns:
+                        _mask = _mask & (df[_flag].astype(bool) == bool(_val))
+                _matched = df[_mask]
+                if len(_matched) == 0:
+                    print(f"Warning: canonical model '{_name}' not found in IC CSV — skipping annotation.")
+                    continue
+                _row = _matched.iloc[0]
+                _annotation_data.append({
+                    'name': _name,
+                    'rank': int(_row['model_rank']),
+                    'delta_bic': float(_row['ΔBIC']),
+                })
+
+            "Sort by rank so alternating ay offsets spread upward/downward along the curve."
+            _annotation_data.sort(key=lambda d: d['rank'])
+            _ay_cycle = [-90, 90, -130, 130, -60, 110]
+
+            _plotly_annotations = []
+            for _i, _ann in enumerate(_annotation_data):
+                _short = _short_labels.get(_ann['name'], _ann['name'].split('(')[0].strip())
+                _text  = f"{_short}<br><b>Rank: {_ann['rank']}</b>"
+                _ay    = _ay_cycle[_i % len(_ay_cycle)]
+                _ax    = 40 if _ay < 0 else -40
+                _plotly_annotations.append(dict(
+                    x=_ann['rank'],
+                    y=_ann['delta_bic'],
+                    text=_text,
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowsize=1,
+                    arrowwidth=1.5,
+                    ax=_ax,
+                    ay=_ay,
+                    font=dict(size=22, color='white'),
+                    bgcolor='rgba(50,50,60,0.88)',
+                    bordercolor='rgba(180,180,200,0.6)',
+                    borderwidth=1,
+                    borderpad=4,
+                    align='left',
+                ))
+
+            if _plotly_annotations:
+                fig.update_layout(annotations=_plotly_annotations)
+        else:
+            print(f"Warning: {_json_path} not found — canonical annotations skipped.")
+
+    "10) If no dropdown is wanted, hide all Boolean traces"
     if not include_dropdown:
         for idx in range(1, len(data_traces)):
             fig.data[idx].visible = False
@@ -1659,7 +1736,7 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
             type="dropdown",
             showactive=True,
             direction="down",
-            x=0.0, y=1.06,
+            x=0.1, y=1.06,
             xanchor="left",
             yanchor="top",
             pad=dict(r=10, t=10),
@@ -2247,4 +2324,21 @@ def plot_architecture_compression_curve(
     if export_fig:
         out_path = os.path.join(str(file_paths['visuals']), 'population_architecture_curve.html')
         fig.write_html(out_path, config={'responsive': True})
+
+
+def main():
+    import sys
+    from config import general_settings, file_paths, fig_lay
+    plot_ic_scores_delta_bic(
+        fig_lay=fig_lay,
+        file_paths=file_paths,
+        general_settings=general_settings,
+        include_dropdown=True,
+        annotate_canonical_models=True,
+    )
+    sys.exit(0)
+
+
+if __name__ == '__main__':
+    main()
 

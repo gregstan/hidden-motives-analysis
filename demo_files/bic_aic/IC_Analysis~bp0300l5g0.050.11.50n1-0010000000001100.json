@@ -1,0 +1,103 @@
+{
+    "idx": 1,
+    "k_params": 0,
+    "n_data": 200,
+    "loss": 118.69452110145139,
+    "AIC": 237.38904220290277,
+    "BIC": 237.38904220290277,
+    "pvar": 0.0,
+    "U": "Uᵢ(A) = πᵢᴬ",
+    "lvec": [
+        118.69452110145139
+    ],
+    "pvec": [
+        {
+            "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                "chooser": {},
+                "predictor": {}
+            },
+            "07a438e9-aa3f-4527-9b48-0fa70da416ea": {
+                "chooser": {},
+                "predictor": {}
+            }
+        }
+    ],
+    "plvec": [
+        {
+            "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+                "params": {
+                    "chooser": {},
+                    "predictor": {}
+                },
+                "loss": {
+                    "chooser": 37.12299723225531,
+                    "predictor": 32.79918339110518
+                }
+            },
+            "07a438e9-aa3f-4527-9b48-0fa70da416ea": {
+                "params": {
+                    "chooser": {},
+                    "predictor": {}
+                },
+                "loss": {
+                    "chooser": 29.710187851738326,
+                    "predictor": 19.062152626352564
+                }
+            }
+        }
+    ],
+    "minvec": {
+        "01b850cc-9ba8-4d0b-8eba-bec734ed8847": {
+            "params": {
+                "chooser": {},
+                "predictor": {}
+            },
+            "loss": {
+                "chooser": 37.12299723225531,
+                "predictor": 32.79918339110518
+            }
+        },
+        "07a438e9-aa3f-4527-9b48-0fa70da416ea": {
+            "params": {
+                "chooser": {},
+                "predictor": {}
+            },
+            "loss": {
+                "chooser": 29.710187851738326,
+                "predictor": 19.062152626352564
+            }
+        }
+    },
+    "utility_settings": {
+        "apply_exponents_to_payoffs": false,
+        "conditional_welfare_mode": false,
+        "fix_self_interest_parameter": true,
+        "include_altruism_term": false,
+        "include_relative_income_penalty": false,
+        "include_social_comparison": false,
+        "include_welfare_efficiency_term": false,
+        "min_max_rawlsian_leontief": false,
+        "negativity_social_comparison": false,
+        "payoff_ratios_not_differences": false,
+        "reference_dependent_altruism": false,
+        "reference_dependent_utility": false,
+        "single_exponential_parameter": true,
+        "single_payoffs_not_differences": true,
+        "use_exponential_parameters": false,
+        "use_negativity_parameters": false
+    },
+    "nesting_violations": {
+        "counts": {
+            "violations": {
+                "parents": 0,
+                "children": 0
+            },
+            "observances": {
+                "parents": 0,
+                "children": 0
+            }
+        },
+        "parents": {},
+        "children": {}
+    }
+}

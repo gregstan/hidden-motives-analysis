@@ -23,7 +23,7 @@ def _build_ampd_cache_path(
 ) -> str:
     """
     Constructs the canonical cache filename for an AMPD master matrix. The master matrix
-    always covers all 480 utility forms; subsets fill in only the relevant cells. This design
+    always covers all 505 utility forms; subsets fill in only the relevant cells. This design
     supports resume and allows multiple subset runs to accumulate into one file.
 
     Filename format (values only, dash-separated, no key names):
@@ -543,7 +543,7 @@ def compute_ampd_distance_matrix(
 ) -> pd.DataFrame:
     """
     Computes and caches the pairwise AMPD distance matrix over all valid utility forms.
-    Uses a single master 480×480 file per settings combination. NaN marks uncomputed cells;
+    Uses a single master 505×505 file per settings combination. NaN marks uncomputed cells;
     0.0 marks the diagonal (never Monte-Carlo sampled under shared-parameter mode).
 
     Master filename format (values only, no key names):
@@ -589,7 +589,7 @@ def compute_ampd_distance_matrix(
         • create_new_file: bool (default False) — if True, discard any existing master matrix.
         • random_seed: int | None — RNG seed; None means unseeded (non-reproducible).
         • subset_utility_idxs: list[int] | None — if provided, only computes pairs where
-            both models are in this list. The master matrix still covers all 480 models.
+            both models are in this list. The master matrix still covers all 505 models.
         • print_: bool (default True) — whether to print progress.
         • print_every_x_pairs: int | None (default 1) — print a block every N new pairs.
             None disables per-pair output. Ignored when n_workers > 1 (progress is reported
@@ -601,7 +601,7 @@ def compute_ampd_distance_matrix(
             merges and saves after each row completes.
 
     Returns:
-        • pd.DataFrame — full 480×480 master matrix indexed and columned by utility_idx.
+        • pd.DataFrame — full 505×505 master matrix indexed and columned by utility_idx.
             Computed values are in [0, 1]. Uncomputed cells are NaN. Diagonal is 0.0.
     """
     "Resolve AMPD settings: explicit arguments take precedence over general_settings['ampd_settings']."

@@ -648,7 +648,7 @@ def bayesian_update_grid(prior_array: NDArray[np.float64] | dict[tuple[int, ...]
                 'pf_min_particles': int (floor on particle count; default 200)
                 'pf_resample_fraction': float in (0, 1] (ESS/N threshold; default 0.5)
                 'pf_jitter_sd': float (std-dev of Gaussian jitter in bin units; default 0.0)
-                'pf_rng_seed': int | None
+                'pf_random_seed': int | None
                 'pf_state': persistent particle state dict from the previous update
                 'representation': 'grid' | 'particles'
         • game_dict: dict
@@ -781,8 +781,8 @@ def bayesian_update_grid(prior_array: NDArray[np.float64] | dict[tuple[int, ...]
     pf_min_particles = int(meta_data.get("pf_min_particles", 200))
     pf_resample_frac = float(meta_data.get("pf_resample_fraction", 0.5))
     pf_jitter_sd     = float(meta_data.get("pf_jitter_sd", 0.0))
-    rng_seed         = meta_data.get("pf_rng_seed", None)
-    rng = np.random.default_rng(rng_seed)
+    random_seed         = meta_data.get("pf_random_seed", None)
+    rng = np.random.default_rng(random_seed)
 
     "Interpret sample_ratio as an upper bound on the particle budget, capped by pf_max_particles"
     target_particles = min(int(round(sample_ratio * total_grid_size)), pf_max_particles)

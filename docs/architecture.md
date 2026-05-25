@@ -42,7 +42,7 @@ This codebase follows a "single switchboard" pattern: **`config.py`** defines pa
   - `information_criterion_analysis`: large-scale IC comparison across 480 utility functions
   - `compute_architecture_compression_curve`, `plot_architecture_compression_curve`: how many structurally distinct utility types describe the population?
   - `compute_model_recovery_simulation`, `plot_model_recovery_simulation`: IC pipeline data-adequacy check
-  - `model_nesting_adjacency_matrices`, `run_child_parent_embedding_sanity_checks`: nesting graph and validation
+  - `model_nesting_adjacency_matrices`, `verify_same_inputs_same_outputs_for_children_and_parents`: nesting graph and validation
 
 - **`utilities.py`** (imported as `gnrl`)
   - `generate_utility_settings`: enumerates all 480 valid utility forms

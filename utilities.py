@@ -1040,43 +1040,28 @@ def equation_to_settings(equation_function: Callable, utility_settings: UtilityS
     return equ_to_settings
 
 
-def convert_utility_settings(utility_settings: Union[Dict[str, bool], Tuple[bool, ...]], into: type = tuple) -> Union[Dict[str, bool], Tuple[bool, ...]]:
+def convert_utility_settings(
+    utility_settings: Union[Dict[str, bool], Tuple[bool, ...]],
+    into: type = tuple,
+    template: Optional[Dict[str, bool]] = None,
+) -> Union[Dict[str, bool], Tuple[bool, ...]]:
     """
-    Converts between a dict[str, bool] of utility options and a tuple[bool].
-    By design, tuple ordering follows the *insertion order* of keys in the reference.
+    Converts between a dict[str, bool] of utility options and a tuple[bool, ...].
+    Key order for dict inputs follows their own insertion order (Python 3.7+ guarantee).
+    Key order for tuple→dict conversion follows `template` (defaults to config.utility_settings).
 
     Arguments:
-        • utility_settings: dict[str, bool] | tuple[bool]; The structure to convert.
-        • into: type; Either 'tuple' or 'dict' to indicate the target type. Default is tuple.
-        • keys: list[str] | None; Required when converting from tuple->dict to recover names.
-            - If converting dict->tuple and 'keys' is None, uses the dict's insertion order.
-            - If converting tuple->dict, you *must* provide 'keys' in the canonical order
-              used across this codebase (e.g., list(utility_settings_template.keys())).
+        • utility_settings: dict[str, bool] | tuple[bool, ...]; The structure to convert.
+        • into: type; 'tuple', 'dict', 'str', or 'int'. Default is tuple.
+        • template: dict[str, bool] | None; Canonical key order for tuple→dict conversion.
+            Defaults to the global utility_settings from config when not supplied.
 
     Returns:
-        • dict[str, bool] or tuple[bool]
+        • dict[str, bool] or tuple[bool, ...]
 
     Raises:
-        • ValueError if tuple->dict conversion is requested without 'keys'.
+        • ValueError if tuple→dict is requested and template cannot be resolved.
     """
-    "Standardized utility setting keys in order."
-    ordered_keys = (
-        'conditional_welfare_mode',
-        'reference_dependent_altruism',
-        'min_max_rawlsian_leontief',
-        'use_exponential_parameters',
-        'apply_exponents_to_payoffs',
-        'single_exponential_parameter',
-        'single_payoffs_not_differences',
-        'payoff_ratios_not_differences',
-        'reference_dependent_utility',
-        'use_negativity_parameters',
-        'negativity_social_comparison',
-        'fix_self_interest_parameter',
-        'include_social_comparison',
-        'include_altruism_term',
-    )
-
     if into not in (tuple, dict, int, str):
         raise ValueError("`into` must be either `tuple`, `dict`, `str`, or `int`.")
 
@@ -1085,38 +1070,36 @@ def convert_utility_settings(utility_settings: Union[Dict[str, bool], Tuple[bool
 
     if into is int or into is str:
         if isinstance(utility_settings, dict):
+            keys = list(utility_settings.keys())
             try:
                 if into is str:
-                    return "".join("1" if bool(utility_settings[key]) else "0" for key in ordered_keys)
-                return tuple(int(utility_settings[k]) for k in ordered_keys)
+                    return "".join("1" if bool(utility_settings[key]) else "0" for key in keys)
+                return tuple(int(utility_settings[k]) for k in keys)
             except KeyError as err:
-                for key in ordered_keys:
-                    setting = utility_settings.get(key, None)
-                    if setting is None:
+                for key in keys:
+                    if utility_settings.get(key) is None:
                         print(f"Missing key from utility_settings: {key}")
                 raise KeyError(err)
         else:
-            n_ordered_keys, n_settings = len(ordered_keys), len(utility_settings)
-            if n_ordered_keys != n_settings:
-                raise ValueError(f"N keys ({n_ordered_keys}) ≠ N settings ({n_settings})!") 
             if into is str:
-                return "".join("1" if bool(value) else "0" for value in utility_settings.values())         
+                return "".join("1" if bool(value) else "0" for value in utility_settings)
             return tuple(int(flag) for flag in utility_settings)
 
     if isinstance(utility_settings, dict) and into is tuple:
+        keys = list(utility_settings.keys())
         try:
-            return tuple(bool(utility_settings[k]) for k in ordered_keys)
+            return tuple(bool(utility_settings[k]) for k in keys)
         except KeyError as err:
-            for key in ordered_keys:
-                setting = utility_settings.get(key, None)
-                if setting is None:
-                    print(f"Missing key from utility_settings: {key}")
             raise KeyError(err)
 
     if isinstance(utility_settings, tuple) and into is dict:
-        n_ordered_keys, n_settings = len(ordered_keys), len(utility_settings)
-        if n_ordered_keys != n_settings:
-            raise ValueError(f"N keys ({n_ordered_keys}) ≠ N settings ({n_settings})!")
+        if template is None:
+            import config as _cfg
+            template = _cfg.utility_settings
+        ordered_keys = list(template.keys())
+        n_keys, n_settings = len(ordered_keys), len(utility_settings)
+        if n_keys != n_settings:
+            raise ValueError(f"N flag keys in template ({n_keys}) ≠ N settings ({n_settings})!")
         return {key: bool(val) for key, val in zip(ordered_keys, utility_settings)}
 
     "Already the requested type"
@@ -1150,8 +1133,13 @@ def is_valid_utility_settings(candidate: UtilitySettings, provide_explanation: b
     elif n_social_preference_params == 1:
         explanation = "If only one term exists"
         if not candidate['single_exponential_parameter']:
-            explanation += ", then there must be only one exponent."
-            return explanation if provide_explanation else False
+            "Exception: RIP + free Vᵢᵢ (no altruism) — the penalty provides independent curvature."
+            _rip_two_exp_ok = (candidate.get('include_relative_income_penalty', False)
+                               and not candidate['fix_self_interest_parameter']
+                               and not candidate['include_altruism_term'])
+            if not _rip_two_exp_ok:
+                explanation += ", then there must be only one exponent."
+                return explanation if provide_explanation else False
         if candidate['fix_self_interest_parameter']:
             if candidate['use_negativity_parameters'] and not candidate['conditional_welfare_mode']:
                 explanation = "Redundant setting: negativity adds no effective parameter when Vᵢᵢ is fixed and no other negative terms are present."
@@ -1220,6 +1208,57 @@ def is_valid_utility_settings(candidate: UtilitySettings, provide_explanation: b
             return explanation if provide_explanation else False
         if candidate['include_social_comparison']:
             explanation += "a social comparison term must not be included."
+            return explanation if provide_explanation else False
+
+    if candidate.get('include_welfare_efficiency_term', False):
+        explanation = "If using welfare efficiency term, then "
+        if candidate['conditional_welfare_mode'] or candidate['min_max_rawlsian_leontief']:
+            explanation += "no other structural family flag may be active."
+            return explanation if provide_explanation else False
+        if candidate.get('include_relative_income_penalty', False):
+            explanation += "relative income penalty cannot be combined."
+            return explanation if provide_explanation else False
+        if candidate['use_negativity_parameters'] or candidate['negativity_social_comparison']:
+            explanation += "negativity parameters are not supported."
+            return explanation if provide_explanation else False
+        if candidate['include_altruism_term']:
+            explanation += "altruism term is not supported; use include_social_comparison to add the maximin component."
+            return explanation if provide_explanation else False
+        if candidate['fix_self_interest_parameter']:
+            explanation += "Vᵢᵢ must be free (controls the welfare weight)."
+            return explanation if provide_explanation else False
+        if candidate['payoff_ratios_not_differences']:
+            explanation += "ratio form conflicts with the welfare efficiency structure."
+            return explanation if provide_explanation else False
+        if candidate['reference_dependent_utility']:
+            explanation += "reference dependence conflicts with the welfare weight remapping."
+            return explanation if provide_explanation else False
+        if candidate['apply_exponents_to_payoffs']:
+            explanation += "apply_exponents_to_payoffs conflicts with the welfare weight structure."
+            return explanation if provide_explanation else False
+        if not candidate['single_payoffs_not_differences']:
+            explanation += "payoff difference forms are not supported; only single-payoff forms are used."
+            return explanation if provide_explanation else False
+
+    if candidate.get('include_relative_income_penalty', False):
+        explanation = "If using relative income penalty, then "
+        if candidate['conditional_welfare_mode'] or candidate['min_max_rawlsian_leontief']:
+            explanation += "no other structural family flag may be active."
+            return explanation if provide_explanation else False
+        if candidate['payoff_ratios_not_differences']:
+            explanation += "ratio form is already embedded in the penalty term."
+            return explanation if provide_explanation else False
+        if candidate['use_negativity_parameters'] or candidate['negativity_social_comparison']:
+            explanation += "negativity parameters are not supported."
+            return explanation if provide_explanation else False
+        if candidate['reference_dependent_utility']:
+            explanation += "reference-dependent utility is not compatible with the income-share penalty."
+            return explanation if provide_explanation else False
+        if candidate['include_social_comparison']:
+            explanation += "Fehr-Schmidt social comparison conflicts with the ERC income-share penalty."
+            return explanation if provide_explanation else False
+        if candidate['apply_exponents_to_payoffs']:
+            explanation += "apply_exponents_to_payoffs is not supported."
             return explanation if provide_explanation else False
 
     return "Success!" if provide_explanation else True
@@ -1511,9 +1550,9 @@ def build_utility_function_registry(
     ]
     n_models = len(settings_list)
 
-    parents_by_idx: Dict[int, List[int]] = {i: [] for i in range(n_models)}
-    siblings_by_idx: Dict[int, List[int]] = {i: [] for i in range(n_models)}
-    children_by_idx: Dict[int, List[int]] = {i: [] for i in range(n_models)}
+    parents_by_idx: Dict[int, List[int]] = {idx: [] for idx in range(n_models)}
+    siblings_by_idx: Dict[int, List[int]] = {idx: [] for idx in range(n_models)}
+    children_by_idx: Dict[int, List[int]] = {idx: [] for idx in range(n_models)}
 
     for row_i in range(n_models):
         for col_j in range(row_i + 1, n_models):
@@ -1678,7 +1717,12 @@ def _merge_ic_results_into_registry(
     so the merge lookup finds the correct rows.
     """
     def _ic_row_to_bitstring(ic_row: pd.Series) -> str:
-        raw = "".join("1" if bool(ic_row[flag]) else "0" for flag in canonical_flag_order)
+        "Treat flags absent from the IC CSV (added after the IC run) as False."
+        "generate_utility_settings enumerates with sorted(keys), so registry bitstrings are alphabetical."
+        raw = "".join(
+            "1" if (flag in ic_row.index and bool(ic_row[flag])) else "0"
+            for flag in sorted(canonical_flag_order)
+        )
         return _format_utility_bitstring(raw_bitstring=raw)
 
     ic_df["utility_bitstring"] = ic_df.apply(_ic_row_to_bitstring, axis=1)
@@ -1740,8 +1784,8 @@ def select_utility_settings_subset(
     random_seed: Optional[int] = None,
 ) -> List[UtilitySettings]:
     """
-    Returns a filtered and/or diversity-selected subset of the 480 valid utility forms,
-    drawing from the central registry (processed/all_utility_functions.csv).
+    Returns a filtered and/or diversity-selected subset of the 505 valid utility
+    forms, drawing from the central registry (processed/all_utility_functions.csv).
 
     Selection modes:
         'random'            — uniform random sample.
@@ -2064,7 +2108,7 @@ def compute_hamming_distance_matrix(
     """
     Computes the pairwise Hamming distance matrix over all valid utility forms in the
     central registry and caches it to processed/. The matrix is symmetric, has a zero
-    diagonal, and contains integer values in [0, 14] (one per Boolean flag position).
+    diagonal, and contains integer values in [0, 16] (one per Boolean flag position).
 
     The cache filename encodes the number of models so that a matrix computed on a
     different registry version does not silently overwrite or shadow the current one:
@@ -2078,8 +2122,8 @@ def compute_hamming_distance_matrix(
             Must contain key 'processed' pointing to the directory that holds
             all_utility_functions.csv and where the distance matrix is cached.
         • utility_settings: UtilitySettings | None
-            Used to derive canonical flag order when provided. If None, the flag order
-            is inferred from the registry columns (non-metadata columns).
+            Used to derive canonical flag order when provided. If None, the flag 
+            order is inferred from the registry columns (non-metadata columns).
         • create_new_file: bool (default False)
             If False and a cached matrix exists for the current registry size, that
             file is loaded and returned. If True, the matrix is recomputed and the
@@ -2106,7 +2150,7 @@ def compute_hamming_distance_matrix(
         print(f"Hamming matrix loaded from cache: {cache_path}  ({n_models}×{n_models})")
         return hamming_df
 
-    "Extract raw 14-bit strings (dashes removed) indexed by utility_idx for fast comparison."
+    "Extract raw bit strings (dashes removed) indexed by utility_idx for fast comparison."
     utility_idx_values: List[int] = list(registry_df["utility_idx"].astype(int))
     raw_bits_by_position: List[str] = [
         bits.replace("-", "") for bits in registry_df["utility_bitstring"]
@@ -2130,10 +2174,10 @@ def compute_hamming_distance_matrix(
         columns=utility_idx_values,
     )
 
-    "Sanity checks: symmetry, zero diagonal, integer values, range [0, 14]."
+    "Sanity checks: symmetry, zero diagonal, integer values, range [0, 16]."
     assert (hamming_df == hamming_df.T).all().all(), "Hamming matrix is not symmetric."
     assert (hamming_df.values.diagonal() == 0).all(), "Hamming matrix diagonal is not zero."
-    assert hamming_df.max().max() <= 14, "Hamming distance exceeds 14 (number of flags)."
+    assert hamming_df.max().max() <= 16, "Hamming distance exceeds 16 (number of flags)."
 
     hamming_df.to_csv(cache_path)
     print(
@@ -2216,14 +2260,14 @@ def compute_conditional_hamming_distance_matrix(
 
     "Count mismatches only where the flag is live in BOTH models."
     distance_matrix: List[List[int]] = [[0] * n_models for _ in range(n_models)]
-    for i in range(n_models):
-        settings_i = settings_list[i]
-        live_i     = live_flags_list[i]
-        for j in range(i + 1, n_models):
-            both_live = live_i & live_flags_list[j]
-            dist = sum(settings_i[k] != settings_list[j][k] for k in both_live)
-            distance_matrix[i][j] = dist
-            distance_matrix[j][i] = dist
+    for idx in range(n_models):
+        settings_i = settings_list[idx]
+        live_i     = live_flags_list[idx]
+        for jdx in range(idx + 1, n_models):
+            both_live = live_i & live_flags_list[jdx]
+            dist = sum(settings_i[kdx] != settings_list[jdx][kdx] for kdx in both_live)
+            distance_matrix[idx][jdx] = dist
+            distance_matrix[jdx][idx] = dist
 
     cond_hamming_df = pd.DataFrame(
         data=distance_matrix,
@@ -2290,7 +2334,7 @@ def identify_redundant_utility_functions(
         • compute_ampd_fn: callable | None (default None)
             When provided, called as compute_ampd_fn(general_settings=…, file_paths=…,
             param_bds=…, utility_settings=…, create_new_file=False) to obtain or
-            compute the 480×480 AMPD distance matrix. When None, Check 2 is skipped
+            compute the 505×505 AMPD distance matrix. When None, Check 2 is skipped
             and no AMPD columns are added — callers that should not trigger a potentially
             slow AMPD computation (e.g. quick_demo.py) should leave this as None.
         • general_settings: dict | None
@@ -2399,7 +2443,7 @@ def identify_redundant_utility_functions(
 
         "Map utility_idx → row in df so we can look up flags for any model index"
         idx_to_flags: dict[int, dict[str, bool]] = {
-            int(row_["utility_idx"]): {f: bool(row_[f]) for f in canonical_flags}
+            int(row_["utility_idx"]): {flag: bool(row_[flag]) for flag in canonical_flags}
             for _, row_ in df.iterrows()
         }
 
@@ -2407,15 +2451,15 @@ def identify_redundant_utility_functions(
         ampd_zero_with: dict[int, list[int]] = {}
         n_models = len(ampd_matrix)
         for i_idx, row_label in enumerate(ampd_matrix.index):
-            i = int(row_label)
+            rdx = int(row_label)
             for j_idx, col_label in enumerate(ampd_matrix.columns):
-                j = int(col_label)
-                if i >= j:
+                cdx = int(col_label)
+                if rdx >= cdx:
                     continue   # upper-triangle only; symmetric
                 val = ampd_matrix.iloc[i_idx, j_idx]
                 if pd.notna(val) and float(val) <= _ampd_epsilon:
-                    ampd_zero_with.setdefault(i, []).append(j)
-                    ampd_zero_with.setdefault(j, []).append(i)
+                    ampd_zero_with.setdefault(rdx, []).append(cdx)
+                    ampd_zero_with.setdefault(cdx, []).append(rdx)
 
         "Compute differing flags for each flagged model's zero-AMPD partners"
         def _ampd_differing(model_i: int, partners: list[int]) -> tuple[str, ...]:
@@ -2433,8 +2477,8 @@ def identify_redundant_utility_functions(
             lambda idx: tuple(sorted(ampd_zero_with[int(idx)])) if int(idx) in ampd_zero_with else None
         )
         df["ampd_zero_differing_settings"] = df.apply(
-            lambda r: _ampd_differing(int(r["utility_idx"]), list(ampd_zero_with[int(r["utility_idx"])]))
-                      if int(r["utility_idx"]) in ampd_zero_with else None,
+            lambda row: _ampd_differing(int(row["utility_idx"]), list(ampd_zero_with[int(row["utility_idx"])]))
+                      if int(row["utility_idx"]) in ampd_zero_with else None,
             axis=1,
         )
 
@@ -2539,6 +2583,30 @@ def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str
             utility_settings['fix_self_interest_parameter'] = False
             utility_settings['single_exponential_parameter'] = True
 
+    if pivot == 'include_welfare_efficiency_term' and utility_settings['include_welfare_efficiency_term']:
+        utility_settings['conditional_welfare_mode']        = False
+        utility_settings['min_max_rawlsian_leontief']       = False
+        utility_settings['use_negativity_parameters']       = False
+        utility_settings['negativity_social_comparison']    = False
+        utility_settings['fix_self_interest_parameter']     = False
+        utility_settings['include_relative_income_penalty'] = False
+        utility_settings['include_altruism_term']           = False
+        utility_settings['single_payoffs_not_differences']  = True
+        utility_settings['payoff_ratios_not_differences']   = False
+        utility_settings['reference_dependent_utility']     = False
+        utility_settings['apply_exponents_to_payoffs']      = False
+
+    if pivot == 'include_relative_income_penalty' and utility_settings['include_relative_income_penalty']:
+        utility_settings['conditional_welfare_mode']          = False
+        utility_settings['min_max_rawlsian_leontief']         = False
+        utility_settings['payoff_ratios_not_differences']     = False
+        utility_settings['use_negativity_parameters']         = False
+        utility_settings['negativity_social_comparison']      = False
+        utility_settings['include_welfare_efficiency_term']   = False
+        utility_settings['reference_dependent_utility']       = False
+        utility_settings['include_social_comparison']         = False
+        utility_settings['apply_exponents_to_payoffs']        = False
+
     "Enforce trailing implications that might be triggered indirectly:"
     "(No extra pivots beyond the minimal implications above.)"
     if not utility_settings['include_social_comparison']:
@@ -2560,25 +2628,25 @@ def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str
 
 def _format_utility_bitstring(raw_bitstring: str) -> str:
     """
-    Formats a 14-character raw bitstring into XXXX-XXXX-XXXX-XX for human readability
+    Formats a 16-character raw bitstring into XXXX-XXXX-XXXX-XXXX for human readability
     and Excel safety (the dashes prevent Excel from interpreting the value as an integer
     and silently stripping leading zeros).
 
     Arguments:
         • raw_bitstring: str
-            A 14-character string of '0' and '1' characters in canonical flag order.
+            A 16-character string of '0' and '1' characters in canonical flag order.
 
     Returns:
-        • str — formatted as 'XXXX-XXXX-XXXX-XX' (groups of 4-4-4-2, separated by dashes).
+        • str — formatted as 'XXXX-XXXX-XXXX-XXXX' (groups of 4-4-4-4, separated by dashes).
     """
-    return f"{raw_bitstring[0:4]}-{raw_bitstring[4:8]}-{raw_bitstring[8:12]}-{raw_bitstring[12:14]}"
+    return f"{raw_bitstring[0:4]}-{raw_bitstring[4:8]}-{raw_bitstring[8:12]}-{raw_bitstring[12:16]}"
 
 
 def parents_children_of(utility_settings: Union[UtilitySettings, BoolTuple], return_children: bool = True, 
                         return_parents: bool = True, general_settings: Optional[Dict[str, Any]] = None) -> Dict[str, Optional[List[BoolTuple]]]:
     """
-    Returns immediate neighbors (by one *pivot* change, allowing dependent fixes).
-    Child/Parent is defined by Δk = k(neighbor) - k(focal), which may be > 1 (e.g., exponent toggles).
+    Returns immediate neighbors (by one *pivot* change, allowing dependent fixes). Child/
+    Parent is defined by Δk = k(neighbor) - k(focal), which may be > 1 (e.g., exponent toggles).
 
     Arguments:
         • utility_settings: dict[str, bool] | tuple[bool]; Focal model.
@@ -2681,9 +2749,12 @@ def classify_pair_relation(model_1: Union[UtilitySettings, BoolTuple], model_2: 
         return ('neither', 'neither', None) 
 
     settings_when_flipped_dont_make_relatives = (
-        'conditional_welfare_mode', 
-        'min_max_rawlsian_leontief'
-    )    
+        'conditional_welfare_mode',
+        'min_max_rawlsian_leontief',
+        'include_welfare_efficiency_term',
+        'include_relative_income_penalty',
+    )
+
     settings_when_flipped_make_siblings = (
         'apply_exponents_to_payoffs',
         'single_payoffs_not_differences',
@@ -2709,7 +2780,7 @@ def classify_pair_relation(model_1: Union[UtilitySettings, BoolTuple], model_2: 
     different_settings = 0
     different_setting = None
     for utility_setting in utility_settings:
-        if model_1[utility_setting] != model_2[utility_setting]:
+        if model_1.get(utility_setting, False) != model_2.get(utility_setting, False):
             different_setting = utility_setting
             different_settings += 1    
 
@@ -2743,11 +2814,11 @@ def classify_pair_relation(model_1: Union[UtilitySettings, BoolTuple], model_2: 
 
     else:
         for utility_setting in utility_settings:
-            if model_1[utility_setting] != model_2[utility_setting]:
-                if utility_setting not in settings_when_flipped_make_children_parents:        
+            if model_1.get(utility_setting, False) != model_2.get(utility_setting, False):
+                if utility_setting not in settings_when_flipped_make_children_parents:
                     "Parents and children can only be created by flipping specific utility settings."
                     return ('neither', 'neither', different_setting)
-                if model_1['min_max_rawlsian_leontief'] and model_2['min_max_rawlsian_leontief']:
+                if model_1.get('min_max_rawlsian_leontief', False) and model_2.get('min_max_rawlsian_leontief', False):
                     if utility_setting == 'include_social_comparison':
                         "Rawlsian and Leontief forms are not relatives of any kind."
                         return ('neither', 'neither', different_setting)   
