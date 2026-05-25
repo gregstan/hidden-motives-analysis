@@ -2778,7 +2778,8 @@ def extract_rankings_of_canonical_utility_functions(file_paths: FilePaths, rank_
 
 def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: dict[str, Any], file_paths: dict[str, Any], param_bds: dict[str, tuple[float, float]],
                                              utility_settings: UtilitySettings, player_role_to_fit: str = "predictor", fit_for_n_players: int | None = None,
-                                             random_seed: int | None = None, numeric_tolerance: float = 1e-4, csv_file_name: str | None = None, verbose: bool = True) -> pd.DataFrame:
+                                             random_seed: int | None = None, numeric_tolerance: float = 1e-4, csv_file_name: str | None = None, verbose: bool = True,
+                                             print_failures: bool = True) -> pd.DataFrame:
     """
     Structural validity test: confirms that every child model is a true special case of its parent.
 
@@ -2921,11 +2922,21 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
                 parent_parameters['βᵢⱼ'] = 0.0
 
         elif changed_utility_setting == "include_altruism_term":
-            "Altruism added in parent → zero its weights"
-            if 'Vᵢⱼ' in parent_param_keys:
-                parent_parameters['Vᵢⱼ'] = 0.0
-            if 'Ʌᵢⱼ' in parent_param_keys:
-                parent_parameters['Ʌᵢⱼ'] = 0.0
+            if parent_settings.get("conditional_welfare_mode", False):
+                "Conditional welfare normalizes raw params from [-1,1] → [0,1]: used = (raw+1)/2."
+                "Child (no altruism) uses weight_1_al = 1 − Vᵢᵢ_used = (1 − Vᵢᵢ_raw)/2."
+                "Parent altruism uses weight_1_al = Vᵢⱼ_used = (Vᵢⱼ_raw+1)/2."
+                "For equality: (Vᵢⱼ_raw+1)/2 = (1−Vᵢᵢ_raw)/2  →  Vᵢⱼ_raw = −Vᵢᵢ_raw."
+                if 'Vᵢⱼ' in parent_param_keys:
+                    parent_parameters['Vᵢⱼ'] = -float(parent_parameters.get('Vᵢᵢ', child_parameter_dict.get('Vᵢᵢ', 0.0)))
+                if 'Ʌᵢⱼ' in parent_param_keys:
+                    parent_parameters['Ʌᵢⱼ'] = -float(parent_parameters.get('Ʌᵢᵢ', child_parameter_dict.get('Ʌᵢᵢ', 0.0)))
+            else:
+                "Standard additive: zeroing altruism weights reproduces the child (altruism = 0)."
+                if 'Vᵢⱼ' in parent_param_keys:
+                    parent_parameters['Vᵢⱼ'] = 0.0
+                if 'Ʌᵢⱼ' in parent_param_keys:
+                    parent_parameters['Ʌᵢⱼ'] = 0.0
 
         elif changed_utility_setting == "negativity_social_comparison":
             "Parent splits envy/guilt → tie them to the child's single weight (αᵢⱼ_child)"
@@ -2947,19 +2958,6 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
             "Parent released Vᵢᵢ → set it to fixed constant (1.0) to replicate child"
             if 'Vᵢᵢ' in parent_param_keys:
                 parent_parameters['Vᵢᵢ'] = 1.0
-
-        elif changed_utility_setting == "include_altruism_term":
-            if parent_settings.get("conditional_welfare_mode", False):
-                "Parent gained an explicit altruism parameter inside conditional welfare."
-                "To replicate the child (which uses implicit 1 - Vᵢᵢ / 1 - Ʌᵢᵢ), set:"
-                if 'Vᵢⱼ' in parent_param_keys:
-                    parent_parameters['Vᵢⱼ'] = 1.0 - float(parent_parameters.get('Vᵢᵢ', child_parameter_dict.get('Vᵢᵢ', 0.0)))
-                if 'Ʌᵢⱼ' in parent_param_keys:
-                    parent_parameters['Ʌᵢⱼ'] = 1.0 - float(parent_parameters.get('Ʌᵢᵢ', child_parameter_dict.get('Ʌᵢᵢ', 0.0)))
-            else:
-                "Non-conditional case: zeroing altruism reproduces the child"
-                if 'Vᵢⱼ' in parent_param_keys: parent_parameters['Vᵢⱼ'] = 0.0
-                if 'Ʌᵢⱼ' in parent_param_keys: parent_parameters['Ʌᵢⱼ'] = 0.0
 
         "3) Any remaining parent keys not touched yet get a benign default:"
         for parameter_key in parent_param_keys:
@@ -3290,6 +3288,19 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
             print(f"[Verify] Failures by changed_utility_setting:")
             for flag_name, count in fail_counts.items():
                 print(f"[Verify]   {flag_name:<40s} {count}")
+
+    if print_failures:
+        failures = results_dataframe[~results_dataframe['equal_loss']]
+        if len(failures) > 0:
+            by_setting = failures.groupby('changed_utility_setting')
+            for setting_name, group in by_setting:
+                print(f"\nFailures for {setting_name}: {len(group)}")
+                for _, row in group.iterrows():
+                    delta = row['loss_parent_minus_child']
+                    print(f"  Δloss={delta:+.6f}  parent={int(row['parent_idx'])}  child={int(row['child_idx'])}")
+                    print(f"    Parent: {row['equation_parent']}")
+                    print(f"    Child:  {row['equation_child']}")
+                    print()
 
     return results_dataframe
 
