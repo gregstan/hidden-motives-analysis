@@ -2962,6 +2962,9 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
         "3) Any remaining parent keys not touched yet get a benign default:"
         for parameter_key in parent_param_keys:
             if parameter_key not in parent_parameters:
+                if parameter_key.startswith('γ') and parameter_key not in child_parameter_dict:
+                    "Don't fill γ keys absent from child — avoids diluting mean-gamma penalty"
+                    continue
                 "If it's a γ, default to 1.0; otherwise default to 0.0 (neutral weight)."
                 parent_parameters[parameter_key] = 1.0 if parameter_key.startswith('γ') else 0.0
 
@@ -3123,8 +3126,8 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
     ic_dataframe = pd.read_csv(ic_path)
 
     general_settings = copy.deepcopy(general_settings)
-    # general_settings['confidence_weighted'] = False
-    # general_settings['penalty_weight'] = 0.0
+    general_settings['confidence_weighted'] = False
+    general_settings['penalty_weight'] = 0.0
     
     "Build child→parent pairs"
     child_parent_pairs = _enumerate_child_parent_pairs_from_ic(
@@ -3182,8 +3185,7 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
         )
 
         "Ensure *_std keys exist for grid/MCMC updates (predictor priors need sigmas)."
-        # if general_settings.get('update_method') in ('grid', 'MCMC') and player_role_to_fit == "predictor": # Use this line after debugging!
-        if general_settings.get('update_method') in ('grid', 'MCMC'):
+        if general_settings.get('update_method') in ('grid', 'MCMC') and player_role_to_fit == "predictor":
             bounds_lookup = {param_key: param_bounds for param_key, param_bounds 
                              in zip(parent_param_info['keys'], parent_param_info['bounds'])}
             min_std_guess = 0.5  # Same convention used elsewhere.

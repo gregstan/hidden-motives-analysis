@@ -179,7 +179,7 @@
         "use_exponential_parameters": false,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = (1 − Vᵢᵢ)πᵢᴬ + Vᵢᵢ × ((πᵢᴬ + πⱼᴬ)/2)": {
+    "Uᵢ(A) = (1 - Vᵢᵢ)πᵢᴬ + Vᵢᵢ × ((πᵢᴬ + πⱼᴬ)/2)": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": false,
@@ -557,7 +557,7 @@
         "use_exponential_parameters": false,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = πᵢᴬ - πᵢᴮ − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)": {
+    "Uᵢ(A) = πᵢᴬ - πᵢᴮ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": true,
@@ -575,7 +575,7 @@
         "use_exponential_parameters": false,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = πᵢᴬ − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)": {
+    "Uᵢ(A) = πᵢᴬ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": true,
@@ -1007,7 +1007,7 @@
         "use_exponential_parameters": false,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = (1 − Vᵢᵢ)πᵢᴬ^γ₁ + Vᵢᵢ × ((πᵢᴬ + πⱼᴬ)/2)^γ₁": {
+    "Uᵢ(A) = (1 - Vᵢᵢ)πᵢᴬ^γ₁ + Vᵢᵢ × ((πᵢᴬ + πⱼᴬ)/2)^γ₁": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": false,
@@ -1205,7 +1205,7 @@
         "use_exponential_parameters": true,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = (1 − Vᵢᵢ − Vᵢⱼ)πᵢᴬ + Vᵢᵢ × ((πᵢᴬ + πⱼᴬ)/2) + Vᵢⱼ × min(πᵢᴬ, πⱼᴬ)": {
+    "Uᵢ(A) = (1 - Vᵢᵢ - Vᵢⱼ)πᵢᴬ + Vᵢᵢ × ((πᵢᴬ + πⱼᴬ)/2) + Vᵢⱼ × min(πᵢᴬ, πⱼᴬ)": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": false,
@@ -1223,7 +1223,7 @@
         "use_exponential_parameters": false,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ) − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)": {
+    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ) - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": false,
@@ -1241,7 +1241,7 @@
         "use_exponential_parameters": false,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ) − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)": {
+    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ) - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": false,
@@ -1709,7 +1709,7 @@
         "use_exponential_parameters": false,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = πᵢᴬ - πᵢᴮ − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)^γ₁": {
+    "Uᵢ(A) = πᵢᴬ - πᵢᴮ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": true,
@@ -1727,7 +1727,7 @@
         "use_exponential_parameters": true,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = πᵢᴬ − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)^γ₁": {
+    "Uᵢ(A) = πᵢᴬ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": true,
@@ -1925,7 +1925,7 @@
         "use_exponential_parameters": false,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = πᵢᴬ - πᵢᴮ + Vᵢⱼ(πⱼᴬ - πⱼᴮ) − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)": {
+    "Uᵢ(A) = πᵢᴬ - πᵢᴮ + Vᵢⱼ(πⱼᴬ - πⱼᴮ) - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": true,
@@ -1943,7 +1943,7 @@
         "use_exponential_parameters": false,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = πᵢᴬ + Vᵢⱼ(πⱼᴬ) − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)": {
+    "Uᵢ(A) = πᵢᴬ + Vᵢⱼ(πⱼᴬ) - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": true,
@@ -2933,7 +2933,7 @@
         "use_exponential_parameters": true,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = (1 − Vᵢᵢ − Vᵢⱼ)πᵢᴬ^γ₁ + Vᵢᵢ × ((πᵢᴬ + πⱼᴬ)/2)^γ₁ + Vᵢⱼ × min(πᵢᴬ, πⱼᴬ)^γ₁": {
+    "Uᵢ(A) = (1 - Vᵢᵢ - Vᵢⱼ)πᵢᴬ^γ₁ + Vᵢᵢ × ((πᵢᴬ + πⱼᴬ)/2)^γ₁ + Vᵢⱼ × min(πᵢᴬ, πⱼᴬ)^γ₁": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": false,
@@ -2951,7 +2951,7 @@
         "use_exponential_parameters": true,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)^γ₁": {
+    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": false,
@@ -2969,7 +2969,7 @@
         "use_exponential_parameters": true,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)^γ₁": {
+    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": false,
@@ -3347,7 +3347,7 @@
         "use_exponential_parameters": true,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ) + Vᵢⱼ(πⱼᴬ - πⱼᴮ) − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)": {
+    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ) + Vᵢⱼ(πⱼᴬ - πⱼᴮ) - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": false,
@@ -3365,7 +3365,7 @@
         "use_exponential_parameters": false,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ) + Vᵢⱼ(πⱼᴬ) − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)": {
+    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ) + Vᵢⱼ(πⱼᴬ) - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": false,
@@ -3653,7 +3653,7 @@
         "use_exponential_parameters": false,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = πᵢᴬ - πᵢᴮ + Vᵢⱼ(πⱼᴬ - πⱼᴮ)^γ₁ − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)^γ₁": {
+    "Uᵢ(A) = πᵢᴬ - πᵢᴮ + Vᵢⱼ(πⱼᴬ - πⱼᴮ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": true,
@@ -3671,7 +3671,7 @@
         "use_exponential_parameters": true,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = πᵢᴬ + Vᵢⱼ(πⱼᴬ)^γ₁ − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)^γ₁": {
+    "Uᵢ(A) = πᵢᴬ + Vᵢⱼ(πⱼᴬ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": true,
@@ -4913,7 +4913,7 @@
         "use_exponential_parameters": true,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = (1 − Vᵢᵢ − Vᵢⱼ)πᵢᴬ^γ₁ + Vᵢᵢ × ((πᵢᴬ + πⱼᴬ)/2)^γ₁ + Vᵢⱼ × min(πᵢᴬ, πⱼᴬ)^γ₂": {
+    "Uᵢ(A) = (1 - Vᵢᵢ - Vᵢⱼ)πᵢᴬ^γ₁ + Vᵢᵢ × ((πᵢᴬ + πⱼᴬ)/2)^γ₁ + Vᵢⱼ × min(πᵢᴬ, πⱼᴬ)^γ₂": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": false,
@@ -4931,7 +4931,7 @@
         "use_exponential_parameters": true,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)^γ₃": {
+    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₃": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": false,
@@ -4949,7 +4949,7 @@
         "use_exponential_parameters": true,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)^γ₃": {
+    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₃": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": false,
@@ -5399,7 +5399,7 @@
         "use_exponential_parameters": false,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ + Vᵢⱼ(πⱼᴬ - πⱼᴮ)^γ₁ − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)^γ₁": {
+    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ + Vᵢⱼ(πⱼᴬ - πⱼᴮ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": false,
@@ -5417,7 +5417,7 @@
         "use_exponential_parameters": true,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ + Vᵢⱼ(πⱼᴬ)^γ₁ − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)^γ₁": {
+    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ + Vᵢⱼ(πⱼᴬ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": false,
@@ -7613,7 +7613,7 @@
         "use_exponential_parameters": false,
         "use_negativity_parameters": true
     },
-    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ + Vᵢⱼ(πⱼᴬ - πⱼᴮ)^γ₂ − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)^γ₃": {
+    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ + Vᵢⱼ(πⱼᴬ - πⱼᴮ)^γ₂ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₃": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": false,
@@ -7631,7 +7631,7 @@
         "use_exponential_parameters": true,
         "use_negativity_parameters": false
     },
-    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ + Vᵢⱼ(πⱼᴬ)^γ₂ − αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) − 1/2)^γ₃": {
+    "Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ + Vᵢⱼ(πⱼᴬ)^γ₂ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₃": {
         "apply_exponents_to_payoffs": false,
         "conditional_welfare_mode": false,
         "fix_self_interest_parameter": false,
