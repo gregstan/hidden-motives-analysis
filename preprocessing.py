@@ -429,44 +429,63 @@ def players_to_dyads(experiment_num: int, file_paths: FilePaths, create_new_file
     return plrs_to_dyads
 
 
-def serialize_param_vectors(dyad_games: DyadGames, general_settings: dict[str, Any]) -> DyadGames:
+def serialize_or_drop_param_vectors(dyad_games: DyadGames, general_settings: dict[str, Any],
+                                    drop_grids: bool = False) -> DyadGames:
     """
-    Convert parameter grid data inside a dyad game list into a JSON-serializable form.
+    Convert or discard parameter grid data inside a dyad game list.
 
-    When `update_method` is `'grid'`, parameter vectors are stored as tuple keys and
-    numpy arrays, neither of which is directly JSON-serializable.  This function
-    converts tuple keys to their string representations and converts numpy arrays to
-    plain Python lists, rounding values to 9 decimal places.
+    When `update_method` is `'grid'`, the `meta_data` and `param_vectors` entries inside
+    `parameter_estimates > grid > player_uuid > player_role` are either serialized into
+    JSON-compatible types or dropped entirely, depending on `drop_grids`.
 
     Arguments:
         • dyad_games: DyadGames
             List of per-round game dicts for a single dyad; modified in place.
         • general_settings: dict[str, Any]
-            Must contain `'update_method'`; if it is not `'grid'`, the function returns
-            immediately without modification.
+            Must contain `'update_method'`; if it is not `'grid'`, the function 
+            returns immediately without modification.
+        • drop_grids: bool;
+            If False (default), converts tuple keys to strings and Numpy arrays to rounded
+            Python lists so the data is JSON-serializable — retains full grid detail.
+            If True, deletes `meta_data` and `param_vectors` from each game entirely,
+            leaving only the lightweight `params` (MAP estimates) and any other scalar
+            entries. Use this for simulation data where the grids are never needed again.
 
     Returns:
-        • DyadGames — the same list with grid data converted to serializable types.
+        • DyadGames — the same list, modified in place.
     """
     if general_settings.get('update_method') != 'grid':
         return dyad_games
-    
-    first_choo = dyad_games[0]['chooser']
-    first_pred = dyad_games[0]['predictor']
 
-    for idx in range(len(dyad_games)):
-        dyad_game = dyad_games[idx]
-        for player_uuid in [first_choo, first_pred]:
+    first_chooser_uuid   = dyad_games[0]['chooser']
+    first_predictor_uuid = dyad_games[0]['predictor']
+
+    for game_idx in range(len(dyad_games)):
+        dyad_game = dyad_games[game_idx]
+        for player_uuid in [first_chooser_uuid, first_predictor_uuid]:
             for player_role in ['chooser', 'predictor']:
                 grid_data: dict = dyad_game.get('parameter_estimates', {}).get(
                     'grid', {}).get(player_uuid, {}).get(player_role, {})
-                meta_data = grid_data.get('meta_data', None)
-                if meta_data is not None:
-                    meta_data['tickvals'] = {key: [round(val, 9) for val in ticks_array.tolist()] if isinstance(ticks_array, np.ndarray) 
-                                                else [round(val, 9) for val in list(ticks_array)] for key, ticks_array in meta_data['tickvals'].items()}
-                param_vectors = grid_data.get('param_vectors', None)   
-                if param_vectors is not None:
-                    grid_data['param_vectors'] = {str(tuple(x.item() for x in vect_key)): value for vect_key, value in param_vectors.items()}   
+                if not grid_data:
+                    continue
+                if drop_grids:
+                    grid_data.pop('meta_data', None)
+                    grid_data.pop('param_vectors', None)
+                else:
+                    meta_data = grid_data.get('meta_data', None)
+                    if meta_data is not None:
+                        meta_data['tickvals'] = {
+                            param_key: [round(tick_value, 9) for tick_value in ticks_array.tolist()]
+                            if isinstance(ticks_array, np.ndarray)
+                            else [round(tick_value, 9) for tick_value in list(ticks_array)]
+                            for param_key, ticks_array in meta_data['tickvals'].items()
+                        }
+                    param_vectors = grid_data.get('param_vectors', None)
+                    if param_vectors is not None:
+                        grid_data['param_vectors'] = {
+                            str(tuple(param_coord.item() for param_coord in param_vector_key)): grid_probability
+                            for param_vector_key, grid_probability in param_vectors.items()
+                        }
 
     return dyad_games
 

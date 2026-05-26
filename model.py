@@ -428,16 +428,15 @@ def softmax_(uA: float, uB: float, temperature: float = 1.5, use_fallback: bool 
     return probabilities[0]
 
 
-def choice(current_game: dict[str, Any], agent_params: Dict[str, float], utility_settings: UtilitySettings, 
-           softmax_temperature: float = 1.5, select: bool = False, normalize_conditional_welfare_params: bool = True) -> dict[str, float | Any]:
+def response(current_game: dict[str, Any], agent_params: Dict[str, float], utility_settings: UtilitySettings,
+             softmax_temperature: float = 1.5, select_responses: bool = False, normalize_conditional_welfare_params: bool = True) -> dict[str, float | Any]:
     """
-    Compute the model-predicted probability (or binary decision) for option A in a single game.
+    Compute the model-predicted response probability (or sampled binary response) for option A in a single game.
 
-    Extracts payoffs from current_game, evaluates utility() for both options under agent_params,
-    and passes the resulting utilities through softmax_() to get a choice probability. Optionally
-    converts that probability to a binary draw (select=True), which is used during simulation.
-    Also computes a confidence score from parameter standard deviations, included in the output
-    so downstream code can weight predictions by their certainty.
+    Called for both chooser and predictor roles — 'response' covers both a chooser's choice and
+    a predictor's prediction. Evaluates utility() for both options under agent_params, passes the
+    results through softmax_() to get a response probability, and optionally samples a binary
+    outcome. Also computes a confidence score from parameter standard deviations.
 
     Arguments:
         • current_game: dict
@@ -453,16 +452,17 @@ def choice(current_game: dict[str, Any], agent_params: Dict[str, float], utility
         • utility_settings: UtilitySettings
             Boolean toggles selecting the active utility functional form (see utility() docs).
         • softmax_temperature: float
-            SoftMax temperature τ controlling stochasticity of choices. Higher → flatter distribution.
-        • select: bool
+            SoftMax temperature τ controlling stochasticity of responses. Higher → flatter distribution.
+        • select_responses: bool
             If True, stochastically converts the probability to a binary 1/0 via a random draw.
             If False, returns the raw probability in [0, 1].
+            Set False (default) when processing real participant data to avoid overwriting responses.
         • normalize_conditional_welfare_params: bool
             Passed through to utility(). Only relevant when conditional_welfare_mode=True.
 
     Returns:
         • dict with keys:
-            - 'model_choose_A': float in [0, 1] (probability) or int in {0, 1} (if select=True).
+            - 'model_choose_A': float in [0, 1] (probability) or int in {0, 1} (if select_responses=True).
             - 'confidence': float in (0, 1]; inverse-mean-std-based measure of parameter certainty.
     """
     "Identify payoffs from the game."
@@ -470,7 +470,7 @@ def choice(current_game: dict[str, Any], agent_params: Dict[str, float], utility
     payoff_A_predictor = current_game.get('payoff_A_predictor', None)
     payoff_B_chooser =   current_game.get('payoff_B_chooser', None)
     payoff_B_predictor = current_game.get('payoff_B_predictor', None)
-    
+
     if any(payoff is None for payoff in (payoff_A_chooser, payoff_A_predictor, payoff_B_chooser, payoff_B_predictor)):
         raise Exception(f"Failed to extract payoff in game {current_game}.")
 
@@ -481,21 +481,20 @@ def choice(current_game: dict[str, Any], agent_params: Dict[str, float], utility
     utilityA = utility(payoffs=payoffsA, params=agent_params, utility_settings=utility_settings, normalize_conditional_welfare_params=normalize_conditional_welfare_params)
     utilityB = utility(payoffs=payoffsB, params=agent_params, utility_settings=utility_settings, normalize_conditional_welfare_params=normalize_conditional_welfare_params)
 
-    "Compute choice probability via SoftMax."
+    "Compute response probability via SoftMax."
     p_choose_A = softmax_(uA=utilityA, uB=utilityB, temperature=softmax_temperature)
 
-    "Compute 'confidence' as inverse mean variance"
+    "Compute confidence as inverse mean variance of parameter standard deviations."
     std_params = [agent_params[pkey] for pkey in agent_params if pkey.endswith('_std')]
     if not std_params:
-        confidence = 1.0  # Default confidence if no valid parameters
+        confidence = 1.0
     else:
-        # confidence = np.exp(-np.mean(std_params))
         confidence = math.exp(-np.mean(std_params))
 
-    if select:
-        "Convert to binary 1/0"
+    if select_responses:
+        "Convert to binary 1/0 by sampling from the response probability."
         random_draw = random.random()
-        p_choose_A = 1 if random_draw < p_choose_A else 0        
+        p_choose_A = 1 if random_draw < p_choose_A else 0
 
     return {"model_choose_A": p_choose_A, "confidence": confidence}
 

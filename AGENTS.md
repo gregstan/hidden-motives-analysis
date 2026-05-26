@@ -185,9 +185,52 @@ fits each to data, and computes AIC/BIC. Model-nesting-aware warm-starting (chil
 parameter mappings) prevents nesting violations where a richer model appears to fit worse than
 its simpler nested version.
 
-### Pipeline robustness: call generating functions, not raw `pd.read_csv`
+### Generate-cache-retrieve pattern
 
 **This is a fundamental repo convention — preserve it in all new functions.**
+
+Every function that generates data and writes it to disk (CSV, JSON, or any file) must also
+check for and return the cached result.  The canonical three-step pattern — **always follow
+this exactly when writing a new generating function**:
+
+**Step 1 — Encode settings in the filename.**  Build the output path from the settings that
+uniquely determine the output.  Encode all relevant settings directly in the filename so that
+changing any setting produces a new, non-colliding file rather than silently overwriting
+existing data.  See the "CSV-from-settings pattern" section below for examples.
+
+**Step 2 — Resolve `create_new_file` from `general_settings` when not specified.**  The
+function signature uses `create_new_file: bool | None = None`.  At the top of the function
+body, before the cache check, resolve the sentinel:
+```python
+if create_new_file is None:
+    create_new_file = general_settings.get('create_new_file', False)
+```
+This lets `general_settings` act as the global default while still allowing callers to
+override per-call.
+
+**Step 3 — Check, load, or generate.**  If `create_new_file=False` and the settings-encoded
+file exists, load and return it immediately.  Otherwise compute, write to disk, and return.
+
+```python
+"Canonical generate-cache-retrieve skeleton"
+def compute_something(general_settings, file_paths, create_new_file: bool | None = None):
+    "Step 2 — resolve sentinel"
+    if create_new_file is None:
+        create_new_file = general_settings.get('create_new_file', False)
+    "Step 1 — settings-encoded path"
+    output_path = os.path.join(file_paths['processed'], _build_filename(general_settings))
+    "Step 3 — check, load, or generate"
+    if not create_new_file and os.path.exists(output_path):
+        return pd.read_csv(output_path, encoding='utf-8-sig')
+    result = _expensive_computation(...)
+    result.to_csv(output_path, index=False, encoding='utf-8-sig')
+    return result
+```
+
+This pattern lets callers resume interrupted runs without recomputing.  It also means callers
+never need to call `pd.read_csv` or `json.load` directly — they just call the generating
+function with `create_new_file=False` (or omit it) and receive the data regardless of whether
+it was freshly computed or loaded from cache.
 
 Any function that depends on a CSV produced by another function in this codebase must call
 that generating function (with `create_new_file=False`) rather than calling `pd.read_csv`

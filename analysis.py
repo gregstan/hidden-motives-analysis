@@ -177,7 +177,7 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
                 human_player_uuid = these_dyad_games[0]["predictor"]  # Assumed consistent across the dyad.
                 updated_dyad = typo.discrete_bayesian_model(
                     dyad_games=these_dyad_games,
-                    choice_funct=choice,
+                    choice_funct=response,
                     player_uuid=human_player_uuid,
                     general_settings=general_settings_,
                     hypothesis_space=hypothesis_space
@@ -469,7 +469,7 @@ def compute_loss_for_typological_model_across_all_data(hypothesis_space: Dict[Tu
         local_space = copy.deepcopy(hypothesis_space)
         updated_dyad = typo.discrete_bayesian_model(
             dyad_games=copy.deepcopy(dyad_games),
-            choice_funct=choice,
+            choice_funct=response,
             player_uuid=human_player_uuid,
             general_settings=general_settings,
             hypothesis_space=local_space,
@@ -826,7 +826,7 @@ def typological_model_nll_for_player(hypothesis_space: Dict[tuple[float, float],
             these_dyad_games = copy.deepcopy(dyad_games)
             updated_dyad = typo.discrete_bayesian_model(
                 dyad_games=these_dyad_games,
-                choice_funct=choice, 
+                choice_funct=response, 
                 player_uuid=player_uuid,
                 general_settings=general_settings,
                 hypothesis_space=local_space,
@@ -3319,7 +3319,7 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
         1) Build child→parent pairs from the IC table, preserving canonical indices.
         2) Draw a child mean-parameter dictionary uniformly within `param_bds` (means only).
         3) Embed child means into the parent (gnrl rules) to reproduce the child.
-        4) Compute p(A) for n_trials randomized games using choice(...), for child and parent.
+        4) Compute p(A) for n_trials randomized games using response(...), for child and parent.
         5) Store max|Δp| and a boolean pass/fail in a compact CSV.
 
     Arguments:
@@ -3356,17 +3356,17 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
                       params: dict[str, float], temperature: float = 1.5) -> list[float]:
         out = []
         for game in games:
-            choice_result = choice(current_game=game,
-                       agent_params=params,
-                       utility_settings=u_settings,
-                       softmax_temperature=temperature,
-                       normalize_conditional_welfare_params=False,
-                       select=False)
+            choice_result = response(current_game=game,
+                          agent_params=params,
+                          utility_settings=u_settings,
+                          softmax_temperature=temperature,
+                          normalize_conditional_welfare_params=False,
+                          select_responses=False)
             out.append(float(choice_result["model_choose_A"]))
         return out
 
     def _means_only_keys(utility_settings_dict: dict[str, bool]) -> list[str]:
-        "Only means (no *_std, no cov), consistent with the choice() pipeline"
+        "Only means (no *_std, no cov), consistent with the response() pipeline."
         return [param_key for param_key in gnrl.parameter_keys_for_utility_settings(
             utility_settings_dict, general_settings={"update_method": "naive"}
         ) if not (param_key.endswith("_std") or param_key.endswith("_cov"))]

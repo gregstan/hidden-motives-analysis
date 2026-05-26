@@ -1066,9 +1066,9 @@ def store_params_in_dyad_mle(dyad_games: DyadGames, player_uuid: PlayerUUID, pla
         model_select_A = "model_choose_A" if player_role == "chooser" else "model_predict_A"
         role_dict["output"] = {
             "loss": item["loss"],
-            model_select_A: choice(current_game=meeting, agent_params=role_dict["params"], 
-                                   softmax_temperature=general_settings.get('softmax_temperature', 1.5), 
-                                   utility_settings=utility_settings, select=False)["model_choose_A"]
+            model_select_A: response(current_game=meeting, agent_params=role_dict["params"],
+                                    softmax_temperature=general_settings.get('softmax_temperature', 1.5),
+                                    utility_settings=utility_settings, select_responses=False)["model_choose_A"]
         }
     
     return dyad_games

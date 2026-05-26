@@ -1874,7 +1874,8 @@ def compute_model_recovery_simulation(
             param_bds=param_bds,
             default_utility_settings=False,
             dynamic_predictor=False,
-            dyad_id=f"synthetic_agent_{agent_idx}",
+            player_1_uuid=f"synthetic_agent_{agent_idx}_chooser",
+            player_2_uuid=f"synthetic_agent_{agent_idx}_predictor",
         )
         all_synthetic_agent_dyads.append(dyad_data)
 

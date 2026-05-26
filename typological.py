@@ -597,8 +597,8 @@ def discrete_bayesian_model(dyad_games: list[dict], choice_funct: callable, play
 
         "Compute likelihood p(choose A | avatar profile)"
         p_choice_given_profile = [
-            choice_funct(current_game=dyad_game, agent_params={'Vᵢᵢ': profile_key[0], 'Vᵢⱼ': profile_key[1]}, 
-                        utility_settings=utility_settings_, softmax_temperature=softmax_temperature, select=False)
+            choice_funct(current_game=dyad_game, agent_params={'Vᵢᵢ': profile_key[0], 'Vᵢⱼ': profile_key[1]},
+                         utility_settings=utility_settings_, softmax_temperature=softmax_temperature, select_responses=False)
                         ['model_choose_A'] for profile_key in hypothesis_space.keys()
         ]
         if dyad_game.get('choice') == "B":

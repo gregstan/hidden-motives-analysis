@@ -72,7 +72,7 @@ def bayesian_update_parametric(old_means: Dict[str, float], old_stds: Dict[str, 
             current_game=game_dict,
             agent_params=merged_params,
             utility_settings=utility_settings,
-            select=False
+            select_responses=False
         )
         probability_choose_A = choice_result['model_choose_A']
         if observed_choice == 'A':
@@ -215,7 +215,7 @@ def bayesian_update_mcmc(old_means: Dict[str, float], old_stds: Dict[str, float]
             current_game=game_dict,
             agent_params=parameter_values_dict,
             utility_settings=utility_settings,
-            select=False
+            select_responses=False
         )
 
         probability_predict_A = choice_output.get('model_choose_A', None)
@@ -655,8 +655,8 @@ def bayesian_update_grid(prior_array: NDArray[np.float64] | dict[tuple[int, ...]
             A single game payload containing payoffs and the observed choice ('A' or 'B').
         • choice_func: callable
             A function with the signature:
-                choice_func(current_game, agent_params, utility_settings, softmax_temperature, select=False)
-            Must return a dict with key 'model_choose_A' in [0, 1]. Typically this is choice().
+                choice_func(current_game, agent_params, utility_settings, softmax_temperature, select_responses=False)
+            Must return a dict with key 'model_choose_A' in [0, 1]. Typically this is response().
         • utility_settings: dict
             Boolean flags defining the active utility functional form (same toggles as utility()).
         • general_settings: GeneralSettings
@@ -713,7 +713,7 @@ def bayesian_update_grid(prior_array: NDArray[np.float64] | dict[tuple[int, ...]
                              agent_params=agent_params,
                              utility_settings=utility_settings,
                              softmax_temperature=softmax_temperature,
-                             select=False)['model_choose_A']
+                             select_responses=False)['model_choose_A']
             likelihoods[row_idx] = probability_choose_A if obs_is_A else (1.0 - probability_choose_A)
 
         "Posterior (full-grid)"
@@ -759,7 +759,7 @@ def bayesian_update_grid(prior_array: NDArray[np.float64] | dict[tuple[int, ...]
                              agent_params=agent_params,
                              utility_settings=utility_settings,
                              softmax_temperature=softmax_temperature,
-                             select=False)['model_choose_A']
+                             select_responses=False)['model_choose_A']
             likelihoods[row_idx] = probability_choose_A if obs_is_A else (1.0 - probability_choose_A)
 
         posterior_probs = likelihoods if no_memory_mode else (sampled_prior_probs * likelihoods)
@@ -858,7 +858,7 @@ def bayesian_update_grid(prior_array: NDArray[np.float64] | dict[tuple[int, ...]
             agent_params=unique_params_list[unique_particle_idx],
             utility_settings=utility_settings,
             softmax_temperature=softmax_temperature,
-            select=False
+            select_responses=False
         )['model_choose_A']
         like_unique[unique_particle_idx] = choice_result if obs_A else (1.0 - choice_result)
 
@@ -922,9 +922,9 @@ def bayesian_update_grid(prior_array: NDArray[np.float64] | dict[tuple[int, ...]
     return {'param_vectors': posterior_param_vectors, 'meta_data': new_meta}
 
 
-def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, general_settings: GeneralSettings, 
-          initial_params: Dict[str, Dict[str, float]], param_info: ParamInfo, utility_settings: UtilitySettings, 
-          player_uuid: str | None = None, player_role: str | None = None, select: bool = False, softmax_temperature: float | None = None) -> List[dict]:
+def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, general_settings: GeneralSettings,
+          initial_params: Dict[str, Dict[str, float]], param_info: ParamInfo, utility_settings: UtilitySettings,
+          player_uuid: str | None = None, player_role: str | None = None, select_responses: bool = False, softmax_temperature: float | None = None) -> List[dict]:
     """
     Run the UBM for a single player over a slice of a dyad's games, updating beliefs game by game.
 
@@ -958,9 +958,10 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
         • player_role: str | None
             If 'chooser' or 'predictor', only processes games where this player holds that role.
             If None, processes games where the player holds either role.
-        • select: bool
-            If True, the choice function generates a stochastic binary response (0/1) rather than
-            a float probability. Used during simulation to generate artificial choice data.
+        • select_responses: bool
+            If True, the response function generates a stochastic binary response (0/1) rather than
+            a float probability. Used during simulation to generate artificial response data.
+            Set False (default) when processing real participant data to avoid overwriting responses.
         • softmax_temperature: float | None
             Overrides general_settings['softmax_temperature'] for the choice probability step.
             If None or out of range, falls back to the temperature in general_settings.
@@ -1097,28 +1098,27 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
             role_params_for_this_game = copy.deepcopy(initial_params.get(role_to_play, {}))
             player_est_dict[role_to_play]['params'] = role_params_for_this_game
 
-        "Make the choice or prediction"
+        "Make the choice or prediction."
         model_sel_key = "model_choose_A" if role_to_play == 'chooser' else "model_predict_A"
-        "Decide which temperature to pass to `choice(...)`"
-        # Predictor and chooser intentionally share the same temperature — asymmetric temperatures would add a parameter without a clear theoretical motivation.
+        "Predictor and chooser share the same temperature — asymmetric temperatures would add a parameter without clear theoretical motivation."
         current_temp = softmax_temperature
 
-        choice_output = choice(
+        choice_output = response(
             current_game=game_dict,
             agent_params=role_params_for_this_game,
             utility_settings=utility_settings,
             softmax_temperature=current_temp,
-            select=select
+            select_responses=select_responses
         )
 
-        "Store the model's output for this game"
+        "Store the model's output for this game."
         player_est_dict[role_to_play]['output'] = {
             model_sel_key: choice_output["model_choose_A"],
             'confidence': choice_output["confidence"]
         }
 
-        if select:
-            "Storing choices and predictions within the game."
+        if select_responses:
+            "Store the sampled response in the game dict — 'choice' for chooser role, 'prediction' for predictor role."
             if role_to_play == 'chooser':
                 choice_bit = choice_output["model_choose_A"]
                 game_dict["choice"] = "A" if choice_bit == 1 else "B"
@@ -1157,7 +1157,7 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                         new_means, new_stds = bayesian_update_parametric(
                             old_means=old_means, old_stds=old_stds,
                             observed_choice=observed_choice,
-                            game_dict=game_dict, choice_func=choice,
+                            game_dict=game_dict, choice_func=response,
                             utility_settings=utility_settings,
                             learning_rate=learning_rate
                         )
@@ -1174,7 +1174,7 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                         new_means, new_stds = bayesian_update_mcmc(
                             old_means=old_means, old_stds=old_stds,
                             observed_choice=observed_choice,
-                            game_dict=game_dict, choice_func=choice,
+                            game_dict=game_dict, choice_func=response,
                             utility_settings=utility_settings,
                             param_info=param_info
                         )
@@ -1268,7 +1268,7 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                             no_memory_mode=no_memory_mode,
                             param_info=param_info,
                             game_dict=game_dict,
-                            choice_func=choice,
+                            choice_func=response,
                         )
 
                         "Store prior parameter stats."
@@ -1348,11 +1348,12 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
     return dyad_games
 
 
-def simulate_dyad(dyad_games: DyadGames, initial_params_p1_p2: List[Dict[str, Dict[str, float]]], param_info: ParamInfo, 
-                  utility_settings: UtilitySettings, general_settings: GeneralSettings) -> List[Dict]:
+def simulate_dyad(dyad_games: DyadGames, initial_params_p1_p2: List[Dict[str, Dict[str, float]]], param_info: ParamInfo,
+                  utility_settings: UtilitySettings, general_settings: GeneralSettings,
+                  select_responses: bool = False) -> List[Dict]:
     """
-    Simulates a series of binary dictator games between a pair of 
-    participants, who alternate between roles as chooser and predictor. 
+    Simulates a series of binary dictator games between a pair of
+    participants, who alternate between roles as chooser and predictor.
 
     Arguments:
         • dyad_games: List[Dict]; list of games between a participant pair.
@@ -1360,12 +1361,16 @@ def simulate_dyad(dyad_games: DyadGames, initial_params_p1_p2: List[Dict[str, Di
                 'chooser', 'predictor', 'payoff_A_chooser', 'payoff_B_chooser',
                 'payoff_A_predictor', 'payoff_B_predictor', etc.
         • initial_params_p1_p2: List[Dict[str, Dict[str, float]]]; Parameters for both players.
-            - The order of the parameter dicts corresponds to the alphabetical order 
+            - The order of the parameter dicts corresponds to the alphabetical order
                 of the player uuids, which are extracted from dyad_games.
+        • select_responses: bool;
+            Passed through to agent(). If True, agent() samples binary responses and writes
+            them into game_dict['choice'] / game_dict['prediction']. If False (default),
+            only model probabilities are stored — real participant responses are left untouched.
 
     Returns:
-        • dyad_games: list[dict]; The series of games between a pair of players 
-            with estimated parameters stored within those games for both players.            
+        • dyad_games: list[dict]; The series of games between a pair of players
+            with estimated parameters stored within those games for both players.
     """
     "Validating inputs."
     if not isinstance(dyad_games, (list, tuple)):
@@ -1375,10 +1380,10 @@ def simulate_dyad(dyad_games: DyadGames, initial_params_p1_p2: List[Dict[str, Di
         raise ValueError(f"dyad_games must be a list of dictionaries, not {type(dyad_games[0])}!")
 
     first_game = dyad_games[0]
-    first_chooser = first_game.get('chooser', None)
-    first_predictor = first_game.get('predictor', None) 
+    first_chooser  = first_game.get('chooser', None)
+    first_predictor = first_game.get('predictor', None)
     if first_chooser is None or first_predictor is None:
-        raise ValueError(f"Failed to extract player uuids from the first game: {first_game}.")    
+        raise ValueError(f"Failed to extract player uuids from the first game: {first_game}.")
 
     "Checking if initial_params_p1_p2 contains all required keys."
     for param_dict in initial_params_p1_p2:
@@ -1387,7 +1392,7 @@ def simulate_dyad(dyad_games: DyadGames, initial_params_p1_p2: List[Dict[str, Di
             if param_dict_role is not None:
                 "param_keys is a 'global variable' at the top of the file."
                 for param_key in param_info["keys"]:
-                    if param_key not in param_dict_role:                     
+                    if param_key not in param_dict_role:
                         raise ValueError(f"{param_key} missing from initial_params_p1_p2.")
 
     "Sorting player uuids in initial_params_p1_p2 alphabetically."
@@ -1395,16 +1400,17 @@ def simulate_dyad(dyad_games: DyadGames, initial_params_p1_p2: List[Dict[str, Di
 
     "Creating a dictionary of player parameters."
     player_params = {
-        player_uuid_1: initial_params_p1_p2[0], 
+        player_uuid_1: initial_params_p1_p2[0],
         player_uuid_2: initial_params_p1_p2[1]
     }
 
     "Iterate agent() for both players over dyad_games one game at a time."
     for meeting_idx in range(len(dyad_games)):
         for player_uuid in [player_uuid_1, player_uuid_2]:
-            dyad_games = agent(dyad_games=dyad_games, game_idx_start=meeting_idx, game_idx_stop=meeting_idx, 
+            dyad_games = agent(dyad_games=dyad_games, game_idx_start=meeting_idx, game_idx_stop=meeting_idx,
                                initial_params=player_params[player_uuid], param_info=param_info, utility_settings=utility_settings,
-                               player_uuid=player_uuid, general_settings=general_settings)
+                               player_uuid=player_uuid, general_settings=general_settings,
+                               select_responses=select_responses)
 
     return dyad_games
 
@@ -1422,7 +1428,7 @@ def loss_function_bayes(dyad_games: list[dict[str, Any]], general_settings: Dict
     For each game and for each (player, role):
         • raw_ssr: (model prediction - actual response)^2
         • raw_neglogprob: -log(predicted_probability_of_observed_action)
-        • confidence: from choice(); Confidence is the inverse variance of parameters.
+        • confidence: from response(); Confidence is the inverse variance of parameters.
         • param_penalty: from parameter_penalty(); Penalizes large parameter absolute values.
         • loss_final: depends on general_settings['confidence_weighted'] (True/False)
             - If True : final = raw_metric * confidence + param_penalty
@@ -2137,6 +2143,8 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
             softmax_temperature = default_softmax_temperature
 
         "Run agent function with parameters in param_array"
+        "When predictor fitting was skipped, restrict the replay to chooser rounds only."
+        final_pass_role = None if general_settings.get('fit_predictor_role', True) else 'chooser'
         fitted_dyad_games = agent(dyad_games=dyad_games,
                                 game_idx_start=0,
                                 game_idx_stop=len(dyad_games)-1,
@@ -2144,7 +2152,7 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
                                 param_info=param_info,
                                 utility_settings=utility_settings,
                                 player_uuid=player_uuid,
-                                player_role=None,
+                                player_role=final_pass_role,
                                 general_settings=general_settings,
                                 softmax_temperature=softmax_temperature)
         
@@ -2159,7 +2167,7 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
 
         "Making Numpy arrays JSON serializable."
         if update_method == 'grid':
-            fitted_dyad_games = prep.serialize_param_vectors(
+            fitted_dyad_games = prep.serialize_or_drop_param_vectors(
                 dyad_games=fitted_dyad_games, general_settings=general_settings)
 
         fitted_dyad_games[0]['reports'] = {
@@ -2557,7 +2565,7 @@ def fit_dyad_parameters_bayes(dyad_games: DyadGames, param_info: ParamInfo, util
     
     "Making Numpy arrays JSON serializable."
     if update_method == 'grid':
-        updated_dyad = prep.serialize_param_vectors(dyad_games=updated_dyad, general_settings=general_settings)
+        updated_dyad = prep.serialize_or_drop_param_vectors(dyad_games=updated_dyad, general_settings=general_settings)
 
     "Recording the total duration for fitting the dyad."
     time_stop_fit_dyad = time.time()

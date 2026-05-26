@@ -226,12 +226,12 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
                 "Compute p(choose A)."
                 _gp = grid_predictor.get('params', {})
                 _tau = _gp.get('τ', _gp.get('temp', 1.5))
-                p_choose_A = choice(
+                p_choose_A = response(
                     current_game=game,
                     agent_params=agent_params,
                     utility_settings=utility_settings,
                     softmax_temperature=_tau * temperature_scale,
-                    select=False
+                    select_responses=False
                 )["model_choose_A"]
 
                 if game.get("choice") == "A":
@@ -612,9 +612,9 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
                     "Vᵢᵢ_std": Vᵢᵢ_std,
                     "Vᵢⱼ_std": Vᵢⱼ_std,
                 }
-                p_choose_A = choice(current_game=game, agent_params=agent_params, 
-                                    softmax_temperature=general_settings.get('softmax_temperature', 1.5),
-                                    utility_settings=utility_settings, select=False)["model_choose_A"]
+                p_choose_A = response(current_game=game, agent_params=agent_params,
+                                     softmax_temperature=general_settings.get('softmax_temperature', 1.5),
+                                     utility_settings=utility_settings, select_responses=False)["model_choose_A"]
                 if game.get("choice", "A") == "A":
                     likelihood_surface[idx, jdx] = p_choose_A
                 else:

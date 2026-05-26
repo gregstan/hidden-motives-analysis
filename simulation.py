@@ -15,69 +15,245 @@ def stable_bot_id(params: dict, player_role: str, n_games: int) -> str:
     can be reconstructed from parameters without tracking state.
 
     Arguments:
-        • params: dict[str, float]; parameter dict that defines this bot’s behavior.
-        • player_role: str; ‘predictor’ or ‘chooser’.
+        • params: dict[str, float]; parameter dict that defines this bot's behavior.
+        • player_role: str; 'predictor' or 'chooser'.
         • n_games: int; number of games the dyad will play.
 
     Returns:
-        • str; e.g. ‘synthetic_predictor_a3f9b1d2e5c7’.
+        • str; e.g. 'synthetic_predictor_a3f9b1d2e5c7'.
     """
     payload = json.dumps({'params': sorted(params.items()), 'n': n_games}, sort_keys=True)
     return f'synthetic_{player_role}_{hashlib.sha256(payload.encode()).hexdigest()[:12]}'
 
 
-def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params_predictor: dict[str, float], general_settings: GeneralSettings,
-                          utility_settings: UtilitySettings, param_bds: ParamBounds, payoff_structures: list[dict[str, int]] | None = None,
-                          default_utility_settings: bool = True, dynamic_predictor: bool = True,
-                          dyad_id: str | None = None) -> dict[DyadKey, DyadGames]:
+def _simulate_pair_games(
+    n_games: int,
+    params_player_1: dict[str, float],
+    params_player_2: dict[str, float],
+    uuid_player_1: str,
+    uuid_player_2: str,
+    utility_settings: UtilitySettings,
+    general_settings: GeneralSettings,
+    param_info: ParamInfo,
+    per_round_role_flip: bool = False,
+    matching_probability: float = 1.0,
+    dynamic_predictor: bool = True,
+    payoff_structures: list[dict] | None = None,
+    random_gen: np.random.Generator | None = None,
+) -> list[dict]:
     """
-    Create a single synthetic chooser–predictor dyad with recorded choices and predictions.
+    Core per-pair simulation loop shared by create_simulated_dyad and create_simulated_experiment.
 
-    Purpose:
-        This generator is used for simulation studies with ground-truth chooser behavior
-        and a predictor who forms beliefs about that chooser. Each "game" is a single binary choice
-        between option A and B; the chooser’s response is drawn/selected by `choice(...)` using
-        `params_chooser`, while the predictor forms a prediction using `params_predictor`. The result
-        is a list of game dictionaries that can be fed into `agent(...)` to perform learning.
+    Generates game dicts with payoffs and role assignments, pre-generates all chooser responses,
+    then runs the UBM for each player's predictor rounds. True params are embedded in round 0.
+
+    Three-step ordering that avoids the predictor-observes-unwritten-choice problem:
+        1. Build all game dicts with payoffs and role assignments (choice=None, prediction=None).
+        2. Pre-generate all chooser responses via response(select_responses=True) so every
+           game['choice'] is populated before any UBM pass reads it.
+        3. Run agent() with player_role='predictor' for each player — skips rounds where that
+           player is chooser, writes predictions, and updates beliefs from observed choices.
 
     Arguments:
-        • n_games: int;
-            Number of games to simulate.
-        • params_chooser: dict[str, float];
-            Parameters controlling the chooser’s utility (weights, exponents, etc.).
-            Use ‘τ’ for the SoftMax temperature (canonical key).
-        • params_predictor: dict[str, float];
-            Parameters controlling the predictor’s *initial* beliefs (e.g., means/stds when later
-            used to seed a grid prior). Use ‘τ’ for the SoftMax temperature.
-        • utility_settings: UtilitySettings;
-            The utility family under which the chooser and predictor operate.
-            If `default_utility_settings=True`, a simple default family is used and this argument is ignored.
-        • payoff_structures: list[dict[str,int]] | None;
-            Optional explicit payoff sequence; each item must provide:
-                {'payoff_A_chooser','payoff_A_predictor','payoff_B_chooser','payoff_B_predictor'}.
-            If None, payoffs are drawn uniformly from {1..5}.
-        • default_utility_settings: bool;
-            If True (default), use the built-in baseline utility settings (altruism only, etc.).
-            If False, use the caller-provided `utility_settings`.
+        • n_games: int; number of games to simulate.
+        • params_player_1: dict[str, float]; ground-truth utility parameters for player 1.
+        • params_player_2: dict[str, float]; ground-truth utility parameters for player 2.
+        • uuid_player_1: str; UUID string for player 1.
+        • uuid_player_2: str; UUID string for player 2.
+        • utility_settings: UtilitySettings; utility family for this simulation.
+        • general_settings: GeneralSettings; passed through to agent() and serialize calls.
+        • param_info: ParamInfo; parameter configuration for the UBM prior.
+        • per_round_role_flip: bool;
+            If False (default), player 1 is chooser and player 2 is predictor for all rounds.
+            If True, chooser/predictor assignment is determined by a fair coin flip each round.
+        • matching_probability: float; stored in each game dict (default 1.0).
         • dynamic_predictor: bool;
-            If True, runs the full UBM via agent() for predictors, meaning belief updating.
-            If False, runs choice() for predictors, meaning no belief updating.
-        • dyad_id: str | None;
-            If provided, used directly as the dyad identifier (chooser_uuid becomes
-            '{dyad_id}_chooser', predictor_uuid becomes '{dyad_id}_predictor'). Pass None
-            (default) to auto-generate IDs via stable_bot_id (predictor) and uuid4 (chooser).
-            True params are always embedded in game[0] regardless of this setting.
+            If True (default), runs full UBM belief-updating for each player's predictor rounds.
+            If False, generates predictions via response(select_responses=True) without UBM.
+        • payoff_structures: list[dict] | None;
+            Optional explicit per-round payoffs. If None, payoffs are drawn uniformly from {1..5}.
+        • random_gen: np.random.Generator | None;
+            If provided, used for payoff and role-flip sampling. Falls back to random.randint
+            and random.random when None (preserves backward compatibility).
 
     Returns:
-        • dict[DyadKey, DyadGames]
-            A dictionary with a single key "(predictor_uuid, chooser_uuid)" whose value 
-            is the list of games. Each game dictionary contains (among other fields):
-                'chooser', 'predictor', 'payoff_A_chooser', 'payoff_A_predictor',
-                'payoff_B_chooser', 'payoff_B_predictor', 'choice', 'prediction', and 'round'.
+        • list[dict]; games_list with all choice, prediction, and parameter_estimate fields
+          populated. Callers wrap this in a {dyad_key: games_list} dict.
+    """
+    τ_player_1 = params_player_1.get("τ")
+    τ_player_2 = params_player_2.get("τ")
 
-    Notes:
-        • The chooser’s and predictor’s responses are generated with `choice(..., select=True)`.
-            If `choice` implementation samples stochastically, fix RNG seeds upstream for reproducibility.
+    "=== Step 1: Build game dicts with payoffs and role assignments ==="
+    games_list: list[dict] = []
+    for round_idx in range(n_games):
+        if payoff_structures is not None and round_idx < len(payoff_structures):
+            payoff_A_chooser   = payoff_structures[round_idx].get('payoff_A_chooser')
+            payoff_A_predictor = payoff_structures[round_idx].get('payoff_A_predictor')
+            payoff_B_chooser   = payoff_structures[round_idx].get('payoff_B_chooser')
+            payoff_B_predictor = payoff_structures[round_idx].get('payoff_B_predictor')
+            if any(payoff is None for payoff in (payoff_A_chooser, payoff_A_predictor, payoff_B_chooser, payoff_B_predictor)):
+                raise ValueError(f"Payoff structure improperly formatted at round {round_idx}: {payoff_structures[round_idx]}.")
+        elif random_gen is not None:
+            payoff_A_chooser   = int(random_gen.integers(1, 6))
+            payoff_A_predictor = int(random_gen.integers(1, 6))
+            payoff_B_chooser   = int(random_gen.integers(1, 6))
+            payoff_B_predictor = int(random_gen.integers(1, 6))
+        else:
+            payoff_A_chooser   = random.randint(1, 5)
+            payoff_A_predictor = random.randint(1, 5)
+            payoff_B_chooser   = random.randint(1, 5)
+            payoff_B_predictor = random.randint(1, 5)
+
+        if per_round_role_flip:
+            coin_flip = random_gen.random() if random_gen is not None else random.random()
+            if coin_flip < 0.5:
+                chooser_uuid_this_round   = uuid_player_1
+                chooser_params_this_round = params_player_1
+                predictor_uuid_this_round = uuid_player_2
+            else:
+                chooser_uuid_this_round   = uuid_player_2
+                chooser_params_this_round = params_player_2
+                predictor_uuid_this_round = uuid_player_1
+        else:
+            chooser_uuid_this_round   = uuid_player_1
+            chooser_params_this_round = params_player_1
+            predictor_uuid_this_round = uuid_player_2
+
+        game_dict = {
+            "chooser":              chooser_uuid_this_round,
+            "predictor":            predictor_uuid_this_round,
+            "matching_probability": matching_probability,
+            "payoff_A_chooser":     payoff_A_chooser,
+            "payoff_A_predictor":   payoff_A_predictor,
+            "payoff_B_chooser":     payoff_B_chooser,
+            "payoff_B_predictor":   payoff_B_predictor,
+            "choice":               None,
+            "prediction":           None,
+            "abdicated_chooser":    False,
+            "abdicated_predictor":  False,
+            "timestamp":            time.time(),
+            "round":                round_idx,
+        }
+        if round_idx == 0:
+            "Embed ground-truth params in round 0 for both players' active roles in that round."
+            game_dict["true_params_chooser"]   = dict(chooser_params_this_round)
+            game_dict["true_params_predictor"] = dict(params_player_2 if chooser_uuid_this_round == uuid_player_1 else params_player_1)
+        games_list.append(game_dict)
+
+    "=== Step 2: Pre-generate all chooser responses ==="
+    for game_dict in games_list:
+        chooser_uuid_this_game   = game_dict["chooser"]
+        chooser_params_this_game = params_player_1 if chooser_uuid_this_game == uuid_player_1 else params_player_2
+        τ_chooser_this_game      = chooser_params_this_game.get("τ")
+        choice_bit = response(
+            current_game=game_dict,
+            agent_params=chooser_params_this_game,
+            utility_settings=utility_settings,
+            softmax_temperature=τ_chooser_this_game,
+            select_responses=True,
+        )["model_choose_A"]
+        game_dict["choice"] = "A" if choice_bit == 1 else "B"
+
+    "=== Step 3: Run UBM or static predictions for each player's predictor rounds ==="
+    if dynamic_predictor:
+        update_method           = general_settings.get('update_method', 'grid')
+        initial_params_player_1 = {param_key: param_val for param_key, param_val in params_player_1.items() if param_key not in ('τ', 'temp')}
+        initial_params_player_2 = {param_key: param_val for param_key, param_val in params_player_2.items() if param_key not in ('τ', 'temp')}
+        games_list = agent(
+            dyad_games=games_list, game_idx_start=0, game_idx_stop=n_games - 1,
+            general_settings=general_settings, utility_settings=utility_settings,
+            param_info=param_info, initial_params={'predictor': initial_params_player_1},
+            player_uuid=uuid_player_1, player_role='predictor',
+            select_responses=True, softmax_temperature=τ_player_1,
+        )
+        games_list = agent(
+            dyad_games=games_list, game_idx_start=0, game_idx_stop=n_games - 1,
+            general_settings=general_settings, utility_settings=utility_settings,
+            param_info=param_info, initial_params={'predictor': initial_params_player_2},
+            player_uuid=uuid_player_2, player_role='predictor',
+            select_responses=True, softmax_temperature=τ_player_2,
+        )
+        "Drop grid arrays — retain only params (MAP estimates) and predictions for downstream recovery analysis."
+        games_list = prep.serialize_or_drop_param_vectors(dyad_games=games_list, general_settings=general_settings, drop_grids=True)
+        for game_dict in games_list:
+            param_est = game_dict.get('parameter_estimates')
+            if param_est and update_method in param_est:
+                param_est['sim_pred'] = param_est.pop(update_method)
+    else:
+        "Static predictions — no UBM, generate prediction responses via response() directly."
+        for game_dict in games_list:
+            predictor_uuid_this_game   = game_dict["predictor"]
+            predictor_params_this_game = params_player_1 if predictor_uuid_this_game == uuid_player_1 else params_player_2
+            τ_predictor_this_game      = predictor_params_this_game.get("τ")
+            pred_bit = response(
+                current_game=game_dict,
+                agent_params=predictor_params_this_game,
+                utility_settings=utility_settings,
+                softmax_temperature=τ_predictor_this_game,
+                select_responses=True,
+            )["model_choose_A"]
+            game_dict["prediction"] = "A" if pred_bit == 1 else "B"
+
+    return games_list
+
+
+def create_simulated_dyad(
+    n_games: int,
+    params_chooser: dict[str, float],
+    params_predictor: dict[str, float],
+    general_settings: GeneralSettings,
+    utility_settings: UtilitySettings,
+    param_bds: ParamBounds,
+    payoff_structures: list[dict[str, int]] | None = None,
+    default_utility_settings: bool = True,
+    dynamic_predictor: bool = True,
+    player_1_uuid: str | None = None,
+    player_2_uuid: str | None = None,
+    matching_probability: float = 1.0,
+    per_round_role_flip: bool = False,
+    random_gen: np.random.Generator | None = None,
+) -> dict[DyadKey, DyadGames]:
+    """
+    Create a single synthetic player-pair dyad with recorded choices and predictions.
+
+    Delegates to _simulate_pair_games for the actual simulation logic. When
+    per_round_role_flip=False (default), params_chooser / params_predictor refer to fixed
+    player-1 / player-2 roles respectively. When per_round_role_flip=True, roles are
+    reassigned by a fair coin flip each round, but params_chooser still belongs to player 1
+    and params_predictor to player 2 regardless of which role they hold in any given round.
+
+    Arguments:
+        • n_games: int; number of games to simulate.
+        • params_chooser: dict[str, float]; ground-truth utility parameters for player 1.
+        • params_predictor: dict[str, float]; ground-truth utility parameters for player 2.
+        • general_settings: GeneralSettings; passed through to _simulate_pair_games.
+        • utility_settings: UtilitySettings; used when default_utility_settings=False.
+        • param_bds: ParamBounds; used to build param_info for the UBM prior.
+        • payoff_structures: list[dict] | None; optional explicit per-round payoffs.
+        • default_utility_settings: bool;
+            If True (default), use the built-in baseline utility settings (altruism only).
+            If False, use the caller-provided utility_settings.
+        • dynamic_predictor: bool;
+            If True (default), runs full UBM belief-updating for predictor rounds.
+            If False, generates static predictions via response() without UBM.
+        • player_1_uuid: str | None;
+            UUID for player 1 (always chooser when per_round_role_flip=False). If None,
+            auto-generates f'synthetic_player_1_{uuid.uuid4().hex[:12]}'.
+        • player_2_uuid: str | None;
+            UUID for player 2 (always predictor when per_round_role_flip=False). If None,
+            auto-generates f'synthetic_player_2_{uuid.uuid4().hex[:12]}'. Callers that need
+            content-addressed IDs (e.g. create_simulated_data) should pass
+            player_2_uuid=stable_bot_id(...) explicitly.
+        • matching_probability: float; stored in each game dict (default 1.0).
+        • per_round_role_flip: bool; if True, chooser/predictor roles are reassigned each round.
+        • random_gen: np.random.Generator | None;
+            If provided, used for payoff sampling and role-flip coin flips.
+            Falls back to random.randint / random.random when None.
+
+    Returns:
+        • dict[DyadKey, DyadGames]; single-key dict '(predictor_uuid, chooser_uuid)' whose value
+          is the games list. Each game contains 'chooser', 'predictor', payoffs, 'choice',
+          'prediction', 'round', and (in round 0) 'true_params_chooser'/'true_params_predictor'.
     """
     if not isinstance(n_games, int):
         raise TypeError(f"n_games must be an integer not {type(n_games)} - {n_games}.")
@@ -103,100 +279,29 @@ def create_simulated_dyad(n_games: int, params_chooser: dict[str, float], params
     if not default_utility_settings:
         utility_settings_ = copy.deepcopy(utility_settings)
 
-    τ_chooser =   params_chooser.get("τ")
-    τ_predictor = params_predictor.get("τ")
+    player_1_uuid_resolved = player_1_uuid if player_1_uuid is not None else f'synthetic_player_1_{uuid.uuid4().hex[:12]}'
+    player_2_uuid_resolved = player_2_uuid if player_2_uuid is not None else f'synthetic_player_2_{uuid.uuid4().hex[:12]}'
 
-    if dyad_id is not None:
-        chooser_uuid   = f"{dyad_id}_chooser"
-        predictor_uuid = f"{dyad_id}_predictor"
-    else:
-        predictor_uuid = stable_bot_id(params=params_predictor, player_role='predictor', n_games=n_games)
-        chooser_uuid   = f'synthetic_chooser_{uuid.uuid4().hex[:12]}'
-    dyad_key = f"({predictor_uuid}, {chooser_uuid})"
+    param_info_ = make_param_info(param_bds=param_bds, utility_settings=utility_settings_,
+                                  general_settings=general_settings, guess_seed=None, random_guesses_are_unique=True)
 
-    dyad_games = []
-    for game_idx in range(n_games):
-        if payoff_structures is not None and game_idx <= len(payoff_structures):
-            payoff_A_chooser =   payoff_structures[game_idx].get('payoff_A_chooser')
-            payoff_A_predictor = payoff_structures[game_idx].get('payoff_A_predictor')
-            payoff_B_chooser =   payoff_structures[game_idx].get('payoff_B_chooser')
-            payoff_B_predictor = payoff_structures[game_idx].get('payoff_A_predictor')
-            if any(payoff is None for payoff in (payoff_A_chooser, payoff_A_predictor, payoff_B_chooser, payoff_B_predictor)):
-                raise ValueError(f"Payoff structure improperly formatted: {payoff_structures[game_idx]}.")
-
-        else:
-            payoff_A_chooser =   random.randint(1, 5)
-            payoff_A_predictor = random.randint(1, 5)
-            payoff_B_chooser =   random.randint(1, 5)
-            payoff_B_predictor = random.randint(1, 5)
-
-        payoffs = {
-            'payoff_A_chooser': payoff_A_chooser, 'payoff_A_predictor': payoff_A_predictor,
-            'payoff_B_chooser': payoff_B_chooser, 'payoff_B_predictor': payoff_B_predictor,
-        }
-
-        choice_response =     choice(current_game=payoffs, agent_params=params_chooser, 
-                                     utility_settings=utility_settings_, softmax_temperature=τ_chooser,
-                                     select=True)["model_choose_A"]
-        choice_response = "A" if choice_response == 1 else "B"
-
-        if dynamic_predictor:
-            prediction_response = None
-        else:
-            prediction_response = choice(current_game=payoffs, agent_params=params_predictor, 
-                                        utility_settings=utility_settings_, softmax_temperature=τ_predictor,
-                                        select=True)["model_choose_A"]
-            prediction_response = "A" if prediction_response == 1 else "B"
-
-        dyad_game = {
-            "chooser": chooser_uuid,
-            "predictor": predictor_uuid,
-            "matching_probability": 1.0,
-            "payoff_A_chooser": payoff_A_chooser,
-            "payoff_A_predictor": payoff_A_predictor,
-            "payoff_B_chooser": payoff_B_chooser,
-            "payoff_B_predictor": payoff_B_predictor,
-            "choice": choice_response,
-            "prediction": prediction_response,
-            "abdicated_chooser": False,
-            "abdicated_predictor": False,
-            "timestamp": time.time(),
-            "round": game_idx,            
-        }
-
-        if game_idx == 0:
-            dyad_game["true_params_predictor"] = dict(params_predictor)
-            dyad_game["true_params_chooser"]   = dict(params_chooser)
-
-        dyad_games.append(dyad_game)
-
-    if dynamic_predictor:
-        "Use UBM with belief updating for predictors, overwriting previous choices"
-        param_info_ = make_param_info(param_bds=param_bds, utility_settings=utility_settings_, 
-                                      general_settings=general_settings, guess_seed=None, random_guesses_are_unique=True)
-        params_predictor = {param_key: param_val for param_key, param_val in params_predictor.items() if param_key not in ('τ', 'temp')}
-        dyad_games = agent(dyad_games=dyad_games, game_idx_start=0, game_idx_stop=n_games - 1, general_settings=general_settings, 
-                           utility_settings=utility_settings_, param_info=param_info_, initial_params={'predictor': params_predictor}, 
-                           player_uuid=predictor_uuid, player_role="predictor", select=True, softmax_temperature=τ_predictor)
-        
-        "Make param vectors JSON serializable"
-        dyad_games = prep.serialize_param_vectors(dyad_games=dyad_games, general_settings=general_settings)
-
-        "Move parameter updates so they will not be overwritten by the optimizer during the parameter recovery process."
-        update_method = general_settings.get('update_method', 'grid')
-        for game_idx in range(n_games):
-            dyad_game = dyad_games[game_idx]
-            param_est = dyad_game.get('parameter_estimates')
-            if not param_est:
-                raise Exception("Predictor failed to record parameter updates. No 'parameter_estimates' stored in game.")
-
-            if update_method not in param_est:
-                raise Exception(f"Predictor failed to record parameter updates. '{update_method}' not in 'parameter_estimates'.")
-
-            "Move the whole block to 'sim_pred' so optimizer later writes fresh 'grid'"
-            param_est['sim_pred'] = param_est.pop(update_method)
-
-    return {dyad_key: dyad_games}
+    games_list = _simulate_pair_games(
+        n_games=n_games,
+        params_player_1=params_chooser,
+        params_player_2=params_predictor,
+        uuid_player_1=player_1_uuid_resolved,
+        uuid_player_2=player_2_uuid_resolved,
+        utility_settings=utility_settings_,
+        general_settings=general_settings,
+        param_info=param_info_,
+        per_round_role_flip=per_round_role_flip,
+        matching_probability=matching_probability,
+        dynamic_predictor=dynamic_predictor,
+        payoff_structures=payoff_structures,
+        random_gen=random_gen,
+    )
+    dyad_key = f"({games_list[0]['predictor']}, {games_list[0]['chooser']})"
+    return {dyad_key: games_list}
 
 
 def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], params_predictor_range: dict[str, float], utility_settings: UtilitySettings,
@@ -253,7 +358,7 @@ def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], 
             only returns the in-memory `player_histories` dict.
         • dynamic_predictor: bool;
             If True, runs the full UBM via agent() for predictors, meaning belief updating.
-            If False, runs choice() fro predictors, meaning no belief updating.
+            If False, runs response() for predictors, meaning no belief updating.
         • randomize_parameters: bool;
             If True (default), parameter grids are populated by sampling uniform random values
             within each (min, max) range. If False, use evenly spaced linspace grids across
@@ -390,9 +495,10 @@ def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], 
                                     params_predictor = {'Vᵢᵢ': Vᵢᵢ_predictor, 'Vᵢⱼ': Vᵢⱼ_predictor, 'Vᵢᵢ_std': std_predictor, 'Vᵢⱼ_std': std_predictor, 'τ': τ_predictor}
 
                                     "Generate the series of games played between these artificial agents."
-                                    player_dyad = create_simulated_dyad(n_games=n_games, params_chooser=params_chooser, params_predictor=params_predictor, 
+                                    player_dyad = create_simulated_dyad(n_games=n_games, params_chooser=params_chooser, params_predictor=params_predictor,
                                                                         utility_settings=utility_settings_, general_settings=general_settings_,
-                                                                        payoff_structures=payoff_structures, param_bds=param_bds, dynamic_predictor=dynamic_predictor)
+                                                                        payoff_structures=payoff_structures, param_bds=param_bds, dynamic_predictor=dynamic_predictor,
+                                                                        player_2_uuid=stable_bot_id(params=params_predictor, player_role='predictor', n_games=n_games))
                                     
                                     "Update player_histories with {DyadKey: DyadGames} dictionary."
                                     player_histories.update(player_dyad)
@@ -511,7 +617,7 @@ def get_simulated_dyad(file_paths: FilePaths, dyad_idx: int | None, n_games: int
     """
     Load a single simulated dyad (chooser–predictor game history) from disk.
 
-    This is a convenience loader used when inspecting the optimizer’s recovery performance
+    This is a convenience loader used when inspecting the optimizer's recovery performance
     on a particular artificial dyad. It supports two ways of selecting which dyad to load:
 
         1. Direct filename reconstruction:
@@ -715,7 +821,7 @@ def compute_param_recovery_correlations(df: pd.DataFrame, dir_path: str, out_csv
         • true_role: str;
             Which true parameters to correlate against:
                 - "predictor": parameter recovery of the optimizer.
-                - "chooser":   convergence toward the chooser’s true parameters.
+                - "chooser":   convergence toward the chooser's true parameters.
         • round_mode: str;
             How to slice rounds:
                 - "first": one row per dyad at its earliest round.
@@ -1310,9 +1416,9 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
             Column representing the prior temperature at round 0
             (e.g., "τ_fitted_predictor").
         • param_true_chooser: str;
-            Column name for the chooser’s true parameter (e.g., "Vij_true_chooser").
+            Column name for the chooser's true parameter (e.g., "Vij_true_chooser").
         • param_fitted_predictor: str;
-            Column name for the predictor’s fitted parameter (e.g., "Vij_fitted_predictor").
+            Column name for the predictor's fitted parameter (e.g., "Vij_fitted_predictor").
         • player_id_col: str;
             Column identifying predictors (e.g., "player_uuid_predictor").
         • var_edges: list[float] | None;
@@ -1574,9 +1680,15 @@ def create_simulated_experiment(
     random_gen: np.random.Generator,
     altruism_key: str,
     altruism_targets: list[float],
-) -> tuple[list[dict], dict[str, dict]]:
+    file_paths: FilePaths,
+    create_new_file: bool | None = None,
+) -> tuple[dict, dict[str, dict]]:
     """
-    Generate a full synthetic experiment in the same JSON format as the real raw data.
+    Generate (or retrieve) a full synthetic experiment in the same JSON format as the real raw data.
+
+    Follows the standard caching convention: if the output file already exists and
+    `create_new_file=False`, loads and returns it immediately without regeneration.
+    Otherwise generates, assembles, writes to disk, and returns the fresh data.
 
     Players are organized into batches of 4. Within each batch, all 6 unique undirected pairs
     are formed (one dyad per pair). Game counts per pair are drawn probabilistically so that
@@ -1602,15 +1714,39 @@ def create_simulated_experiment(
         • param_bds: ParamBounds; passed through to make_param_info().
         • random_gen: np.random.Generator; stateful generator (shared across all batches).
         • altruism_key: str; parameter key for the altruism dimension (e.g. 'Vᵢⱼ').
-        • altruism_targets: list[float]; target altruism values cycled over players.
+        • altruism_targets: list[float]; target altruism values to assign across players.
+        • file_paths: FilePaths; routing dict — must have 'processed' and 'file_names' set.
+        • create_new_file: bool | None; if False, loads from disk when the output file
+          exists; if True, always regenerates and overwrites; if None (default), defers to
+          general_settings.get('create_new_file', False).
 
     Returns:
-        • (dyad_list, true_params_by_uuid) where:
-            - dyad_list: list[dict]; each element is {DyadKey: DyadGames}, ready for
-              _assemble_histories_dict.
-            - true_params_by_uuid: dict[str, dict]; maps each player UUID to their ground-truth
-              utility parameter vector.
+        • (histories_dict, true_params_by_uuid) where:
+            - histories_dict: dict; {'histories': ..., 'player_info': ...} in the same
+              format as the raw experiment JSON — ready for run_analysis_bayes.
+            - true_params_by_uuid: dict[str, dict]; maps each player UUID to their
+              ground-truth utility parameter vector.
     """
+    "Defer to general_settings when create_new_file not explicitly specified by caller."
+    if create_new_file is None:
+        create_new_file = general_settings.get('create_new_file', False)
+
+    "Retrieve cached result if available and permitted."
+    histories_file_path = os.path.join(
+        file_paths['processed'],
+        file_paths['file_names']['player_pairs_exper3']
+    )
+    if not create_new_file and os.path.exists(histories_file_path):
+        with open(histories_file_path, 'r', encoding='utf-8') as cached_file:
+            histories_dict = json.load(cached_file)
+        true_params_by_uuid = {
+            player_uuid: dict(player_data.get('true_params', {}).get('chooser', {}))
+            for player_uuid, player_data in histories_dict.get('player_info', {}).items()
+        }
+        print(f"[create_simulated_experiment k={k_params}] Loaded existing file "
+              f"({len(true_params_by_uuid)} players): {histories_file_path}")
+        return histories_dict, true_params_by_uuid
+
     n_players_padded = n_players + (4 - n_players % 4) % 4
 
     "Build param_info once for this utility family; reused across all pairs for agent() UBM calls."
@@ -1660,8 +1796,6 @@ def create_simulated_experiment(
                 if param_key.endswith("_std"):
                     lower_bound = max(float(lower_bound), 1e-3)
                 params[param_key] = float(random_gen.uniform(float(lower_bound), float(upper_bound)))
-            if "temp" in params and "τ" not in params:
-                params["τ"] = float(params["temp"])
             if "τ" not in params:
                 params["τ"] = float(general_settings.get('softmax_temperature', 1.0))
 
@@ -1682,98 +1816,70 @@ def create_simulated_experiment(
             params_b = batch_params[local_idx_b]
             matching_probability = n_games_pair / n_games
 
-            "Generate game dicts with per-round role assignment."
-            games_list: list[dict] = []
-            for round_idx in range(n_games_pair):
-                "Coin flip: player A is chooser with p=0.5, predictor otherwise."
-                if random_gen.random() < 0.5:
-                    chooser_uuid_this_round     = uuid_a
-                    chooser_params_this_round   = params_a
-                    predictor_uuid_this_round   = uuid_b
-                    predictor_params_this_round = params_b
-                else:
-                    chooser_uuid_this_round     = uuid_b
-                    chooser_params_this_round   = params_b
-                    predictor_uuid_this_round   = uuid_a
-                    predictor_params_this_round = params_a
-
-                payoff_A_chooser   = int(random_gen.integers(1, 6))
-                payoff_A_predictor = int(random_gen.integers(1, 6))
-                payoff_B_chooser   = int(random_gen.integers(1, 6))
-                payoff_B_predictor = int(random_gen.integers(1, 6))
-
-                payoffs_this_round = {
-                    'payoff_A_chooser':   payoff_A_chooser,
-                    'payoff_A_predictor': payoff_A_predictor,
-                    'payoff_B_chooser':   payoff_B_chooser,
-                    'payoff_B_predictor': payoff_B_predictor,
-                }
-
-                τ_chooser = chooser_params_this_round.get("τ")
-                choice_response = choice(
-                    current_game=payoffs_this_round,
-                    agent_params=chooser_params_this_round,
-                    utility_settings=utility_settings_k,
-                    softmax_temperature=τ_chooser,
-                    select=True,
-                )["model_choose_A"]
-                choice_response = "A" if choice_response == 1 else "B"
-
-                game_dict = {
-                    "chooser":              chooser_uuid_this_round,
-                    "predictor":            predictor_uuid_this_round,
-                    "matching_probability": matching_probability,
-                    "payoff_A_chooser":     payoff_A_chooser,
-                    "payoff_A_predictor":   payoff_A_predictor,
-                    "payoff_B_chooser":     payoff_B_chooser,
-                    "payoff_B_predictor":   payoff_B_predictor,
-                    "choice":               choice_response,
-                    "prediction":           None,
-                    "abdicated_chooser":    False,
-                    "abdicated_predictor":  False,
-                    "timestamp":            time.time(),
-                    "round":                round_idx,
-                }
-                if round_idx == 0:
-                    "Embed true params in round 0 for whoever is chooser/predictor that round."
-                    game_dict["true_params_chooser"]   = dict(chooser_params_this_round)
-                    game_dict["true_params_predictor"] = dict(predictor_params_this_round)
-
-                games_list.append(game_dict)
-
-            if general_settings_for_ubm is not None:
-                "Run UBM for player A as predictor; agent() skips rounds where A is not predictor."
-                τ_a = params_a.get("τ")
-                initial_params_a = {pk: pv for pk, pv in params_a.items() if pk not in ('τ', 'temp')}
-                games_list = agent(
-                    dyad_games=games_list, game_idx_start=0, game_idx_stop=n_games_pair - 1,
-                    general_settings=general_settings_for_ubm, utility_settings=utility_settings_k,
-                    param_info=param_info_for_ubm, initial_params={'predictor': initial_params_a},
-                    player_uuid=uuid_a, player_role="predictor", select=True, softmax_temperature=τ_a,
-                )
-
-                "Run UBM for player B as predictor; agent() skips rounds where B is not predictor."
-                τ_b = params_b.get("τ")
-                initial_params_b = {pk: pv for pk, pv in params_b.items() if pk not in ('τ', 'temp')}
-                games_list = agent(
-                    dyad_games=games_list, game_idx_start=0, game_idx_stop=n_games_pair - 1,
-                    general_settings=general_settings_for_ubm, utility_settings=utility_settings_k,
-                    param_info=param_info_for_ubm, initial_params={'predictor': initial_params_b},
-                    player_uuid=uuid_b, player_role="predictor", select=True, softmax_temperature=τ_b,
-                )
-
-                "Serialize param vectors and move the UBM key to 'sim_pred'."
-                games_list = prep.serialize_param_vectors(dyad_games=games_list, general_settings=general_settings)
-                for game_dict in games_list:
-                    param_est = game_dict.get('parameter_estimates')
-                    if param_est and update_method in param_est:
-                        param_est['sim_pred'] = param_est.pop(update_method)
-
-            "Dyad key convention: (predictor_of_round_0, chooser_of_round_0)."
+            games_list = _simulate_pair_games(
+                n_games=n_games_pair,
+                params_player_1=params_a,
+                params_player_2=params_b,
+                uuid_player_1=uuid_a,
+                uuid_player_2=uuid_b,
+                utility_settings=utility_settings_k,
+                general_settings=general_settings_for_ubm,
+                param_info=param_info_for_ubm,
+                per_round_role_flip=True,
+                matching_probability=matching_probability,
+                dynamic_predictor=general_settings_for_ubm is not None,
+                random_gen=random_gen,
+            )
             dyad_key = f"({games_list[0]['predictor']}, {games_list[0]['chooser']})"
             dyad_list.append({dyad_key: games_list})
 
-    return dyad_list, true_params_by_uuid
+    "Assemble histories JSON structure from the dyad list."
+    histories: dict = {}
+    for dyad_dict in dyad_list:
+        histories.update(dyad_dict)
+
+    avatar_shapes = [
+        "arrow-head", "bowtie", "circle", "cross", "curvy-x", "dent-square", "dodecagon",
+        "flame", "flower", "ghost", "hexagon", "hour-glass", "jagged-sun", "lemon", "moon",
+        "pentagon", "round-square", "squash", "teardrop", "two-triangle", "star-six", "stop-sign",
+    ]
+    player_info: dict = {}
+    for dyad_key_str in histories.keys():
+        player_uuid_1, player_uuid_2 = dyad_key_str[1:-1].split(", ")
+        for player_uuid in (player_uuid_1, player_uuid_2):
+            if player_uuid not in player_info:
+                info: dict = {
+                    'player_type':  'synthetic',
+                    'avatar_shape': avatar_shapes[int(random_gen.integers(0, len(avatar_shapes)))],
+                    'player_color': (
+                        f'hlsa({int(random_gen.integers(0, 360))}, '
+                        f'{int(random_gen.integers(35, 66))}%, '
+                        f'{int(random_gen.integers(35, 66))}%, 1.0)'
+                    ),
+                }
+                if player_uuid in true_params_by_uuid:
+                    player_true_params = true_params_by_uuid[player_uuid]
+                    info['true_params'] = {
+                        'chooser':   dict(player_true_params),
+                        'predictor': dict(player_true_params),
+                    }
+                player_info[player_uuid] = info
+
+    histories_dict = {'histories': histories, 'player_info': player_info}
+
+    os.makedirs(os.path.dirname(histories_file_path), exist_ok=True)
+    with open(histories_file_path, 'w', encoding='utf-8') as output_file:
+        json.dump(histories_dict, output_file, ensure_ascii=False, indent=4)
+
+    "Invalidate the players_to_dyads cache — stale cache causes dyad lookup failures on re-run."
+    players_to_dyads_cache_path = os.path.join(
+        file_paths['processed'],
+        file_paths['file_names']['players_to_dyads_exper3']
+    )
+    if os.path.exists(players_to_dyads_cache_path):
+        os.remove(players_to_dyads_cache_path)
+
+    return histories_dict, true_params_by_uuid
 
 
 _SENTINEL = object()  # used as a sentinel for random_seed to distinguish "not provided" from None (unseeded)
@@ -2010,7 +2116,7 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         else:
             utility_settings_by_k = _load_best_per_k_from_csv()
 
-    "Validate each k’s k_params matches requested k"
+    "Validate each k's k_params matches requested k"
     for k_params in k_param_values:
         utility_settings_for_k = utility_settings_by_k.get(k_params)
         if not isinstance(utility_settings_for_k, dict):
@@ -2025,78 +2131,6 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
             if name in keys:
                 return name
         return None
-
-    def _sample_params_from_bounds(param_info: dict) -> dict[str, float]:
-        """
-        Sample one random parameter vector within provided param_info['bounds'] aligned
-        with param_info['keys']. Also mirror 'temp' to 'τ' if present.
-        """
-        keys = list(param_info['keys'])
-        bounds = list(param_info['bounds'])
-        vals = {}
-        for idx, param_key in enumerate(keys):
-            lower_bound, upper_bound = bounds[idx]
-            if param_key.endswith("_std"):
-                lower_bound = max(lower_bound, 1e-3)  # Keep std away from zero.
-            vals[param_key] = float(random_gen.uniform(float(lower_bound), float(upper_bound)))
-        if "temp" in vals and "τ" not in vals:
-            vals["τ"] = float(vals["temp"])
-        if "τ" not in vals:
-            vals["τ"] = general_settings.get('softmax_temperature', 1.0)
-        if evenly_space_altruism:
-            if "Vᵢᵢ" in vals:
-                vals["Vᵢᵢ"] = 1.0
-            if "Vᵢᵢ_std" in vals:
-                vals["Vᵢᵢ_std"] = 1.0
-            if "Vᵢⱼ_std" in vals:
-                vals["Vᵢⱼ_std"] = 1.0
-        return vals
-
-    def _assemble_histories_dict(
-        dyad_list: list[dict],
-        player_type: str = 'synthetic',
-        true_params_by_uuid: dict | None = None,
-    ) -> dict:
-        """
-        Convert [{DyadKey: DyadGames}, ...] into the histories JSON structure.
-
-        Arguments:
-            • dyad_list: list[dict]; each element is {DyadKey: DyadGames}.
-            • player_type: str; 'synthetic' for simulated players (accepted by run_analysis_bayes).
-            • true_params_by_uuid: dict | None; maps player UUID to ground-truth params dict.
-              If provided, stores them as player_info[uuid]['true_params'] = {'chooser': ..., 'predictor': ...}
-              (same params for both roles — one utility function per player).
-        """
-        histories = {}
-        for dyad_dict in dyad_list:
-            histories.update(dyad_dict)
-        avatar_shapes = [
-            "arrow-head","bowtie","circle","cross","curvy-x","dent-square","dodecagon","flame","flower",
-            "ghost","hexagon","hour-glass","jagged-sun","lemon","moon","pentagon","round-square","squash",
-            "teardrop","two-triangle","star-six","stop-sign"
-        ]
-        player_info = {}
-        for dyad_key in histories.keys():
-            player_uuid_1, player_uuid_2 = dyad_key[1:-1].split(", ")
-            for player_uuid in (player_uuid_1, player_uuid_2):
-                if player_uuid not in player_info:
-                    info = {
-                        'player_type':  player_type,
-                        'avatar_shape': avatar_shapes[int(random_gen.integers(0, len(avatar_shapes)))],
-                        'player_color': (
-                            f'hlsa({int(random_gen.integers(0, 360))}, '
-                            f'{int(random_gen.integers(35, 66))}%, '
-                            f'{int(random_gen.integers(35, 66))}%, 1.0)'
-                        ),
-                    }
-                    if true_params_by_uuid and player_uuid in true_params_by_uuid:
-                        player_true_params = true_params_by_uuid[player_uuid]
-                        info['true_params'] = {
-                            'chooser':   dict(player_true_params),
-                            'predictor': dict(player_true_params),
-                        }
-                    player_info[player_uuid] = info
-        return {'histories': histories, 'player_info': player_info}
 
     "---------- Main loop over k: 3 phases for clean parallelism ----------"
     aggregate_records = []
@@ -2130,71 +2164,49 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         file_paths_k = prep.add_remove_file_name_suffix(
             file_paths=file_paths_k, file_name_suffix=None, add_suffix=False
         )
-        k_file_name = f"Social_Preference_Prediction_Pairs_Param_Recovery_k{k_params}.json"
+        k_file_name = f"Social_Preference_Prediction_Pairs_Param_Recovery_k{k_params}_n{n_players}_g{n_games}.json"
         file_paths_k['file_names']['player_pairs_exper3'] = k_file_name
         "Override the players_to_dyads cache key so it regenerates from our custom histories instead of the real exper3 cache."
-        file_paths_k['file_names']['players_to_dyads_exper3'] = f"players_to_dyads_param_recovery_k{k_params}.json"
+        file_paths_k['file_names']['players_to_dyads_exper3'] = f"players_to_dyads_param_recovery_k{k_params}_n{n_players}_g{n_games}.json"
+        "Route all synthetic output to simulations/ — keeps fit JSONs, loss reports, param aggregates, and"
+        "cached histories completely segregated from real participant data without touching any vital function."
+        _sim_root = str(file_paths['simulations'])
+        file_paths_k['player_fits'] = _sim_root
+        file_paths_k['processed']   = os.path.join(_sim_root, 'processed')
+        file_paths_k['param_data']  = os.path.join(_sim_root, 'param_data')
         histories_file_path = os.path.join(file_paths_k['processed'], k_file_name)
 
         "Pad n_players to a multiple of 4 for round-robin batch assignment."
         n_players_k = n_players + (4 - n_players % 4) % 4
+        if n_players_k != n_players:
+            print(f"[k={k_params}] n_players={n_players} is not a multiple of 4 — padded to {n_players_k}.")
 
-        if os.path.exists(histories_file_path):
-            "Load existing Phase 1 data — skip regeneration."
-            with open(histories_file_path, 'r', encoding='utf-8') as existing_file:
-                histories_k = json.load(existing_file)
-            "Reconstruct true_params_by_uuid from player_info stored in the JSON."
-            true_params_by_uuid_k = {
-                player_uuid: dict(player_data.get('true_params', {}).get('chooser', {}))
-                for player_uuid, player_data in histories_k.get('player_info', {}).items()
-            }
-            n_players_k = len(true_params_by_uuid_k)
-            print(f"[k={k_params}  {k_phase1_idx}/{len(k_param_values)}] Phase 1 skipped — loaded existing file "
-                  f"({n_players_k} players): {histories_file_path}")
+        "Build the altruism target list — always generated to keep random_gen state consistent."
+        if evenly_space_altruism:
+            steps = max(2, int(n_altruism_steps))
+            altruism_grid = list(np.linspace(altruism_lower_bound, altruism_upper_bound, steps))
+            reps = math.ceil(n_players_k / steps)
+            altruism_targets = (altruism_grid * reps)[:n_players_k]
+            random_gen.shuffle(altruism_targets)
         else:
-            if n_players_k != n_players:
-                print(f"[k={k_params}] n_players={n_players} is not a multiple of 4 — padded to {n_players_k}.")
+            altruism_targets = [float(random_gen.uniform(altruism_lower_bound, altruism_upper_bound))
+                                for _ in range(n_players_k)]
 
-            "Build the altruism target list — one value per synthetic player."
-            if evenly_space_altruism:
-                steps = max(2, int(n_altruism_steps))
-                altruism_grid = list(np.linspace(altruism_lower_bound, altruism_upper_bound, steps))
-                reps = math.ceil(n_players_k / steps)
-                altruism_targets = (altruism_grid * reps)[:n_players_k]
-                random_gen.shuffle(altruism_targets)
-            else:
-                altruism_targets = [float(random_gen.uniform(altruism_lower_bound, altruism_upper_bound))
-                                    for _ in range(n_players_k)]
-
-            print(f"[k={k_params}  {k_phase1_idx}/{len(k_param_values)}] Phase 1: Generating {n_players_k} synthetic players "
-                  f"in {n_players_k // 4} batch(es) of 4 ({n_games} games per player)...")
-
-            dyads_for_k, true_params_by_uuid_k = create_simulated_experiment(
-                n_players=n_players_k,
-                n_games=n_games,
-                k_params=k_params,
-                utility_settings_k=u_settings_k,
-                general_settings=general_settings,
-                param_bds=param_bds,
-                random_gen=random_gen,
-                altruism_key=altruism_key,
-                altruism_targets=altruism_targets,
-            )
-            histories_k = _assemble_histories_dict(
-                dyad_list=dyads_for_k,
-                player_type='synthetic',
-                true_params_by_uuid=true_params_by_uuid_k,
-            )
-
-            os.makedirs(os.path.dirname(histories_file_path), exist_ok=True)
-            with open(histories_file_path, 'w', encoding='utf-8') as file:
-                json.dump(histories_k, file, ensure_ascii=False, indent=4)
-            "Invalidate the players_to_dyads cache — stale cache from a previous run with different player counts causes dyad lookup failures."
-            players_to_dyads_cache_path = os.path.join(
-                file_paths_k['processed'], file_paths_k['file_names']['players_to_dyads_exper3'])
-            if os.path.exists(players_to_dyads_cache_path):
-                os.remove(players_to_dyads_cache_path)
-            print(f"[k={k_params}  {k_phase1_idx}/{len(k_param_values)}] Phase 1 done in {_fmt_duration(time.time() - t_phase1_k)}. Histories → {histories_file_path}")
+        histories_k, true_params_by_uuid_k = create_simulated_experiment(
+            n_players=n_players_k,
+            n_games=n_games,
+            k_params=k_params,
+            utility_settings_k=u_settings_k,
+            general_settings=general_settings,
+            param_bds=param_bds,
+            random_gen=random_gen,
+            altruism_key=altruism_key,
+            altruism_targets=altruism_targets,
+            file_paths=file_paths_k,
+            create_new_file=False,
+        )
+        n_players_k = len(true_params_by_uuid_k)
+        print(f"[k={k_params}  {k_phase1_idx}/{len(k_param_values)}] Phase 1 done in {_fmt_duration(time.time() - t_phase1_k)}.")
 
         "Build general_settings for this k's fit run."
         general_settings_k = copy.deepcopy(general_settings)
@@ -2206,7 +2218,7 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
             general_settings_k['run_in_parallel'] = False
 
         k_phase1[k_params] = {
-            'histories_k':          histories_k,
+            'histories_file_path':  histories_file_path,
             'file_paths_k':         file_paths_k,
             'param_info_k':         param_info_k,
             'u_settings_k':         u_settings_k,
@@ -2217,9 +2229,12 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
 
     "Phase 2: fit — parallel across k when run_k_in_parallel=True, sequential otherwise."
     def _fit_one_k(meta: dict) -> None:
+        "Load histories from disk rather than memory so only one k's data is live at a time."
+        with open(meta['histories_file_path'], 'r', encoding='utf-8') as _f:
+            histories_k = json.load(_f)
         "player_uuids=None: auto-selection via player_type='synthetic' in player_info."
         run_analysis_bayes(
-            histories_data=meta['histories_k'],
+            histories_data=histories_k,
             file_paths=meta['file_paths_k'],
             param_info=meta['param_info_k'],
             utility_settings=meta['u_settings_k'],
@@ -2252,7 +2267,7 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
 
     "Phase 3 (sequential): collect results for every k."
     print(f"\n[Phase 3] Collecting results for {len(k_param_values)} k values...")
-    fit_dir = os.path.join(file_paths['player_fits'], "experiment_3")
+    fit_dir = os.path.join(str(file_paths['simulations']), "experiment_3")
 
     def _collect_role_results(k_params: int, role: str, param_info_k: dict) -> tuple[pd.DataFrame, list]:
         """
@@ -2502,8 +2517,8 @@ def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_s
             }
 
             "Store choices based on the chooser parameters"
-            choice_response = choice(current_game=payoffs, agent_params=params_choo, utility_settings=utility_settings, 
-                                     softmax_temperature=general_settings.get('softmax_temperature'), select=True)["model_choose_A"]
+            choice_response = response(current_game=payoffs, agent_params=params_choo, utility_settings=utility_settings,
+                                      softmax_temperature=general_settings.get('softmax_temperature'), select_responses=True)["model_choose_A"]
             choice_response = "A" if choice_response == 1 else "B"
 
             dyad_game = {
@@ -2759,7 +2774,7 @@ def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_s
 
 
 "=========================================================================================="
-"======= Simulation 2) Predictor Estimates Converge to the Chooser’s True Altruism ========"
+"======= Simulation 2) Predictor Estimates Converge to the Chooser's True Altruism ========"
 "=========================================================================================="
 
 def plot_param_recovery_by_round(
@@ -2786,7 +2801,7 @@ def plot_param_recovery_by_round(
         2. For each parameter, plots:
              • correlation vs. round, and
              • a best-fit line with slope and R² annotation.
-        3. Uses a dropdown to toggle which parameter’s traces are visible.
+        3. Uses a dropdown to toggle which parameter's traces are visible.
 
     Arguments:
         • df_merged: pd.DataFrame;
@@ -3050,7 +3065,7 @@ def plot_param_recovery_by_round(
 
 def compute_prediction_accuracy_by_segment(file_paths: Dict[str, Dict[str, str] | str], general_settings: Dict[str, Any], utility_settings: Dict[str, bool], n_segments: int = 2) -> Dict[str, Any]:
     """
-    Compute how participants’ prediction accuracy changes across repeated meetings.
+    Compute how participants' prediction accuracy changes across repeated meetings.
 
     This function is for the human–bot experiment (Experiment 1). For each predictor:
         1) Reconstructs their dyads and game histories.
@@ -3060,7 +3075,7 @@ def compute_prediction_accuracy_by_segment(file_paths: Dict[str, Dict[str, str] 
                accuracy = proportion(choice == prediction).
 
     In Experiment 2, where choosers are avatars with known preferences, it uses the
-    known avatar utility function to reconstruct the avatar’s “true” choice on each
+    known avatar utility function to reconstruct the avatar's “true” choice on each
     response-phase round before comparing with human predictions.
 
     Arguments:
@@ -3206,7 +3221,7 @@ def compute_belief_update_speed(dyad_games: List[Dict[str, Any]], player_uuid: s
     """
     Quantify how quickly a predictor's fitted parameters move toward their target.
 
-    This implements the “update speed” measure described in the paper’s simulation
+    This implements the “update speed” measure described in the paper's simulation
     section (Prior Variance and Temperature Affect Belief Update Speed). It returns
     a scalar in [0, 1] indicating the earliest round at which the fitted parameters
     cross a given fraction of the total distance between start and target.
@@ -3214,7 +3229,7 @@ def compute_belief_update_speed(dyad_games: List[Dict[str, Any]], player_uuid: s
     Two modes:
         • Absolute mode (model-to-truth):
             If `true_parameters` is provided, tracks the Euclidean distance between
-            the predictor’s fitted vector and the ground-truth vector each round.
+            the predictor's fitted vector and the ground-truth vector each round.
             Computes:
                 d(0)  = initial distance
                 d(F)  = final distance
@@ -3236,7 +3251,7 @@ def compute_belief_update_speed(dyad_games: List[Dict[str, Any]], player_uuid: s
             Settings that specify the update method (e.g., "grid") and experiment_num.
         • true_parameters: dict[str, float] | None;
             Ground-truth parameter vector to move toward (e.g., chooser parameters
-            in simulations). If None, use the predictor’s own final parameters as
+            in simulations). If None, use the predictor's own final parameters as
             the “target”.
         • params_of_interest: list[str] | None;
             Subset of parameter keys to include (e.g., ["Vᵢᵢ","Vᵢⱼ"]). If None,
@@ -3393,10 +3408,10 @@ def run_update_speed_simulation_regression(general_settings: GeneralSettings, fi
         1) Loads simulated dyads from JSON (created by the bot–bot simulation).
         2) For each dyad, computes an update speed for the predictor via
            `compute_belief_update_speed`.
-        3) Extracts each predictor’s initial fitted variance and temperature.
+        3) Extracts each predictor's initial fitted variance and temperature.
         4) Runs a linear regression:
                update_speed ~ τ_fitted_predictor + Vᵢⱼ_std_fitted_predictor
-           mirroring the regression in the paper’s simulation section.
+           mirroring the regression in the paper's simulation section.
 
     Arguments:
         • general_settings: GeneralSettings;
@@ -3408,7 +3423,7 @@ def run_update_speed_simulation_regression(general_settings: GeneralSettings, fi
         • json_path: str;
             Directory containing the per-dyad simulation fit JSON files.
         • use_true_params: bool;
-            If True, compute “absolute” speed toward the chooser’s true parameters.
+            If True, compute “absolute” speed toward the chooser's true parameters.
             If False, compute “relative” speed from prior to final fitted values.
         • n_dyads: int | None;
             Number of dyad files to process. If None, use all JSON files in `json_path`.
@@ -3529,7 +3544,7 @@ def analyze_update_speed_in_human_bot(file_paths: Dict[str, Dict[str, str] | str
     This function:
         1) Loads player-level dyad fits from disk.
         2) For each dyad, computes an update speed for the predictor using
-           `compute_belief_update_speed`, typically toward the avatar’s true (Vᵢᵢ, Vᵢⱼ).
+           `compute_belief_update_speed`, typically toward the avatar's true (Vᵢᵢ, Vᵢⱼ).
         3) Aggregates update speeds:
                • per predictor (mean, std),
                • per counterpart (avatar type; mean, std).
