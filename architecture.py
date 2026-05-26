@@ -1531,7 +1531,7 @@ def compute_model_recovery_simulation(
     "Load utility registry and identify boolean flag columns."
     processed_dir         = str(file_paths['processed'])
     _original_player_fits = str(file_paths['player_fits'])
-    _sim_results_dir      = os.path.join(_original_player_fits, 'simulation_results')
+    _sim_results_dir      = str(file_paths['simulations'])
     os.makedirs(_sim_results_dir, exist_ok=True)
     _gitignore_path = os.path.join(_sim_results_dir, '.gitignore')
     if not os.path.exists(_gitignore_path):
@@ -1575,7 +1575,7 @@ def compute_model_recovery_simulation(
     }
 
     "Check for cached final result."
-    _stem            = _recovery_simulation_stem(
+    _stem = _recovery_simulation_stem(
         generating_utility_idx=generating_utility_idx,
         n_candidate_models=n_candidate_models,
         candidate_model_selection_mode=candidate_model_selection_mode,
@@ -1751,9 +1751,11 @@ def compute_model_recovery_simulation(
         ic_data = json.load(ic_file_handle)
     ic_results = ic_data.get('ic_results', {})
 
-    "Find generating model entry by settings tuple — not by utility_idx."
-    "The IC JSON was built from a different model registry (different total model count),"
-    "so integer indices may differ. The settings tuple is the stable cross-version identity."
+    """
+    Find generating model entry by settings tuple — not by utility_idx.
+    The IC JSON was built from a different model registry (different total model count),
+    so integer indices may differ. The settings tuple is the stable cross-version identity.
+    """
     _gen_settings_tuple     = tuple(
         bool(generating_utility_settings.get(col, False)) for col in flag_columns
     )
@@ -1930,7 +1932,7 @@ def compute_model_recovery_simulation(
             condition_file_paths['processed']   = condition_processed_dir
             condition_file_paths['param_data']  = os.path.join(condition_base_dir, 'param_data')
             condition_file_paths['player_fits'] = os.path.join(
-                _original_player_fits, 'simulation_results', 'model_recovery_simulation',
+                str(file_paths['simulations']), 'model_recovery_simulation',
                 _dir_key, _cond_key,
             )
             condition_file_paths['bic_aic']     = os.path.join(condition_base_dir, 'bic_aic')

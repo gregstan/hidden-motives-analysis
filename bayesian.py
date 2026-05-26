@@ -1625,11 +1625,6 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
     temperature_is_param = general_settings.get('temperature_is_param', True)
     optimization_method = general_settings.get('optimization_method', 'local')
 
-    "Experiment 0 is simulated data; choosers are virtual avatars with no parameters to fit."
-    if experiment_num == 0 and 'chooser' in player_uuid:
-        print(f"chooser player_uuid = {player_uuid}")
-        raise Exception(f"Can only fit predictors for simulated data.")
-
     if update_method in ('naive', 'parametric'):
         for param_key in param_info['keys']:
             if '_std' in param_key:
@@ -2095,6 +2090,9 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
     for player_role in ('predictor', 'chooser', ):
         if player_role == 'chooser' and experiment_num != 3:
             continue
+        "fit_predictor_role=False skips the expensive UBM pass — used by run_param_recovery_by_k when only chooser recovery is needed."
+        if player_role == 'predictor' and not general_settings.get('fit_predictor_role', True):
+            continue
 
         best_fit_params_role, opt_results_role = optimize_roles(
             initial_params_for_role=initial_params[player_role], role_to_fit=player_role)
@@ -2105,8 +2103,6 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
     for role_to_fit in ('chooser','predictor'):
         if not loss_report[role_to_fit]:
             continue  # Maybe it is empty for roles not optimized.
-        if experiment_num == 0 and role_to_fit == 'chooser':
-            continue
 
         df_loss = pd.DataFrame(loss_report[role_to_fit])
         if "raw_neglogprob_sum" in df_loss.columns:
@@ -2731,7 +2727,7 @@ def run_analysis_bayes(histories_data: Histories, file_paths: FilePaths, param_i
 
         if not (isinstance(player_uuids, list) and all(isinstance(player_uuid, str) for player_uuid in player_uuids)):
             player_uuids = sorted([player_uuid for player_uuid, info in player_info.items()
-                            if info.get('player_type') == 'participant' or (experiment_num == 0 and 'predictor' in player_uuid)])
+                            if info.get('player_type') in ('participant', 'synthetic') or (experiment_num == 0 and 'predictor' in player_uuid)])
             # Experiment 0 is the simulation study; predictor-bot UUIDs are included so the optimizer can attempt to recover their known ground-truth parameters.
 
         n_items = len(player_uuids)

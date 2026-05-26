@@ -26,7 +26,7 @@ def utility_term(payoff_1: float, payoff_2: float, weight_1: float, weight_2: fl
         • weight_1: float
             Positive-domain weight, applied when payoff_1 > payoff_2 (e.g., Vᵢᵢ, Vᵢⱼ).
         • weight_2: float
-            Negative-domain weight, applied when payoff_1 < payoff_2 (e.g., Ʌᵢᵢ, Ʌᵢⱼ).
+            Negative-domain weight, applied when payoff_1 < payoff_2 (e.g., λᵢᵢ, λᵢⱼ).
             Only active when use_negativity_parameters=True.
         • exponent: float
             Curvature exponent γ applied to the payoff base. Exponent of 1 gives a linear term.
@@ -107,7 +107,7 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
                 'Bo' = payoff to other under option B
         • params: dict[str, float]
             Social-preference parameter values. Recognized keys (all optional; defaults shown):
-                'Vᵢᵢ' (1), 'Ʌᵢᵢ' (0), 'Vᵢⱼ' (0), 'Ʌᵢⱼ' (0),
+                'Vᵢᵢ' (1), 'λᵢᵢ' (0), 'Vᵢⱼ' (0), 'λᵢⱼ' (0),
                 'αᵢⱼ' (0), 'βᵢⱼ' (0), 'γ1' (1), 'γ2' (γ1), 'γ3' (γ1).
         • utility_settings: UtilitySettings
             Dict of boolean toggles that select the active functional form. The key flags are:
@@ -129,9 +129,9 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
           If separate_terms=True, returns dict[str, float] instead.
     """
     Vᵢᵢ = params.get('Vᵢᵢ', 1)
-    Ʌᵢᵢ = params.get('Ʌᵢᵢ', 0)
+    λᵢᵢ = params.get('λᵢᵢ', 0)
     Vᵢⱼ = params.get('Vᵢⱼ', 0)
-    Ʌᵢⱼ = params.get('Ʌᵢⱼ', 0)
+    λᵢⱼ = params.get('λᵢⱼ', 0)
     αᵢⱼ = params.get('αᵢⱼ', 0)
     βᵢⱼ = params.get('βᵢⱼ', 0)
     exp1 = params.get('γ1', 1)
@@ -164,8 +164,8 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
 
         if normalize_conditional_welfare_params:
             "Normalize weight parameters from [-1, 1] to [0, 1]"
-            Vᵢᵢ, Ʌᵢᵢ = (Vᵢᵢ + 1) / 2, (Ʌᵢᵢ + 1) / 2
-            Vᵢⱼ, Ʌᵢⱼ = (Vᵢⱼ + 1) / 2, (Ʌᵢⱼ + 1) / 2
+            Vᵢᵢ, λᵢᵢ = (Vᵢᵢ + 1) / 2, (λᵢᵢ + 1) / 2
+            Vᵢⱼ, λᵢⱼ = (Vᵢⱼ + 1) / 2, (λᵢⱼ + 1) / 2
 
         if payAi >= ref_point:
             "If oneself is ahead, use positivity parameters."
@@ -173,8 +173,8 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
             weight_1_al = Vᵢⱼ if utility_settings['include_altruism_term'] else 1 - Vᵢᵢ
         else:
             "If oneself is behind, use negativity parameters."
-            weight_1_si = Ʌᵢᵢ
-            weight_1_al = Ʌᵢⱼ if utility_settings['include_altruism_term'] else 1 - Ʌᵢᵢ
+            weight_1_si = λᵢᵢ
+            weight_1_al = λᵢⱼ if utility_settings['include_altruism_term'] else 1 - λᵢᵢ
 
         "Self-interest term"
         self_interest = utility_term(payoff_1=pay1si, payoff_2=pay2si, 
@@ -300,7 +300,7 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
     "Self-interest term"
     self_interest = utility_term(payoff_1=pay1si, payoff_2=pay2si,
                                  weight_1=1 if utility_settings['fix_self_interest_parameter'] else Vᵢᵢ,
-                                 weight_2=Ʌᵢᵢ if utility_settings['use_negativity_parameters'] else 0.0,
+                                 weight_2=λᵢᵢ if utility_settings['use_negativity_parameters'] else 0.0,
                                  exponent=exp1, use_negativity_parameters=utility_settings['use_negativity_parameters'],
                                  use_exponential_parameters=utility_settings['use_exponential_parameters'],
                                  single_payoffs_not_differences=utility_settings['single_payoffs_not_differences'],
@@ -309,7 +309,7 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
     "Altruism term"
     if utility_settings['include_altruism_term']:
         altruism = utility_term(payoff_1=pay1al, payoff_2=pay2al, weight_1=Vᵢⱼ, exponent=exp2,
-                                weight_2=Ʌᵢⱼ if utility_settings['use_negativity_parameters'] else 0.0,
+                                weight_2=λᵢⱼ if utility_settings['use_negativity_parameters'] else 0.0,
                                 use_negativity_parameters=utility_settings['use_negativity_parameters'],
                                 use_exponential_parameters=utility_settings['use_exponential_parameters'],
                                 single_payoffs_not_differences=utility_settings['single_payoffs_not_differences'],
@@ -506,7 +506,7 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A",
 
     Used for figure labels, printed output, and the IC analysis table. The string mirrors the
     mathematical expression that utility() would evaluate numerically, including Greek parameter
-    symbols (Vᵢᵢ, Ʌᵢᵢ, γ₁, etc.) and payoff notation (πᵢᴬ, πⱼᴮ, etc.). It respects all
+    symbols (Vᵢᵢ, λᵢᵢ, γ₁, etc.) and payoff notation (πᵢᴬ, πⱼᴮ, etc.). It respects all
     active flags in utility_settings: altruism terms, social comparison, negativity parameters,
     exponent parameters, payoff-difference vs. ratio form, and the conditional-welfare and
     min-max/Rawlsian/Leontief structural families.
@@ -646,7 +646,7 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A",
 
         "Generate weights, bases, and operators."
         if term_type == "self-interest":
-            weight1, weight2 = f"{Vᵢᵢ}", "Ʌᵢᵢ"
+            weight1, weight2 = f"{Vᵢᵢ}", "λᵢᵢ"
             operator1, operator2 = "", " - "
             base1 = f"{payAi} - {payBi}" if not one_pay or ref_dep else payAi
             base2 = f"{payBi} - {payAi}" if not one_pay or ref_dep else payAi
@@ -659,7 +659,7 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A",
         elif term_type == "altruism":
             if not alt_term:
                 return ""
-            weight1, weight2 = "Vᵢⱼ", "Ʌᵢⱼ"
+            weight1, weight2 = "Vᵢⱼ", "λᵢⱼ"
             operator1, operator2 = " + ", " - "
             base1 = f"{payAj} - {payBj}" if not one_pay or ref_dep else payAj
             base2 = f"{payBj} - {payAj}" if not one_pay or ref_dep else payAj  
@@ -788,13 +788,13 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A",
             base_altr = f" × {base_altr}"
 
         ahead_self = f"Vᵢᵢ" + base_self
-        behind_self = f"Ʌᵢᵢ" + base_self
+        behind_self = f"λᵢᵢ" + base_self
         if alt_term:
             ahead_altr = f"Vᵢⱼ" + base_altr
-            behind_altr = f"Ʌᵢⱼ" + base_altr
+            behind_altr = f"λᵢⱼ" + base_altr
         else:
             ahead_altr = f"(1 - Vᵢᵢ)" + base_altr
-            behind_altr = f"(1 - Ʌᵢᵢ)" + base_altr
+            behind_altr = f"(1 - λᵢᵢ)" + base_altr
 
         if ref_alt:
             payAj = "3" 

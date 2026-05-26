@@ -326,7 +326,7 @@ def global_local_then_trust_constr(objective_with_penalty: Callable[[np.ndarray]
     on the *raw* NLL (no penalty) subject to an L1 unit-norm equality constraint over the social-
     preference weight parameters. This constraint prevents the optimizer from growing weights
     arbitrarily large after the penalty is removed, and is only applied to the six weight parameters
-    (Vᵢᵢ, Ʌᵢᵢ, Vᵢⱼ, Ʌᵢⱼ, αᵢⱼ, βᵢⱼ). The final result is whichever stage achieved the lower raw NLL.
+    (Vᵢᵢ, λᵢᵢ, Vᵢⱼ, λᵢⱼ, αᵢⱼ, βᵢⱼ). The final result is whichever stage achieved the lower raw NLL.
 
     Arguments:
         • objective_with_penalty: Callable[[np.ndarray], float]
@@ -498,7 +498,7 @@ def global_local_then_trust_constr(objective_with_penalty: Callable[[np.ndarray]
 
         Included:
             • The six weight parameters (pretty or ASCII aliases):
-            {Vᵢᵢ, Ʌᵢᵢ, Vᵢⱼ, Ʌᵢⱼ, αᵢⱼ, βᵢⱼ}  or  {Vii, Λii, Vij, Λij, Eij, Gij}
+            {Vᵢᵢ, λᵢᵢ, Vᵢⱼ, λᵢⱼ, αᵢⱼ, βᵢⱼ}  or  {Vii, Λii, Vij, Λij, Eij, Gij}
 
         Excluded:
             • Temperature ('τ')
@@ -522,11 +522,11 @@ def global_local_then_trust_constr(objective_with_penalty: Callable[[np.ndarray]
             "make a lenient ASCII fallback for pretty subscripts/special chars"
             return (key.replace("ᵢ", "i")
                     .replace("ⱼ", "j")
-                    .replace("Ʌ", "Λ")
+                    .replace("λ", "Λ")
                     .replace("α", "E")
                     .replace("β", "G"))
 
-        WEIGHT_SET_PRETTY = {"Vᵢᵢ", "Ʌᵢᵢ", "Vᵢⱼ", "Ʌᵢⱼ", "αᵢⱼ", "βᵢⱼ"}
+        WEIGHT_SET_PRETTY = {"Vᵢᵢ", "λᵢᵢ", "Vᵢⱼ", "λᵢⱼ", "αᵢⱼ", "βᵢⱼ"}
         WEIGHT_SET_ASCII  = {"Vii", "Λii", "Vij", "Λij", "Eij", "Gij"}
 
         mask_values: list[bool] = []

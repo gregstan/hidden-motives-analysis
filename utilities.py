@@ -336,9 +336,9 @@ def parameter_penalty(
 
     "Self-interest (anchor = 1.0)."
     Vii = parameter_value(params, "Vᵢᵢ") or parameter_value(params, "Vii")
-    Lii = parameter_value(params, "Ʌᵢᵢ") or parameter_value(params, "Λii")
+    Lii = parameter_value(params, "λᵢᵢ") or parameter_value(params, "Λii")
     has_Vii = _has(params, "Vᵢᵢ", "Vii")
-    has_Lii = _has(params, "Ʌᵢᵢ", "Λii")
+    has_Lii = _has(params, "λᵢᵢ", "Λii")
 
     if has_Vii or has_Lii:
         anchor = 1.0
@@ -351,9 +351,9 @@ def parameter_penalty(
 
     "Altruism (anchor = 0.0)."
     Vij = parameter_value(params, "Vᵢⱼ") or parameter_value(params, "Vij")
-    Lij = parameter_value(params, "Ʌᵢⱼ") or parameter_value(params, "Λij")
+    Lij = parameter_value(params, "λᵢⱼ") or parameter_value(params, "Λij")
     has_Vij = _has(params, "Vᵢⱼ", "Vij")
-    has_Lij = _has(params, "Ʌᵢⱼ", "Λij")
+    has_Lij = _has(params, "λᵢⱼ", "Λij")
 
     if has_Vij and has_Lij:
         mag = (abs(Vij) + abs(Lij)) / 2.0
@@ -2724,7 +2724,7 @@ def classify_pair_relation(model_1: Union[UtilitySettings, BoolTuple], model_2: 
             negativity_social_comparison, include_social_comparison (outside min–max), include_altruism_term,
             fix_self_interest_parameter).
         • For conditional-welfare models, flipping include_altruism_term **is** parent/child; the parent has explicit
-            altruism weights (Vᵢⱼ, Ʌᵢⱼ). The child ties them to self-interest (1-Vᵢᵢ, 1-Ʌᵢᵢ).
+            altruism weights (Vᵢⱼ, λᵢⱼ). The child ties them to self-interest (1-Vᵢᵢ, 1-λᵢᵢ).
     """
     model_1 = convert_utility_settings(utility_settings=model_1, into=dict)
     model_2 = convert_utility_settings(utility_settings=model_2, into=dict)
@@ -3039,13 +3039,13 @@ def map_child_to_parent_special_param_info(
         if param_name == 'Vᵢᵢ':
             "If child had fixed self-interest, emulate the same behavior."
             return 1.0
-        if param_name in ('Vᵢⱼ', 'Ʌᵢⱼ', 'αᵢⱼ', 'βᵢⱼ'):
+        if param_name in ('Vᵢⱼ', 'λᵢⱼ', 'αᵢⱼ', 'βᵢⱼ'):
             "If the term did not exist before, set to zero."
             return 0.0
         if param_name.startswith('γ'):
             "If the child had no exponents, embedding requires γ ≡ 1."
             return 1.0
-        if param_name == 'Ʌᵢᵢ':
+        if param_name == 'λᵢᵢ':
             "Without an explicit Vᵢᵢ in the child, the symmetric embedding is 1."
             return 1.0
         return 0.0  # Safe fallback for unexpected keys
@@ -3076,14 +3076,14 @@ def map_child_to_parent_special_param_info(
             continue
 
         "New parameter in the parent—choose an embedding value based on structure."
-        if param_name == 'Ʌᵢᵢ':
+        if param_name == 'λᵢᵢ':
             "Tie to self-interest mean if available; else fall back to fixed value 1.0"
-            embedded_parent_values['Ʌᵢᵢ'] = float(child_Vii) if child_Vii is not None else 1.0
+            embedded_parent_values['λᵢᵢ'] = float(child_Vii) if child_Vii is not None else 1.0
             continue
 
-        if param_name == 'Ʌᵢⱼ':
+        if param_name == 'λᵢⱼ':
             "Tie to altruism mean if available; else fall back to 0.0"
-            embedded_parent_values['Ʌᵢⱼ'] = float(child_Vij) if child_Vij is not None else 0.0
+            embedded_parent_values['λᵢⱼ'] = float(child_Vij) if child_Vij is not None else 0.0
             continue
 
         if param_name == 'βᵢⱼ':
@@ -3147,11 +3147,11 @@ def map_child_to_parent_special_param_info(
 
         "1) tie altruism means to self-interest means (to reproduce child)"
         Vii = float(child_fitted_parameters.get('Vᵢᵢ', 1.0))
-        Lai = float(child_fitted_parameters.get('Ʌᵢᵢ', 0.0))
+        Lai = float(child_fitted_parameters.get('λᵢᵢ', 0.0))
         if 'Vᵢⱼ' in parent_keys:
             embedded_parent_values['Vᵢⱼ'] = 1.0 - Vii
-        if 'Ʌᵢⱼ' in parent_keys:
-            embedded_parent_values['Ʌᵢⱼ'] = 1.0 - Lai
+        if 'λᵢⱼ' in parent_keys:
+            embedded_parent_values['λᵢⱼ'] = 1.0 - Lai
 
         "2) tie altruism curvature to self-interest curvature (if parent exposes γ2)"
         if 'γ2' in parent_keys:

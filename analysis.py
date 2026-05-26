@@ -2314,7 +2314,7 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
             Must include 'experiment_num'.
         • file_paths : dict
             Uses file_paths["bic_aic"] for the IC CSV and writes outputs under
-            file_paths["player_fits"]/simulation_results/out_dirname (created if missing).
+            file_paths["simulations"]/out_dirname (created if missing).
         • utility_settings_universe : dict[str,bool]
             The canonical set (keys only are used) of Boolean settings that define models.
             Example keys:
@@ -2334,7 +2334,7 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
         • export_csv : bool
             If True, writes three CSVs (edge-level, summary-by-flip, payoff-paths summary).
         • out_dirname : str
-            Subfolder name for outputs under player_fits/simulation_results.
+            Subfolder name for outputs under file_paths["simulations"].
 
     Returns:
         • (edge_level_df, summary_by_flip, payoff_paths_summary)
@@ -2866,9 +2866,9 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
             • single_exponential_parameter flip (tie ↔ untie):
                 - If parent has multiple γ's but child has γ1 only: copy γ1 to every parent γ*.
             • include_social_comparison added in parent: set αᵢⱼ=0 and βᵢⱼ=0 in parent.
-            • include_altruism_term added in parent: set Vᵢⱼ=0 and Ʌᵢⱼ=0 in parent (if present).
+            • include_altruism_term added in parent: set Vᵢⱼ=0 and λᵢⱼ=0 in parent (if present).
             • negativity_social_comparison added in parent: set βᵢⱼ = αᵢⱼ (tie guilt to envy).
-            • use_negativity_parameters added in parent: set Ʌ-weights equal to their V counterparts.
+            • use_negativity_parameters added in parent: set λ-weights equal to their V counterparts.
             • fix_self_interest_parameter released in parent: set Vᵢᵢ = 1.0 to replicate the fixed-value child.
 
         Notes:
@@ -2929,14 +2929,14 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
                 "For equality: (Vᵢⱼ_raw+1)/2 = (1−Vᵢᵢ_raw)/2  →  Vᵢⱼ_raw = −Vᵢᵢ_raw."
                 if 'Vᵢⱼ' in parent_param_keys:
                     parent_parameters['Vᵢⱼ'] = -float(parent_parameters.get('Vᵢᵢ', child_parameter_dict.get('Vᵢᵢ', 0.0)))
-                if 'Ʌᵢⱼ' in parent_param_keys:
-                    parent_parameters['Ʌᵢⱼ'] = -float(parent_parameters.get('Ʌᵢᵢ', child_parameter_dict.get('Ʌᵢᵢ', 0.0)))
+                if 'λᵢⱼ' in parent_param_keys:
+                    parent_parameters['λᵢⱼ'] = -float(parent_parameters.get('λᵢᵢ', child_parameter_dict.get('λᵢᵢ', 0.0)))
             else:
                 "Standard additive: zeroing altruism weights reproduces the child (altruism = 0)."
                 if 'Vᵢⱼ' in parent_param_keys:
                     parent_parameters['Vᵢⱼ'] = 0.0
-                if 'Ʌᵢⱼ' in parent_param_keys:
-                    parent_parameters['Ʌᵢⱼ'] = 0.0
+                if 'λᵢⱼ' in parent_param_keys:
+                    parent_parameters['λᵢⱼ'] = 0.0
 
         elif changed_utility_setting == "negativity_social_comparison":
             "Parent splits envy/guilt → tie them to the child's single weight (αᵢⱼ_child)"
@@ -2947,12 +2947,12 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
                 parent_parameters['βᵢⱼ'] = single
 
         elif changed_utility_setting == "use_negativity_parameters":
-            "Parent gained negativity mirrors → copy Vᵢᵢ→Ʌᵢᵢ and Vᵢⱼ→Ʌᵢⱼ if present"
-            if 'Ʌᵢᵢ' in parent_param_keys:
-                parent_parameters['Ʌᵢᵢ'] = (1.0 if child_settings.get('fix_self_interest_parameter', False) 
+            "Parent gained negativity mirrors → copy Vᵢᵢ→λᵢᵢ and Vᵢⱼ→λᵢⱼ if present"
+            if 'λᵢᵢ' in parent_param_keys:
+                parent_parameters['λᵢᵢ'] = (1.0 if child_settings.get('fix_self_interest_parameter', False) 
                                             else float(parent_parameters.get('Vᵢᵢ', child_parameter_dict.get('Vᵢᵢ', 0.0))))
-            if 'Ʌᵢⱼ' in parent_param_keys:
-                parent_parameters['Ʌᵢⱼ'] = float(parent_parameters.get('Vᵢⱼ', child_parameter_dict.get('Vᵢⱼ', 0.0)))
+            if 'λᵢⱼ' in parent_param_keys:
+                parent_parameters['λᵢⱼ'] = float(parent_parameters.get('Vᵢⱼ', child_parameter_dict.get('Vᵢⱼ', 0.0)))
 
         elif changed_utility_setting == "fix_self_interest_parameter":
             "Parent released Vᵢᵢ → set it to fixed constant (1.0) to replicate child"
@@ -3421,7 +3421,7 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
 
         "Known aliases that sometimes appear in strings or terminals"
         alias_to_pretty = {
-            "Vii": "Vᵢᵢ", "Λii": "Ʌᵢᵢ", "Vij": "Vᵢⱼ", "Λij": "Ʌᵢⱼ",
+            "Vii": "Vᵢᵢ", "Λii": "λᵢᵢ", "Vij": "Vᵢⱼ", "Λij": "λᵢⱼ",
             "αij": "αᵢⱼ", "βij": "βᵢⱼ",
             # Safeguard: if these ever appear, map them to the canonical key
             "γ1": "γ₁", "γ2": "γ₂", "γ3": "γ₃",
@@ -3447,7 +3447,7 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
         if gamma1_value is None: gamma1_value = 1.0
 
         default_values = {
-            "Vᵢᵢ": 1.0, "Ʌᵢᵢ": 0.0, "Vᵢⱼ": 0.0, "Ʌᵢⱼ": 0.0, "αᵢⱼ": 0.0, "βᵢⱼ": 0.0,
+            "Vᵢᵢ": 1.0, "λᵢᵢ": 0.0, "Vᵢⱼ": 0.0, "λᵢⱼ": 0.0, "αᵢⱼ": 0.0, "βᵢⱼ": 0.0,
             "γ₁": gamma1_value, "γ₂": gamma1_value, "γ₃": gamma1_value,
             "Vii": 1.0, "Λii": 0.0, "Vij": 0.0, "Λij": 0.0, "αij": 0.0, "βij": 0.0,
             "γ1": gamma1_value, "γ2": gamma1_value, "γ3": gamma1_value,
@@ -3517,7 +3517,7 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
         params_pretty = {gamma_pretty.get(param_key, param_key): param_value for param_key, param_value in params.items()}
         "Map aliases that might appear"
         alias_to_pretty = {
-            "Vii": "Vᵢᵢ", "Λii": "Ʌᵢᵢ", "Vij": "Vᵢⱼ", "Λij": "Ʌᵢⱼ",
+            "Vii": "Vᵢᵢ", "Λii": "λᵢᵢ", "Vij": "Vᵢⱼ", "Λij": "λᵢⱼ",
             "αij": "αᵢⱼ", "βij": "βᵢⱼ",
             "γ1": "γ₁", "γ2": "γ₂", "γ3": "γ₃",
         }
@@ -3556,7 +3556,7 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
 
         "Replace any remaining canonical symbols with *utility()* defaults"
         defaults = {
-            "Vᵢᵢ": 1.0, "Ʌᵢᵢ": 0.0, "Vᵢⱼ": 0.0, "Ʌᵢⱼ": 0.0, "αᵢⱼ": 0.0, "βᵢⱼ": 0.0,
+            "Vᵢᵢ": 1.0, "λᵢᵢ": 0.0, "Vᵢⱼ": 0.0, "λᵢⱼ": 0.0, "αᵢⱼ": 0.0, "βᵢⱼ": 0.0,
             "γ₁": gamma1_value, "γ₂": gamma1_value, "γ₃": gamma1_value,
             "Vii": 1.0, "Λii": 0.0, "Vij": 0.0, "Λij": 0.0, "αij": 0.0, "βij": 0.0,
             "γ1": gamma1_value, "γ2": gamma1_value, "γ3": gamma1_value,
@@ -4098,7 +4098,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
         params_pretty = {gamma_pretty.get(param_key, param_key): param_value for param_key, param_value in params.items()}
         "Map aliases that might appear"
         alias_to_pretty = {
-            "Vii": "Vᵢᵢ", "Λii": "Ʌᵢᵢ", "Vij": "Vᵢⱼ", "Λij": "Ʌᵢⱼ",
+            "Vii": "Vᵢᵢ", "Λii": "λᵢᵢ", "Vij": "Vᵢⱼ", "Λij": "λᵢⱼ",
             "αij": "αᵢⱼ", "βij": "βᵢⱼ",
             "γ1": "γ₁", "γ2": "γ₂", "γ3": "γ₃",
         }
@@ -4138,7 +4138,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
 
         "Replace any remaining canonical symbols with *utility()* defaults"
         defaults = {
-            "Vᵢᵢ": 1.0, "Ʌᵢᵢ": 0.0, "Vᵢⱼ": 0.0, "Ʌᵢⱼ": 0.0, "αᵢⱼ": 0.0, "βᵢⱼ": 0.0,
+            "Vᵢᵢ": 1.0, "λᵢᵢ": 0.0, "Vᵢⱼ": 0.0, "λᵢⱼ": 0.0, "αᵢⱼ": 0.0, "βᵢⱼ": 0.0,
             "γ₁": gamma1_value, "γ₂": gamma1_value, "γ₃": gamma1_value,
             "Vii": 1.0, "Λii": 0.0, "Vij": 0.0, "Λij": 0.0, "αij": 0.0, "βij": 0.0,
             "γ1": gamma1_value, "γ2": gamma1_value, "γ3": gamma1_value,
@@ -4206,7 +4206,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
         statuses["total"] = st_total
 
         "Isolate self by zeroing altruism & SC weights"
-        self_only_over = {"Vᵢⱼ": 0.0, "Ʌᵢⱼ": 0.0, "αᵢⱼ": 0.0, "βᵢⱼ": 0.0}
+        self_only_over = {"Vᵢⱼ": 0.0, "λᵢⱼ": 0.0, "αᵢⱼ": 0.0, "βᵢⱼ": 0.0}
         self_only, st_self = _evaluate_equation_numeric(equation_string, params, payoffs, utility_settings, self_only_over, decimals_local)
         statuses["self"] = st_self
 
@@ -5182,7 +5182,7 @@ def population_parameter_distribution_histograms(general_settings: dict[str, Any
                                                  use_initial_params: bool | None = None, create_new_file: bool | None = None) -> go.Figure:
     """
     Visualize histograms of parameter values in df. 
-    df should have columns of parameters (e.g. 'Vᵢᵢ', 'Ʌᵢᵢ', ...).
+    df should have columns of parameters (e.g. 'Vᵢᵢ', 'λᵢᵢ', ...).
 
     Arguments:
         • general_settings: Dict[str, Any]; High-level settings (analysis mode, etc.).

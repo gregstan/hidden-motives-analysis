@@ -1,5 +1,6 @@
 from bayesian import *
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 "=========================================================================================="
 "========== Simulation 1) The Optimizer Accurately Recovers Predictor Parameters =========="
@@ -310,7 +311,7 @@ def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], 
         'analysis_unit': 'player',
         'n_bins_per_dimension': 9,
         'include_covariance': False,
-        'softmax_temperature': 1.5,
+        'softmax_temperature': 1.0,
         'temperature_is_param': True,
         'guess_params_randomly': False,
         'optimization_method': 'globloc',
@@ -847,7 +848,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
         1) Reads all simulated dyad JSON files from `dir_path`.
         2) Converts each to a long DataFrame via `load_simulated_fits_from_json`.
         3) Concatenates and saves the merged DataFrame to:
-               ./simulation_results/simulated_fits.csv
+               ./simulations/simulated_fits.csv
         4) Computes param-recovery correlations (first/final/all) and writes
            `correlation_csv_name` in the same results folder.
         5) Optionally generates:
@@ -1198,7 +1199,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
             return fig
 
     dir_path = ensure_directory_and_join(file_paths['player_fits'], 'experiment_0')
-    sim_dir = ensure_directory_and_join(file_paths['player_fits'], "simulation_results")
+    sim_dir = str(file_paths['simulations'])
     os.makedirs(sim_dir, exist_ok=True)
 
     merged_csv_path = os.path.join(sim_dir, "simulated_fits.csv")
@@ -1475,89 +1476,415 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
     }
 
 
-def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FilePaths, fig_lay: FigLay, param_bds: ParamBounds, n_games: int, n_predictors: int = 10, 
-                            n_choosers_per_predictor: int = 1, k_params_range: tuple[int, int] = (1, 9), n_altruism_steps: int = 7, evenly_space_altruism: bool = True, 
-                            utility_settings_by_k: dict[int, dict[str, bool]] | None = None, analysis_experiment_num: int = 0, random_seed: int | None = None, out_dir: str | None = None, 
-                            figure_filename: str = "param_recovery_by_k.html", csv_filename: str = "param_recovery_by_k.csv", use_existing_fits: bool = False) -> tuple[pd.DataFrame, dict[int, Any]]:
+def _fmt_duration(seconds: float) -> str:
+    """Format a duration in seconds as a human-readable string."""
+    total_minutes = int(seconds) // 60
+    if total_minutes >= 60:
+        hours = total_minutes // 60
+        mins  = total_minutes % 60
+        return f"{hours} hours {mins} minutes"
+    secs = int(seconds) % 60
+    return f"{total_minutes} minutes {secs:02d} seconds"
+
+
+def latin_square(size: int) -> list[list[int]]:
+    """
+    Produces a symmetrical size x size latin square.
+
+    Author: Liam Tsimhoni (Morality Game research assistant).
+    """
+    latin_sq = np.zeros(shape=(size, size), dtype=object)
+    def val(idx, jdx, n_players=size):
+        if (jdx == 0): return idx
+        if (idx == n_players - 1): return ((n_players // 2) * (jdx - 1) % (n_players - 1))
+        if (jdx == (2 * idx) % (n_players - 1) + 1): return n_players - 1
+        return (jdx - 1 - idx) % (n_players - 1)
+    for idx in range(size):
+        for jdx in range(size):
+            latin_sq[idx][jdx] = val(idx, jdx, size)
+    return latin_sq
+
+
+def _pairs_from_ls_column(latin_sq, jdx: int) -> list[tuple[int, int]]:
+    """Return the unique undirected pairs encoded by column jdx of a latin square."""
+    seen, pairs = set(), []
+    for idx in range(len(latin_sq)):
+        opponent_idx = int(latin_sq[idx][jdx])
+        if opponent_idx != idx and (idx, opponent_idx) not in seen and (opponent_idx, idx) not in seen:
+            pairs.append((idx, opponent_idx))
+            seen.add((idx, opponent_idx))
+    return pairs
+
+
+def _sample_batch_game_counts(random_gen: np.random.Generator, n_games: int) -> dict[tuple[int, int], int]:
+    """
+    Sample game counts for all 6 pairs in a 4-player batch.
+
+    Draws three integers (x, y, z) each ≥ 1 with x+y+z = n_games, then derives the remaining
+    three pair counts via the row-sum constraint so every player's total = n_games:
+
+        G[0,1]=x,  G[0,2]=y,  G[0,3]=n_games-x-y
+        G[1,2]=z,  G[1,3]=n_games-x-z
+        G[2,3]=n_games-y-z
+
+    Since x,y,z ≥ 1, all six counts are guaranteed ≥ 1.
+
+    Arguments:
+        • random_gen: np.random.Generator; stateful generator shared across all batches.
+        • n_games: int; total game budget per player (must be ≥ 3).
+
+    Returns:
+        • dict[tuple[int,int], int]; maps each of the 6 unique (local) player-index pairs to
+          the number of games that pair will play.
+    """
+    if n_games < 3:
+        raise ValueError(f"n_games must be ≥ 3 (got {n_games}) so every pair plays ≥ 1 game.")
+
+    "Sample from the interior of the integer simplex so every count ≥ 1 and sums = n_games."
+    "The three directly sampled values are G[0,1], G[0,2], G[1,2]; the remaining three are derived via row-sum constraints."
+    raw_proportions = random_gen.uniform(0.0, 1.0, 3)
+    floats_shifted  = raw_proportions / raw_proportions.sum() * (n_games - 3)
+    floored         = np.floor(floats_shifted).astype(int)
+    remainder_needed = (n_games - 3) - int(floored.sum())
+    if remainder_needed > 0:
+        remainders  = floats_shifted - floored
+        top_indices = np.argsort(remainders)[-remainder_needed:]
+        for remainder_idx in top_indices:
+            floored[remainder_idx] += 1
+
+    sampled_counts = floored + 1   # each entry ≥ 1; [G[0,1], G[0,2], G[1,2]]
+
+    return {
+        (0, 1): int(sampled_counts[0]),
+        (0, 2): int(sampled_counts[1]),
+        (0, 3): n_games - int(sampled_counts[0]) - int(sampled_counts[1]),
+        (1, 2): int(sampled_counts[2]),
+        (1, 3): n_games - int(sampled_counts[0]) - int(sampled_counts[2]),
+        (2, 3): n_games - int(sampled_counts[1]) - int(sampled_counts[2]),
+    }
+
+
+def create_simulated_experiment(
+    n_players: int,
+    n_games: int,
+    k_params: int,
+    utility_settings_k: UtilitySettings,
+    general_settings: GeneralSettings,
+    param_bds: ParamBounds,
+    random_gen: np.random.Generator,
+    altruism_key: str,
+    altruism_targets: list[float],
+) -> tuple[list[dict], dict[str, dict]]:
+    """
+    Generate a full synthetic experiment in the same JSON format as the real raw data.
+
+    Players are organized into batches of 4. Within each batch, all 6 unique undirected pairs
+    are formed (one dyad per pair). Game counts per pair are drawn probabilistically so that
+    each player's total across their 3 dyads equals n_games. Within each dyad, chooser and
+    predictor roles are assigned independently by a fair coin flip on every round, mirroring
+    the real experiment — a player may be chooser in one round and predictor in the next.
+
+    After generating all rounds for a pair, the UBM (agent()) is run separately for each
+    player's predictor sub-sequence within that dyad. Because agent() checks game["predictor"]
+    against player_uuid per round and skips non-matching games, no special sub-sequence
+    extraction is needed.
+
+    Producing synthetic data in exactly the same format as the human raw data reduces the risk
+    of inadvertently breaking existing pipeline functions and makes the parameter recovery test
+    maximally faithful: the optimizer runs under the same conditions it faces on real data.
+
+    Arguments:
+        • n_players: int; total number of synthetic players (padded to the next multiple of 4).
+        • n_games: int; game budget per player (each player's 3 dyads sum to n_games; must be ≥ 3).
+        • k_params: int; number of free parameters in this model family (used in UUIDs).
+        • utility_settings_k: UtilitySettings; utility family for this k.
+        • general_settings: GeneralSettings; passed through to agent() and make_param_info().
+        • param_bds: ParamBounds; passed through to make_param_info().
+        • random_gen: np.random.Generator; stateful generator (shared across all batches).
+        • altruism_key: str; parameter key for the altruism dimension (e.g. 'Vᵢⱼ').
+        • altruism_targets: list[float]; target altruism values cycled over players.
+
+    Returns:
+        • (dyad_list, true_params_by_uuid) where:
+            - dyad_list: list[dict]; each element is {DyadKey: DyadGames}, ready for
+              _assemble_histories_dict.
+            - true_params_by_uuid: dict[str, dict]; maps each player UUID to their ground-truth
+              utility parameter vector.
+    """
+    n_players_padded = n_players + (4 - n_players % 4) % 4
+
+    "Build param_info once for this utility family; reused across all pairs for agent() UBM calls."
+    param_info_for_ubm = make_param_info(
+        param_bds=param_bds, utility_settings=utility_settings_k,
+        general_settings=general_settings, guess_seed=None, random_guesses_are_unique=True,
+    )
+    update_method = general_settings.get('update_method', 'grid')
+
+    "Cap n_bins_per_dimension for the simulation UBM so the grid fits in memory."
+    "For real fitting we want full resolution; here we only need realistic belief updates."
+    "prior_grid_from_params enforces n_bins >= 3, so 3 is the hard floor."
+    n_param_dims   = len(param_info_for_ubm['keys'])
+    n_bins_default = int(general_settings.get('n_bins_per_dimension', 7))
+    max_grid_bytes = 400 * 1024 ** 2   # 400 MB safety ceiling
+    n_bins_for_ubm = n_bins_default
+    while n_bins_for_ubm > 3 and (n_bins_for_ubm ** n_param_dims) * n_param_dims * 8 > max_grid_bytes:
+        n_bins_for_ubm -= 1
+    skip_ubm = (n_bins_for_ubm ** n_param_dims) * n_param_dims * 8 > max_grid_bytes
+    if skip_ubm:
+        general_settings_for_ubm = None
+        print(f"[create_simulated_experiment] k={k_params}: grid too large even at n_bins=3 "
+              f"({(3 ** n_param_dims) * n_param_dims * 8 // 1024**2} MB) — skipping UBM for simulation data.")
+    elif n_bins_for_ubm != n_bins_default:
+        general_settings_for_ubm = copy.deepcopy(general_settings)
+        general_settings_for_ubm['n_bins_per_dimension'] = n_bins_for_ubm
+        print(f"[create_simulated_experiment] k={k_params}: reduced n_bins_per_dimension "
+              f"{n_bins_default} → {n_bins_for_ubm} to keep simulation UBM grid under 400 MB.")
+    else:
+        general_settings_for_ubm = general_settings
+
+    dyad_list:           list[dict]      = []
+    true_params_by_uuid: dict[str, dict] = {}
+
+    for batch_start in range(0, n_players_padded, 4):
+
+        "Assign ground-truth parameters to each of the 4 players in this batch."
+        batch_params: dict[int, dict] = {}
+        for local_idx in range(4):
+            global_idx  = batch_start + local_idx
+            player_uuid = f"synthetic_{k_params}_{global_idx:04d}"
+
+            "Sample params uniformly from bounds; keep std away from zero."
+            params: dict[str, float] = {}
+            for param_idx, param_key in enumerate(list(param_info_for_ubm['keys'])):
+                lower_bound, upper_bound = param_info_for_ubm['bounds'][param_idx]
+                if param_key.endswith("_std"):
+                    lower_bound = max(float(lower_bound), 1e-3)
+                params[param_key] = float(random_gen.uniform(float(lower_bound), float(upper_bound)))
+            if "temp" in params and "τ" not in params:
+                params["τ"] = float(params["temp"])
+            if "τ" not in params:
+                params["τ"] = float(general_settings.get('softmax_temperature', 1.0))
+
+            "Override the altruism dimension with a target value so coverage spans the full range."
+            params[altruism_key] = float(altruism_targets[global_idx % len(altruism_targets)])
+
+            batch_params[local_idx]          = params
+            true_params_by_uuid[player_uuid] = dict(params)
+
+        "Sample game counts for all 6 pairs in this batch."
+        pair_game_counts = _sample_batch_game_counts(random_gen=random_gen, n_games=n_games)
+
+        "One dyad per unique pair; roles are assigned per round by a fair coin flip."
+        for (local_idx_a, local_idx_b), n_games_pair in pair_game_counts.items():
+            uuid_a   = f"synthetic_{k_params}_{(batch_start + local_idx_a):04d}"
+            uuid_b   = f"synthetic_{k_params}_{(batch_start + local_idx_b):04d}"
+            params_a = batch_params[local_idx_a]
+            params_b = batch_params[local_idx_b]
+            matching_probability = n_games_pair / n_games
+
+            "Generate game dicts with per-round role assignment."
+            games_list: list[dict] = []
+            for round_idx in range(n_games_pair):
+                "Coin flip: player A is chooser with p=0.5, predictor otherwise."
+                if random_gen.random() < 0.5:
+                    chooser_uuid_this_round     = uuid_a
+                    chooser_params_this_round   = params_a
+                    predictor_uuid_this_round   = uuid_b
+                    predictor_params_this_round = params_b
+                else:
+                    chooser_uuid_this_round     = uuid_b
+                    chooser_params_this_round   = params_b
+                    predictor_uuid_this_round   = uuid_a
+                    predictor_params_this_round = params_a
+
+                payoff_A_chooser   = int(random_gen.integers(1, 6))
+                payoff_A_predictor = int(random_gen.integers(1, 6))
+                payoff_B_chooser   = int(random_gen.integers(1, 6))
+                payoff_B_predictor = int(random_gen.integers(1, 6))
+
+                payoffs_this_round = {
+                    'payoff_A_chooser':   payoff_A_chooser,
+                    'payoff_A_predictor': payoff_A_predictor,
+                    'payoff_B_chooser':   payoff_B_chooser,
+                    'payoff_B_predictor': payoff_B_predictor,
+                }
+
+                τ_chooser = chooser_params_this_round.get("τ")
+                choice_response = choice(
+                    current_game=payoffs_this_round,
+                    agent_params=chooser_params_this_round,
+                    utility_settings=utility_settings_k,
+                    softmax_temperature=τ_chooser,
+                    select=True,
+                )["model_choose_A"]
+                choice_response = "A" if choice_response == 1 else "B"
+
+                game_dict = {
+                    "chooser":              chooser_uuid_this_round,
+                    "predictor":            predictor_uuid_this_round,
+                    "matching_probability": matching_probability,
+                    "payoff_A_chooser":     payoff_A_chooser,
+                    "payoff_A_predictor":   payoff_A_predictor,
+                    "payoff_B_chooser":     payoff_B_chooser,
+                    "payoff_B_predictor":   payoff_B_predictor,
+                    "choice":               choice_response,
+                    "prediction":           None,
+                    "abdicated_chooser":    False,
+                    "abdicated_predictor":  False,
+                    "timestamp":            time.time(),
+                    "round":                round_idx,
+                }
+                if round_idx == 0:
+                    "Embed true params in round 0 for whoever is chooser/predictor that round."
+                    game_dict["true_params_chooser"]   = dict(chooser_params_this_round)
+                    game_dict["true_params_predictor"] = dict(predictor_params_this_round)
+
+                games_list.append(game_dict)
+
+            if general_settings_for_ubm is not None:
+                "Run UBM for player A as predictor; agent() skips rounds where A is not predictor."
+                τ_a = params_a.get("τ")
+                initial_params_a = {pk: pv for pk, pv in params_a.items() if pk not in ('τ', 'temp')}
+                games_list = agent(
+                    dyad_games=games_list, game_idx_start=0, game_idx_stop=n_games_pair - 1,
+                    general_settings=general_settings_for_ubm, utility_settings=utility_settings_k,
+                    param_info=param_info_for_ubm, initial_params={'predictor': initial_params_a},
+                    player_uuid=uuid_a, player_role="predictor", select=True, softmax_temperature=τ_a,
+                )
+
+                "Run UBM for player B as predictor; agent() skips rounds where B is not predictor."
+                τ_b = params_b.get("τ")
+                initial_params_b = {pk: pv for pk, pv in params_b.items() if pk not in ('τ', 'temp')}
+                games_list = agent(
+                    dyad_games=games_list, game_idx_start=0, game_idx_stop=n_games_pair - 1,
+                    general_settings=general_settings_for_ubm, utility_settings=utility_settings_k,
+                    param_info=param_info_for_ubm, initial_params={'predictor': initial_params_b},
+                    player_uuid=uuid_b, player_role="predictor", select=True, softmax_temperature=τ_b,
+                )
+
+                "Serialize param vectors and move the UBM key to 'sim_pred'."
+                games_list = prep.serialize_param_vectors(dyad_games=games_list, general_settings=general_settings)
+                for game_dict in games_list:
+                    param_est = game_dict.get('parameter_estimates')
+                    if param_est and update_method in param_est:
+                        param_est['sim_pred'] = param_est.pop(update_method)
+
+            "Dyad key convention: (predictor_of_round_0, chooser_of_round_0)."
+            dyad_key = f"({games_list[0]['predictor']}, {games_list[0]['chooser']})"
+            dyad_list.append({dyad_key: games_list})
+
+    return dyad_list, true_params_by_uuid
+
+
+_SENTINEL = object()  # used as a sentinel for random_seed to distinguish "not provided" from None (unseeded)
+
+
+def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FilePaths, fig_lay: FigLay, param_bds: ParamBounds,
+                            n_players: int | None = None, fit_predictor_role: bool = False, n_games: int | None = None,
+                            k_params_range: tuple[int, int] | None = None, n_altruism_steps: int | None = None,
+                            evenly_space_altruism: bool | None = None, utility_settings_by_k: dict[int, dict[str, bool]] | None = None,
+                            correlate_all_params: bool | None = None, run_k_in_parallel: bool | None = None,
+                            random_seed=_SENTINEL, use_existing_fits: bool = False) -> tuple[pd.DataFrame, dict[int, Any]]:
     """
     Run parameter-recovery simulations across utility dimensionalities (k) and summarize accuracy.
 
     For each k in `k_params_range`:
         1. Resolve a utility form from `utility_settings_by_k` if provided, otherwise reads
            the IC comparison CSV to find the best-fitting model at that k.
-        2. Sample `n_predictors` random predictor/chooser parameter vectors within `param_bds`
-           for the utility terms active at that k.
+        2. Sample `n_players` synthetic player parameter vectors within `param_bds` for the
+           utility terms active at k; each player fills both roles across dyads.
         3. Build a simulation histories JSON with embedded true parameters and run
            `run_analysis_bayes(...)` to recover fitted parameters.
-        4. Read the per-dyad fit JSONs, construct a long DataFrame, and compute first-round
-           correlations: corr( <param>_true_predictor, <param>_fitted_predictor ).
-        5. Aggregate per-parameter correlations into a macro-average across parameters present
-           at that k.
+        4. Read the per-player fit JSONs, construct a long DataFrame, and compute first-round
+           correlations: corr( <param>_true_chooser, <param>_fitted_chooser ) (or predictor).
+        5. Aggregate per-parameter correlations into a macro-average across parameters at k.
         6. Store the detailed dyad list and summary under `simulated_param_recovery_by_k[k]`.
         7. Save a tidy CSV and a Plotly figure (correlation vs. k).
 
+    All keyword arguments that are `None` (or `_SENTINEL` for `random_seed`) cascade from
+    `general_settings['parameter_recovery_settings']`, then fall back to the listed defaults.
+
     Arguments:
         • general_settings: GeneralSettings
-            Master settings dict; `'fit_roles_together'` and `'warmstart_policy'` are
-            overridden internally to ensure clean simulation behavior.
+            Master settings dict. `'fit_roles_together'` and `'warmstart_policy'` are
+            overridden internally. `'parameter_recovery_settings'` provides defaults for all
+            cascadable arguments below.
         • file_paths: FilePaths
             Project file-path dict; used for input CSVs and output directories.
         • fig_lay: FigLay
             Plotly figure layout template for the output figure.
         • param_bds: ParamBounds
             Parameter bounds dict used to sample random true parameter vectors.
-        • n_games: int
-            Number of games per simulated dyad.
-        • n_predictors: int
-            Number of predictor agents to simulate at each k.
-        • n_choosers_per_predictor: int
-            Number of choosers each predictor is paired with.
-        • k_params_range: tuple[int, int]
-            Inclusive range (k_min, k_max) of dimensionalities to evaluate.
-        • n_altruism_steps: int
-            Number of evenly-spaced altruism values to use when sampling parameters.
-        • evenly_space_altruism: bool
-            If True, altruism values are drawn from a grid rather than uniformly at random.
+        • n_players: int | None
+            Number of synthetic players per k. Each player fills both chooser and predictor
+            roles across dyads (round-robin design). None → cascade from
+            parameter_recovery_settings['n_players'], then auto-count from
+            len(all_player_uuids(file_paths, experiment_num=3, only_humans=True)).
+        • fit_predictor_role: bool
+            If True, also run the (expensive) Bayesian predictor fitting for each player.
+            Default False — only chooser fitting is performed.
+        • n_games: int | None
+            Games per synthetic dyad. None → cascade, then default 60.
+        • k_params_range: tuple[int, int] | None
+            Inclusive (k_min, k_max) range. None → cascade, then (1, 9).
+        • n_altruism_steps: int | None
+            Grid points across the altruism range. None → cascade, then 7.
+        • evenly_space_altruism: bool | None
+            True → grid; False → uniform random. None → cascade, then True.
         • utility_settings_by_k: dict[int, dict[str, bool]] | None
-            Optional explicit mapping from k to utility settings; if None, the IC CSV is used.
-        • analysis_experiment_num: int
-            Experiment number passed to the analysis pipeline; 0 indicates simulation mode.
-        • random_seed: int | None
-            Seed for the random number generator controlling parameter sampling.
-        • out_dir: str | None
-            Directory for CSV and figure output; defaults to a subfolder of `player_fits`.
-        • figure_filename: str
-            Filename for the output Plotly HTML figure.
-        • csv_filename: str
-            Filename for the output correlation CSV.
+            Explicit k → utility settings mapping; if None the IC CSV is used.
+        • correlate_all_params: bool | None
+            True → correlate every free mean parameter; False → Vᵢⱼ only.
+            None → cascade, then False.
+        • run_k_in_parallel: bool | None
+            True → ThreadPoolExecutor across k values (disables mp.Pool per-k).
+            None → cascade, then False.
+        • random_seed: int | None | _SENTINEL
+            RNG seed. _SENTINEL (default) → cascade from settings, then None (unseeded).
+            Pass None explicitly for an explicit unseeded run.
         • use_existing_fits: bool
             If True, skip re-running the analysis and load pre-existing fit JSONs.
 
     Returns:
         • tuple[pd.DataFrame, dict[int, Any]]
-            - corr_by_k_df: tidy DataFrame with columns [k, param, corr, n_data, agg_corr].
+            - corr_by_k_df: tidy DataFrame with columns [k, role, param, corr, n_data, agg_corr].
             - simulated_param_recovery_by_k: nested dict keyed by k containing per-dyad
-              details and aggregated summary statistics.
+              details and aggregated summary statistics, split by role.
     """
-    rng = random.Random(random_seed) if isinstance(random_seed, int) else random
+    "---------- Cascade from parameter_recovery_settings ----------"
+    prs = general_settings.get('parameter_recovery_settings', {})
+
+    if n_players is None:
+        n_players_from_settings = prs.get('n_players', None)
+        if n_players_from_settings is None:
+            n_players = len(prep.all_player_uuids(file_paths=file_paths, experiment_num=3, only_humans=True))
+        else:
+            n_players = int(n_players_from_settings)
+    if not isinstance(fit_predictor_role, bool):
+        fit_predictor_role = bool(prs.get('fit_predictor_role', False))
+    if n_games is None:
+        n_games_setting = prs.get('n_games', None)
+        n_games = int(n_games_setting) if n_games_setting is not None else 60
+    if k_params_range is None:
+        k_params_range = prs.get('k_params_range', (1, 9))
+    if n_altruism_steps is None:
+        n_altruism_steps = int(prs.get('n_altruism_steps', 7))
+    if evenly_space_altruism is None:
+        evenly_space_altruism = bool(prs.get('evenly_space_altruism', True))
+    if correlate_all_params is None:
+        correlate_all_params = bool(prs.get('correlate_all_params', False))
+    if run_k_in_parallel is None:
+        run_k_in_parallel = bool(prs.get('run_k_in_parallel', False))
+    if random_seed is _SENTINEL:
+        random_seed = prs.get('random_seed', None)
+
+    if n_players == 0:
+        raise ValueError("n_players must be > 0.")
+
+    random_gen = np.random.default_rng(random_seed)
     k_min, k_max = int(k_params_range[0]), int(k_params_range[1])
     k_param_values = list(range(k_min, k_max + 1))
-
-    if not isinstance(n_predictors, int):
-        print(f"n_predictors must be an integer not {type(n_predictors)}.")
-        n_predictors = 10
-
-    if not n_predictors > 0:
-        print(f"n_predictors must be greater than 0, not {n_predictors}.")
-        n_predictors = 10
-
-    if not isinstance(n_choosers_per_predictor, int):
-        print(f"n_choosers_per_predictor must be an integer not {type(n_choosers_per_predictor)}.")
-        n_choosers_per_predictor = 1
-
-    if not n_choosers_per_predictor > 0:
-        print(f"n_choosers_per_predictor must be greater than 0, not {n_choosers_per_predictor}.")
-        n_choosers_per_predictor = 1
+    time_start_total = time.time()
 
     general_settings = copy.deepcopy(general_settings)
     general_settings['fit_roles_together'] = False
@@ -1570,14 +1897,22 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         "temperature_low": 0.01,
         "disable_dual_annealing_when_warm": True,
     }
-    
 
     "---------- I/O setup ----------"
-    if out_dir is None:
-        out_dir = os.path.join(file_paths["player_fits"], "simulation_results", "param_recovery_by_k")
+    out_dir = os.path.join(file_paths['simulations'], "param_recovery_by_k")
     os.makedirs(out_dir, exist_ok=True)
-    out_csv_path  = os.path.join(out_dir, csv_filename)
-    out_fig_path  = os.path.join(out_dir, figure_filename)
+    out_csv_path  = os.path.join(out_dir, "param_recovery_by_k.csv")
+    out_fig_path  = os.path.join(out_dir, "param_recovery_by_k.html")
+
+    n_players_per_k = n_players + (4 - n_players % 4) % 4
+    print(f"\n{'='*70}")
+    print(f"[param_recovery_by_k] Starting.")
+    print(f"  k range:       {k_min}–{k_max}  ({len(k_param_values)} values)")
+    print(f"  players/k:     {n_players_per_k} (n_players={n_players} padded to multiple of 4)")
+    print(f"  games/player:  {n_games}   fit predictor role: {fit_predictor_role}")
+    print(f"  total fits:    {n_players_per_k * len(k_param_values)}")
+    print(f"  parallel k:    {run_k_in_parallel}   random seed: {random_seed}")
+    print(f"{'='*70}\n")
 
     "---------- (A) Resolve utility_settings_by_k ----------"
     def _load_best_per_k_from_csv() -> dict[int, dict[str, bool]]:
@@ -1703,11 +2038,11 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
             lower_bound, upper_bound = bounds[idx]
             if param_key.endswith("_std"):
                 lower_bound = max(lower_bound, 1e-3)  # Keep std away from zero.
-            vals[param_key] = rng.uniform(float(lower_bound), float(upper_bound))
+            vals[param_key] = float(random_gen.uniform(float(lower_bound), float(upper_bound)))
         if "temp" in vals and "τ" not in vals:
             vals["τ"] = float(vals["temp"])
         if "τ" not in vals:
-            vals["τ"] = general_settings.get('softmax_temperature', 1.5)
+            vals["τ"] = general_settings.get('softmax_temperature', 1.0)
         if evenly_space_altruism:
             if "Vᵢᵢ" in vals:
                 vals["Vᵢᵢ"] = 1.0
@@ -1717,10 +2052,20 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
                 vals["Vᵢⱼ_std"] = 1.0
         return vals
 
-    def _assemble_histories_dict(dyad_list: list[dict]) -> dict:
+    def _assemble_histories_dict(
+        dyad_list: list[dict],
+        player_type: str = 'synthetic',
+        true_params_by_uuid: dict | None = None,
+    ) -> dict:
         """
-        Convert [{DyadKey: DyadGames}, ...] => {'histories': {DyadKey: DyadGames, ...}, 'player_info': {...}}
-        Keeps avatar aesthetics.
+        Convert [{DyadKey: DyadGames}, ...] into the histories JSON structure.
+
+        Arguments:
+            • dyad_list: list[dict]; each element is {DyadKey: DyadGames}.
+            • player_type: str; 'synthetic' for simulated players (accepted by run_analysis_bayes).
+            • true_params_by_uuid: dict | None; maps player UUID to ground-truth params dict.
+              If provided, stores them as player_info[uuid]['true_params'] = {'chooser': ..., 'predictor': ...}
+              (same params for both roles — one utility function per player).
         """
         histories = {}
         for dyad_dict in dyad_list:
@@ -1732,176 +2077,224 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         ]
         player_info = {}
         for dyad_key in histories.keys():
-            plr_uuid_1, plr_uuid_2 = dyad_key[1:-1].split(", ")
-            for plr_uuid in (plr_uuid_1, plr_uuid_2):
-                if plr_uuid not in player_info:
-                    player_info[plr_uuid] = {
-                        'player_type': 'robot',
-                        'avatar_shape': avatar_shapes[rng.randint(0, len(avatar_shapes)-1)],
-                        'player_color': f'hlsa({rng.randint(0,359)}, {rng.randint(35,65)}%, {rng.randint(35,65)}%, 1.0)'
+            player_uuid_1, player_uuid_2 = dyad_key[1:-1].split(", ")
+            for player_uuid in (player_uuid_1, player_uuid_2):
+                if player_uuid not in player_info:
+                    info = {
+                        'player_type':  player_type,
+                        'avatar_shape': avatar_shapes[int(random_gen.integers(0, len(avatar_shapes)))],
+                        'player_color': (
+                            f'hlsa({int(random_gen.integers(0, 360))}, '
+                            f'{int(random_gen.integers(35, 66))}%, '
+                            f'{int(random_gen.integers(35, 66))}%, 1.0)'
+                        ),
                     }
+                    if true_params_by_uuid and player_uuid in true_params_by_uuid:
+                        player_true_params = true_params_by_uuid[player_uuid]
+                        info['true_params'] = {
+                            'chooser':   dict(player_true_params),
+                            'predictor': dict(player_true_params),
+                        }
+                    player_info[player_uuid] = info
         return {'histories': histories, 'player_info': player_info}
 
-    "---------- Main loop over k ----------"
+    "---------- Main loop over k: 3 phases for clean parallelism ----------"
     aggregate_records = []
     simulated_param_recovery_by_k: dict[int, Any] = {}
+    k_phase1: dict[int, dict] = {}
 
-    "Will run separate batches per k. Relies on suffix machinery to distinguish files."
-    for k_params in k_param_values:
-        print(f"run_param_recovery_by_{k_params}...")
+    "Phase 1 (sequential): generate synthetic data for every k — all random_gen use happens here."
+    for k_phase1_idx, k_params in enumerate(k_param_values, 1):
+        t_phase1_k = time.time()
         u_settings_k = utility_settings_by_k[k_params]
 
-        "Build param_info for this utility"
+        "Build param_info for this utility (also used in Phase 2 and Phase 3)."
         param_info_k = make_param_info(
             param_bds=param_bds, utility_settings=u_settings_k, guess_seed=None,
-            general_settings=general_settings, random_guesses_are_unique=True, 
+            general_settings=general_settings, random_guesses_are_unique=True,
         )
 
         keys_k   = list(param_info_k['keys'])
         bounds_k = dict(zip(keys_k, param_info_k['bounds']))
 
-        "Resolve altruism key & bounds"
+        "Resolve altruism key & bounds."
         altruism_key = _find_key(["Vᵢⱼ", "Vij"], keys_k)
         if altruism_key is None:
             raise RuntimeError(f"[k={k_params}] The chosen utility form lacks an identifiable altruism weight (Vᵢⱼ/Vij).")
         if altruism_key not in bounds_k:
             raise RuntimeError(f"[k={k_params}] Missing bounds for altruism key: {altruism_key}.")
-        a_lo, a_hi = map(float, bounds_k[altruism_key])
+        altruism_lower_bound, altruism_upper_bound = map(float, bounds_k[altruism_key])
 
-        "Build the grid of altruism values (evenly spaced)"
-        if evenly_space_altruism:
-            steps = max(2, int(n_altruism_steps))
-            grid = list(np.linspace(a_lo, a_hi, steps))
-            "Number of predictors must be a multiple of #steps; pad if needed"
-            reps = math.ceil(n_predictors / steps)
-            altruism_targets = (grid * reps)[:n_predictors]
-            rng.shuffle(altruism_targets)
-        else:
-            altruism_targets = [rng.uniform(a_lo, a_hi) for _ in range(n_predictors)]
-
-        "Sample dyads"
-        dyads_for_k = []
-        predictor_uuids_for_k = []
-
-        for pred_idx in range(n_predictors):
-            "Sample predictor once; build a STABLE id"
-            params_pred = _sample_params_from_bounds(param_info_k)
-            pred_altruism_val = float(altruism_targets[pred_idx])
-            params_pred[altruism_key] = pred_altruism_val
-            "FIXED predictor UUID across several dyads — index keeps it unique even if params collide"
-            predictor_uuid_fixed = f'synthetic_predictor_{k_params}_{pred_idx}'
-
-            predictor_uuids_for_k.append(predictor_uuid_fixed)
-
-            for cho_idx in range(n_choosers_per_predictor):
-                params_ch = _sample_params_from_bounds(param_info_k)
-                "Build dyad WITH fixed predictor id; let chooser_id vary"
-                dyad = create_simulated_dyad(
-                    n_games=n_games,
-                    params_chooser=params_ch,
-                    params_predictor=params_pred,
-                    general_settings=general_settings,
-                    param_bds=param_bds,
-                    utility_settings=u_settings_k,
-                    payoff_structures=None,
-                    default_utility_settings=False,
-                )
-                "Overwrite predictor UUID in the freshly created dyad to the fixed one"
-                (dyad_key, games_list), = dyad.items()
-                original_predictor_uuid = games_list[0]["predictor"]
-                for game in games_list:
-                    game["predictor"] = predictor_uuid_fixed
-                    "Rename parameter-estimate keys so they stay reachable by the new UUID."
-                    for method_dict in game.get("parameter_estimates", {}).values():
-                        if original_predictor_uuid in method_dict:
-                            method_dict[predictor_uuid_fixed] = method_dict.pop(original_predictor_uuid)
-                fixed_key = f"({predictor_uuid_fixed}, {games_list[0]['chooser']})"
-                dyads_for_k.append({fixed_key: games_list})
-
-        "Assemble one histories JSON and write to processed/"
-        histories_k = _assemble_histories_dict(dyads_for_k)
-
-        "Name & suffix management (reuse helpers)"
-        file_name_suffix = prep.create_file_name_suffix(
-            general_settings=general_settings, utility_settings=u_settings_k
-        )
+        "Build file_paths_k early so we can check for an existing Phase 1 file."
         file_paths_k = copy.deepcopy(file_paths)
         file_paths_k = prep.add_remove_file_name_suffix(
             file_paths=file_paths_k, file_name_suffix=None, add_suffix=False
         )
-        file_paths_k = prep.add_remove_file_name_suffix(
-            file_paths=file_paths_k, file_name_suffix=file_name_suffix, add_suffix=True
-        )
+        k_file_name = f"Social_Preference_Prediction_Pairs_Param_Recovery_k{k_params}.json"
+        file_paths_k['file_names']['player_pairs_exper3'] = k_file_name
+        "Override the players_to_dyads cache key so it regenerates from our custom histories instead of the real exper3 cache."
+        file_paths_k['file_names']['players_to_dyads_exper3'] = f"players_to_dyads_param_recovery_k{k_params}.json"
+        histories_file_path = os.path.join(file_paths_k['processed'], k_file_name)
 
-        "Save histories to processed"
-        histories_file_path = os.path.join(
-            file_paths_k['processed'], 
-            file_paths_k['file_names'][f'player_pairs_exper{analysis_experiment_num}']
-        )
-        os.makedirs(os.path.dirname(histories_file_path), exist_ok=True)
-        with open(histories_file_path, 'w', encoding='utf-8') as file:
-            json.dump(histories_k, file, ensure_ascii=False, indent=4)
-        print(f"[k={k_params}] Saved simulated histories to: {histories_file_path}")
+        "Pad n_players to a multiple of 4 for round-robin batch assignment."
+        n_players_k = n_players + (4 - n_players % 4) % 4
 
-        "Runs standard analysis unless existing JSONs are reused."
-        if not use_existing_fits:
-            general_settings_k = copy.deepcopy(general_settings)
-            general_settings_k['experiment_num'] = analysis_experiment_num
-            general_settings_k['write_mode'] = 'overwrite'     # Fresh batch per k.
-            "Keep all other knobs (grid/naive/particle; temperature_is_param; etc.)"
+        if os.path.exists(histories_file_path):
+            "Load existing Phase 1 data — skip regeneration."
+            with open(histories_file_path, 'r', encoding='utf-8') as existing_file:
+                histories_k = json.load(existing_file)
+            "Reconstruct true_params_by_uuid from player_info stored in the JSON."
+            true_params_by_uuid_k = {
+                player_uuid: dict(player_data.get('true_params', {}).get('chooser', {}))
+                for player_uuid, player_data in histories_k.get('player_info', {}).items()
+            }
+            n_players_k = len(true_params_by_uuid_k)
+            print(f"[k={k_params}  {k_phase1_idx}/{len(k_param_values)}] Phase 1 skipped — loaded existing file "
+                  f"({n_players_k} players): {histories_file_path}")
+        else:
+            if n_players_k != n_players:
+                print(f"[k={k_params}] n_players={n_players} is not a multiple of 4 — padded to {n_players_k}.")
 
-            run_analysis_bayes(
-                histories_data=histories_k,
-                file_paths=file_paths_k,
-                param_info=param_info_k,
-                utility_settings=u_settings_k,
-                general_settings=general_settings_k, 
-                player_uuids=predictor_uuids_for_k
+            "Build the altruism target list — one value per synthetic player."
+            if evenly_space_altruism:
+                steps = max(2, int(n_altruism_steps))
+                altruism_grid = list(np.linspace(altruism_lower_bound, altruism_upper_bound, steps))
+                reps = math.ceil(n_players_k / steps)
+                altruism_targets = (altruism_grid * reps)[:n_players_k]
+                random_gen.shuffle(altruism_targets)
+            else:
+                altruism_targets = [float(random_gen.uniform(altruism_lower_bound, altruism_upper_bound))
+                                    for _ in range(n_players_k)]
+
+            print(f"[k={k_params}  {k_phase1_idx}/{len(k_param_values)}] Phase 1: Generating {n_players_k} synthetic players "
+                  f"in {n_players_k // 4} batch(es) of 4 ({n_games} games per player)...")
+
+            dyads_for_k, true_params_by_uuid_k = create_simulated_experiment(
+                n_players=n_players_k,
+                n_games=n_games,
+                k_params=k_params,
+                utility_settings_k=u_settings_k,
+                general_settings=general_settings,
+                param_bds=param_bds,
+                random_gen=random_gen,
+                altruism_key=altruism_key,
+                altruism_targets=altruism_targets,
+            )
+            histories_k = _assemble_histories_dict(
+                dyad_list=dyads_for_k,
+                player_type='synthetic',
+                true_params_by_uuid=true_params_by_uuid_k,
             )
 
-        "Collect fit JSONs for this k (filter by suffix in filename)"
-        fit_dir = os.path.join(file_paths['player_fits'], f"experiment_{analysis_experiment_num}")
-        json_files = [file_name for file_name in os.listdir(fit_dir) if file_name.endswith(".json") and "_by_k_" in file_name]
-        if not json_files:
-            print(f"[k={k_params}] Warning: no fit files found with suffix '{file_name_suffix}' in {fit_dir}.")
+            os.makedirs(os.path.dirname(histories_file_path), exist_ok=True)
+            with open(histories_file_path, 'w', encoding='utf-8') as file:
+                json.dump(histories_k, file, ensure_ascii=False, indent=4)
+            "Invalidate the players_to_dyads cache — stale cache from a previous run with different player counts causes dyad lookup failures."
+            players_to_dyads_cache_path = os.path.join(
+                file_paths_k['processed'], file_paths_k['file_names']['players_to_dyads_exper3'])
+            if os.path.exists(players_to_dyads_cache_path):
+                os.remove(players_to_dyads_cache_path)
+            print(f"[k={k_params}  {k_phase1_idx}/{len(k_param_values)}] Phase 1 done in {_fmt_duration(time.time() - t_phase1_k)}. Histories → {histories_file_path}")
 
-        "Build long DF for this k"
-        dfs = []
-        for file_name in json_files:
-            path = os.path.join(fit_dir, file_name)
-            dfs.append(load_simulated_fits_from_json(path))
+        "Build general_settings for this k's fit run."
+        general_settings_k = copy.deepcopy(general_settings)
+        general_settings_k['experiment_num'] = 3
+        general_settings_k['write_mode'] = 'overwrite'
+        general_settings_k['fit_predictor_role'] = fit_predictor_role
+        if run_k_in_parallel:
+            "Disable mp.Pool within each k — the k-level ThreadPoolExecutor already fills the CPU."
+            general_settings_k['run_in_parallel'] = False
+
+        k_phase1[k_params] = {
+            'histories_k':          histories_k,
+            'file_paths_k':         file_paths_k,
+            'param_info_k':         param_info_k,
+            'u_settings_k':         u_settings_k,
+            'general_settings_k':   general_settings_k,
+            'true_params_by_uuid':  true_params_by_uuid_k,
+            'n_players_k':          n_players_k,
+        }
+
+    "Phase 2: fit — parallel across k when run_k_in_parallel=True, sequential otherwise."
+    def _fit_one_k(meta: dict) -> None:
+        "player_uuids=None: auto-selection via player_type='synthetic' in player_info."
+        run_analysis_bayes(
+            histories_data=meta['histories_k'],
+            file_paths=meta['file_paths_k'],
+            param_info=meta['param_info_k'],
+            utility_settings=meta['u_settings_k'],
+            general_settings=meta['general_settings_k'],
+            print_=True
+        )
+
+    if not use_existing_fits:
+        if run_k_in_parallel:
+            print(f"\n[Phase 2] Fitting all {len(k_param_values)} k values in parallel via ThreadPoolExecutor...")
+            t_phase2 = time.time()
+            with ThreadPoolExecutor(max_workers=len(k_param_values)) as executor:
+                list(executor.map(_fit_one_k, [k_phase1[k] for k in k_param_values]))
+            print(f"[Phase 2] Parallel fitting complete in {_fmt_duration(time.time() - t_phase2)}.")
+        else:
+            k_fit_times: list[float] = []
+            for k_phase2_idx, k_params in enumerate(k_param_values, 1):
+                n_players_k_fitted = k_phase1[k_params]['n_players_k']
+                print(f"\n[k={k_params}  {k_phase2_idx}/{len(k_param_values)}] Phase 2: Fitting {n_players_k_fitted} players...")
+                t_k_fit = time.time()
+                _fit_one_k(k_phase1[k_params])
+                k_elapsed = time.time() - t_k_fit
+                k_fit_times.append(k_elapsed)
+                k_remaining = len(k_param_values) - k_phase2_idx
+                eta = (sum(k_fit_times) / len(k_fit_times)) * k_remaining
+                eta_str = f" — ETA: {_fmt_duration(eta)}" if k_remaining > 0 else ""
+                print(f"[k={k_params}  {k_phase2_idx}/{len(k_param_values)}] Phase 2 done in {_fmt_duration(k_elapsed)}.{eta_str}")
+    else:
+        print("\n[Phase 2] Skipped — use_existing_fits=True.")
+
+    "Phase 3 (sequential): collect results for every k."
+    print(f"\n[Phase 3] Collecting results for {len(k_param_values)} k values...")
+    fit_dir = os.path.join(file_paths['player_fits'], "experiment_3")
+
+    def _collect_role_results(k_params: int, role: str, param_info_k: dict) -> tuple[pd.DataFrame, list]:
+        """
+        Load fit JSONs for one role at one k, compute correlations, and return the tidy rows.
+
+        Returns:
+            • corr_only: DataFrame with columns [param, corr, n_data] for round="first".
+            • dyad_entries: list of dicts summarising each fitted dyad.
+        """
+        uuid_prefix = f"synthetic_{k_params}_"
+        json_files = [
+            file_name for file_name in os.listdir(fit_dir)
+            if file_name.endswith(".json") and uuid_prefix in file_name
+        ]
+        if not json_files:
+            print(f"[k={k_params}][{role}] Warning: no fit files found matching '{uuid_prefix}' in {fit_dir}.")
+
+        dfs = [load_simulated_fits_from_json(os.path.join(fit_dir, fn)) for fn in json_files]
         df_k = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
-        "Compute correlation (predictor truth vs predictor fitted), first-round only"
-        params_to_correlate = ['Vᵢⱼ'] if evenly_space_altruism else [
-            param_key for param_key in param_info_k['keys'] 
-            if '_std' not in param_key and '_cov' not in param_key and param_key not in ('τ', 'temp')
-        ]
+        if correlate_all_params:
+            params_to_correlate = [
+                param_key for param_key in param_info_k['keys']
+                if '_std' not in param_key and '_cov' not in param_key and param_key not in ('τ', 'temp')
+            ]
+        else:
+            params_to_correlate = ['Vᵢⱼ']
+
+        fitted_suffix = f"_fitted_{role}"
         corr_df_k = compute_param_recovery_correlations(
             df=df_k,
             dir_path=out_dir,
-            out_csv_name=f"correlations_k{k_params}.csv",
-            true_role="predictor",
+            out_csv_name=f"correlations_k{k_params}_{role}.csv",
+            true_role=role,
+            fitted_suffix=fitted_suffix,
             round_mode="first",
-            params=params_to_correlate,                  # Auto-detect any overlapping true/fitted predictor params.
-            create_new_file=True
+            params=params_to_correlate,
+            create_new_file=True,
         )
-        "Aggregate across params (macro-average over present params)"
-        corr_only = corr_df_k[corr_df_k["round"] == "first"][["param","corr","n_data"]].copy()
-        agg_corr = float(np.nanmean(corr_only["corr"])) if not corr_only.empty else np.nan
+        corr_only = corr_df_k[corr_df_k["round"] == "first"][["param", "corr", "n_data"]].copy()
 
-        "Save per-k rows for the final CSV"
-        for _, correlation_row in corr_only.iterrows():
-            aggregate_records.append({
-                "k": k_params,
-                "param": correlation_row["param"],
-                "corr": float(correlation_row["corr"]),
-                "n_data": int(correlation_row["n_data"]),
-                "agg_corr": float(agg_corr)
-            })
-
-        "Build the requested nested dict; include dyads + fitted snapshot"
-        "Stores the first-round fitted predictor params; games list is already in histories_k."
+        "Build per-dyad summary entries."
         dyad_entries = []
         for file_name in json_files:
             path = os.path.join(fit_dir, file_name)
@@ -1910,77 +2303,111 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
             for dkey, games in dyad_dict.items():
                 if not games:
                     continue
-                first_game = games[0]   # First round snapshot for true and fitted.
+                first_game = games[0]
                 true_pred = first_game.get("true_params_predictor", {})
-                true_ch   = first_game.get("true_params_chooser", {})
-                "Fitted predictor params (try to find any method block)"
+                true_ch   = first_game.get("true_params_chooser",   {})
                 estimates_by_method = first_game.get("parameter_estimates", {})
-                fitted_pred = {}
+                fitted_params_for_role = {}
+                target_uuid = first_game[role]
                 for method_name in ("grid", "particle", "naive", "update", "globloc", "bayes", "general"):
-                    if method_name in estimates_by_method and first_game["predictor"] in estimates_by_method[method_name]:
-                        fitted_pred = estimates_by_method[method_name][first_game["predictor"]].get("predictor", {}).get("params", {})
+                    if method_name in estimates_by_method and target_uuid in estimates_by_method[method_name]:
+                        fitted_params_for_role = estimates_by_method[method_name][target_uuid].get(role, {}).get("params", {})
                         break
                 dyad_entries.append({
                     "games": games,
                     "synthetic_params": {"chooser": true_ch, "predictor": true_pred},
-                    "fitted_params": {"predictor": fitted_pred}
+                    "fitted_params": {role: fitted_params_for_role},
                 })
+        return corr_only, dyad_entries
 
-        simulated_param_recovery_by_k[k_params] = {
-            "dyads": dyad_entries,
-            "correlation_by_param": {row["param"]: float(row["corr"]) for _, row in corr_only.iterrows()},
-            "aggregate_correlation": agg_corr
-        }
+    for k_phase3_idx, k_params in enumerate(k_param_values, 1):
+        meta         = k_phase1[k_params]
+        param_info_k = meta['param_info_k']
+        role_results = {}
+
+        roles_to_collect = ("chooser", "predictor") if fit_predictor_role else ("chooser",)
+        for role in roles_to_collect:
+            corr_only, dyad_entries = _collect_role_results(k_params, role, param_info_k)
+            agg_corr = float(np.nanmean(corr_only["corr"])) if not corr_only.empty else np.nan
+
+            for _, correlation_row in corr_only.iterrows():
+                aggregate_records.append({
+                    "k":        k_params,
+                    "role":     role,
+                    "param":    correlation_row["param"],
+                    "corr":     float(correlation_row["corr"]),
+                    "n_data":   int(correlation_row["n_data"]),
+                    "agg_corr": float(agg_corr),
+                })
+            role_results[role] = {
+                "dyads":                 dyad_entries,
+                "correlation_by_param":  {row["param"]: float(row["corr"]) for _, row in corr_only.iterrows()},
+                "aggregate_correlation": agg_corr,
+            }
+
+        simulated_param_recovery_by_k[k_params] = role_results
+
+        corr_summary = "  ".join(
+            f"{role} r={results['aggregate_correlation']:.3f}" for role, results in role_results.items()
+        )
+        print(f"[k={k_params}  {k_phase3_idx}/{len(k_param_values)}] Phase 3: {corr_summary or 'no results'}")
 
     "---------- Build & save tidy CSV ----------"
     try:
-        corr_by_k_df = pd.DataFrame(aggregate_records).sort_values(["k", "param"])
+        corr_by_k_df = pd.DataFrame(aggregate_records).sort_values(["k", "role", "param"])
         corr_by_k_df.to_csv(out_csv_path, index=False, encoding="utf-8-sig")
         print(f"Saved summary CSV to: {out_csv_path}")
     except (PermissionError, OSError):
         "Pass if I have the file open."
         pass
 
-    "---------- Plotly figure (corr vs k) ----------"
-    "Use aggregate correlation per k for a simple, publication-friendly line"
-    agg = corr_by_k_df.groupby("k", as_index=False)["agg_corr"].first()
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=agg["k"], y=agg["agg_corr"], mode="lines+markers",
-        name="Aggregate 𝑟 (macro-average across params)",
-        hovertemplate="𝑘 = %{x}<br>𝑟 = %{y:.3f}<extra></extra>",
-        marker=dict(size=fig_lay.get("markersize", 12), color="hsla(120, 50%, 50%, 1.0)")
-    ))
+    "---------- Plotly figure (corr vs k) for the primary role ----------"
+    primary_records = [r for r in aggregate_records if r["role"] == "chooser"]
+    if primary_records:
+        agg_df = pd.DataFrame(primary_records).groupby("k", as_index=False)["agg_corr"].first()
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=agg_df["k"], y=agg_df["agg_corr"], mode="lines+markers",
+            name="Aggregate 𝑟 (chooser, macro-average across params)",
+            hovertemplate="𝑘 = %{x}<br>𝑟 = %{y:.3f}<extra></extra>",
+            marker=dict(size=fig_lay.get("markersize", 12), color="hsla(120, 50%, 50%, 1.0)")
+        ))
 
-    param_title = 'Altruism' if evenly_space_altruism else 'Parameter'
-    y_title = f"True {param_title} vs Fitted {param_title} Correlation"
+        param_title = 'Altruism' if evenly_space_altruism else 'Parameter'
+        y_title     = f"True {param_title} vs Fitted {param_title} Correlation"
 
-    x_axis = {
-        'title': "Number of Free Parameters (𝑘)",
-        'tickfont': dict(size=24),
-        'title_font': dict(size=30),
-        'tickvals': [1, 2, 3, 4, 5, 6, 7, 8, 9], 
-        'ticktext': ['1', '2', '3', '4', '5', '6', '7', '8', '9'],
-        'range': [0.95, 9.05] 
-    }
-    y_axis = {
-        'title': y_title,
-        'tickfont': dict(size=24),
-        'title_font': dict(size=30),
-        'tickvals': [0.0, 0.2, 0.4, 0.6, 0.8, 1.0], 
-        'ticktext': ['0.0', '0.2', '0.4', '0.6', '0.8', '1.0'],
-        'range': [-0.05, 1.05]         
-    }
+        x_axis = {
+            'title': "Number of Free Parameters (𝑘)",
+            'tickfont': dict(size=24),
+            'title_font': dict(size=30),
+            'tickvals': [1, 2, 3, 4, 5, 6, 7, 8, 9],
+            'ticktext': ['1', '2', '3', '4', '5', '6', '7', '8', '9'],
+            'range': [0.95, 9.05]
+        }
+        y_axis = {
+            'title': y_title,
+            'tickfont': dict(size=24),
+            'title_font': dict(size=30),
+            'tickvals': [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+            'ticktext': ['0.0', '0.2', '0.4', '0.6', '0.8', '1.0'],
+            'range': [-0.05, 1.05]
+        }
 
-    fig.update_layout(
-        title=f"Predictor {param_title} Recovery Correlation 𝑟 vs. Dimensionality 𝑘",
-        titlefont_size=fig_lay['titlefont_size'] * 0.6, template=fig_lay['template'], 
-        title_x=fig_lay['title_x'], title_y=fig_lay['title_y'], showlegend=False, 
-        margin=dict(l=560, r=560, t=120, b=100), 
-        xaxis=x_axis, yaxis=y_axis,
-    )
-    fig.write_html(out_fig_path)
-    print(f"Saved Plotly figure to: {out_fig_path}")
+        fig.update_layout(
+            title=f"Chooser {param_title} Recovery Correlation 𝑟 vs. Dimensionality 𝑘",
+            titlefont_size=fig_lay['titlefont_size'] * 0.6, template=fig_lay['template'],
+            title_x=fig_lay['title_x'], title_y=fig_lay['title_y'], showlegend=False,
+            margin=dict(l=560, r=560, t=120, b=100),
+            xaxis=x_axis, yaxis=y_axis,
+        )
+        fig.write_html(out_fig_path)
+        print(f"Saved Plotly figure to: {out_fig_path}")
+
+    print(f"\n{'='*70}")
+    print(f"[param_recovery_by_k] Complete. Total time: {_fmt_duration(time.time() - time_start_total)}.")
+    print(f"  CSV  → {out_csv_path}")
+    print(f"  Plot → {out_fig_path}")
+    print(f"{'='*70}\n")
 
     return corr_by_k_df, simulated_param_recovery_by_k
 
@@ -2423,7 +2850,8 @@ def plot_param_recovery_by_round(
     if fig_lay is None:
         fig_lay = {}
 
-    dir_path = ensure_directory_and_join(file_paths['player_fits'], 'simulation_results')
+    dir_path = str(file_paths['simulations'])
+    os.makedirs(dir_path, exist_ok=True)
 
     param_titles = {
         "Vii":     "Mean Self-interest μ(𝑉𝑖𝑖)", 

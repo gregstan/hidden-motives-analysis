@@ -24,6 +24,18 @@ run_code_settings: RunCodeSettings = {
 def main():
     """Execute main code."""
 
+    run_param_recovery_by_k(
+        general_settings=general_settings,
+        file_paths=file_paths,
+        fig_lay=fig_lay,
+        param_bds=param_bds,
+        k_params_range=(2, 7),
+        correlate_all_params=True,
+        run_k_in_parallel=False,
+        n_players=73,
+        n_games=120
+    )
+    exit()
     "Apply master random seed when reproducibility mode is enabled."
     _master_seed = general_settings.get('random_seeds', {}).get('seed', None)
     if _master_seed is not None:
@@ -69,19 +81,10 @@ def main():
         )
 
         run_param_recovery_by_k(
-            n_games=28,
-            n_predictors=70,
-            n_choosers_per_predictor=3,
-            k_params_range=(1, 9),
-            n_altruism_steps=7,
-            evenly_space_altruism=True,
-            utility_settings_by_k=None,
             general_settings=general_settings,
             file_paths=file_paths,
             fig_lay=fig_lay,
             param_bds=param_bds,
-            analysis_experiment_num=0,
-            random_seed=None,
         )
 
         plot_param_recovery_by_round(df_merged=df_merged, fig_lay=fig_lay)

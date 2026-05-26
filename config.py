@@ -206,6 +206,18 @@ class RandomSeeds(TypedDict, total=False):
     seed: int | None
 
 
+class ParameterRecoverySettings(TypedDict, total=False):
+    n_players: int | None        # None → auto-count from experiment 3 human participants
+    fit_predictor_role: bool     # True → also run Bayesian predictor fitting (slow); default False
+    n_games: int | None       # None → 60 games per synthetic dyad
+    k_params_range: tuple     # (k_min, k_max) inclusive range of dimensionalities to test
+    n_altruism_steps: int     # Grid points across the altruism (Vᵢⱼ) range
+    evenly_space_altruism: bool   # True → grid; False → uniform random sampling
+    correlate_all_params: bool    # True → all free mean params; False → altruism only
+    run_k_in_parallel: bool       # Parallelize fitting across k values via ThreadPoolExecutor
+    random_seed: int | None       # RNG seed; None → unseeded
+
+
 class GeneralSettings(TypedDict, total=False):
     update_method: str
     analysis_mode: str
@@ -236,6 +248,7 @@ class GeneralSettings(TypedDict, total=False):
     ampd_settings: AmpdSettings
     individual_architecture_settings: IndividualArchitectureSettings
     model_recovery_settings: ModelRecoverySettings
+    parameter_recovery_settings: ParameterRecoverySettings
     random_seeds: RandomSeeds
 
 
@@ -276,7 +289,7 @@ def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, gener
     Returns:
         • list[str]; Ordered parameter names, e.g. ['Vᵢᵢ', 'Vᵢⱼ', 'αᵢⱼ', 'γ1', 'γ2', ...]
     """
-    negativity_params = {'Vᵢᵢ': 'Ʌᵢᵢ', 'Vᵢⱼ': 'Ʌᵢⱼ', 'αᵢⱼ': 'βᵢⱼ'}
+    negativity_params = {'Vᵢᵢ': 'λᵢᵢ', 'Vᵢⱼ': 'λᵢⱼ', 'αᵢⱼ': 'βᵢⱼ'}
     param_keys: List[str] = []
 
     if utility_settings['min_max_rawlsian_leontief']:
@@ -296,10 +309,10 @@ def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, gener
             param_keys.append('Vᵢᵢ')
 
         if utility_settings['conditional_welfare_mode']:
-            param_keys.append('Ʌᵢᵢ')
+            param_keys.append('λᵢᵢ')
             if utility_settings['include_altruism_term']:
                 param_keys.append('Vᵢⱼ')
-                param_keys.append('Ʌᵢⱼ')
+                param_keys.append('λᵢⱼ')
             if utility_settings['use_exponential_parameters']:
                 param_keys.append('γ1')
                 if not utility_settings['single_exponential_parameter'] and utility_settings['include_altruism_term']:
@@ -317,12 +330,12 @@ def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, gener
         else:
             # if utility_settings['use_negativity_parameters'] and not utility_settings['fix_self_interest_parameter']:
             if utility_settings['use_negativity_parameters']:
-                param_keys.append('Ʌᵢᵢ')
+                param_keys.append('λᵢᵢ')
 
             if utility_settings['include_altruism_term']:
                 param_keys.append('Vᵢⱼ')
                 if utility_settings['use_negativity_parameters']:
-                    param_keys.append('Ʌᵢⱼ')
+                    param_keys.append('λᵢⱼ')
 
             if utility_settings['include_social_comparison']:
                 param_keys.append('αᵢⱼ')
@@ -391,7 +404,7 @@ def make_param_info(param_bds: dict[str, tuple[int | float, int | float]], utili
 
     Conventions and invariants:
         • Parameter names use Unicode symbols consistently with the rest of the codebase:
-            Vᵢᵢ, Vᵢⱼ, αᵢⱼ, Ʌᵢᵢ, Ʌᵢⱼ, βᵢⱼ, and γ1, γ2, γ3, …
+            Vᵢᵢ, Vᵢⱼ, αᵢⱼ, λᵢᵢ, λᵢⱼ, βᵢⱼ, and γ1, γ2, γ3, …
         • The order in 'keys' is *the* canonical order used to interpret vectors passed to optimizers.
           Always derive counts (k) and indexing from this list to avoid drift across components.
         • Standard-deviation keys ('*_std') are appended in the same order as their mean counterparts
@@ -716,14 +729,25 @@ general_settings: GeneralSettings = {
         'n_workers':                                 None,
     },
     'model_recovery_settings': {
-        'generating_model':              443,
-        'n_agents_grid':                 [73],
-        'n_games_grid':                  [20, 40, 60, 90, 120, 180, 240],
-        'softmax_temperature':           0.5,
+        'generating_model':               443,
+        'n_agents_grid':                  [73],
+        'n_games_grid':                   [20, 40, 60, 90, 120, 180, 240],
+        'softmax_temperature':            0.5,
         'candidate_model_selection_mode': 'hamming',
-        'n_candidate_models':            505,
-        'ampd_matrix_name_or_path':      None,
-        'random_seed':                   42,
+        'n_candidate_models':             505,
+        'ampd_matrix_name_or_path':       None,
+        'random_seed':                    42,
+    },
+    'parameter_recovery_settings': {
+        'n_players':              None,   # → 73
+        'fit_predictor_role':     False,
+        'n_games':                None,   # → 60
+        'k_params_range':         (1, 9),
+        'n_altruism_steps':       7,
+        'evenly_space_altruism':  True,
+        'correlate_all_params':   False,
+        'run_k_in_parallel':      True,
+        'random_seed':            None,
     },
     'random_seeds': {
         'use_seeds': False,
@@ -741,28 +765,28 @@ general_settings['model_recovery_settings']['random_seed']     = general_setting
 general_settings['optimization_policy']['dual_annealing_seed'] = general_settings['random_seeds']['seed']
 
 utility_settings: UtilitySettings = {
-    'conditional_welfare_mode':       False,
-    'reference_dependent_altruism':   False,
-    'min_max_rawlsian_leontief':      False,
+    'conditional_welfare_mode':        False,
+    'reference_dependent_altruism':    False,
+    'min_max_rawlsian_leontief':       False,
     'include_welfare_efficiency_term': False,
     'include_relative_income_penalty': False,
-    'use_exponential_parameters':     True,
-    'apply_exponents_to_payoffs':     False,
-    'single_exponential_parameter':   False,
-    'single_payoffs_not_differences': False,
-    'payoff_ratios_not_differences':  False,
-    'reference_dependent_utility':    False,
-    'use_negativity_parameters':      False,
-    'negativity_social_comparison':   True,
-    'fix_self_interest_parameter':    False,
-    'include_social_comparison':      True,
-    'include_altruism_term':          True,
+    'use_exponential_parameters':      True,
+    'apply_exponents_to_payoffs':      False,
+    'single_exponential_parameter':    False,
+    'single_payoffs_not_differences':  False,
+    'payoff_ratios_not_differences':   False,
+    'reference_dependent_utility':     False,
+    'use_negativity_parameters':       False,
+    'negativity_social_comparison':    True,
+    'fix_self_interest_parameter':     False,
+    'include_social_comparison':       True,
+    'include_altruism_term':           True,
 }
 
 param_bds: ParameterBounds = {
-    'Vᵢᵢ': (-1, 1), 'Ʌᵢᵢ': (-1, 1), 'Vᵢⱼ': (-1, 1), 'Ʌᵢⱼ': (-1, 1), 'αᵢⱼ': (-1, 1), 'βᵢⱼ': (-1, 1), 
-    'γ1': (1e-4, 2), 'γ2': (1e-4, 2), 'γ3': (1e-4, 2), 'Vᵢᵢ_std': (1e-2, 4), 'Ʌᵢᵢ_std': (1e-2, 4), 
-    'Vᵢⱼ_std': (1e-2, 4), 'Ʌᵢⱼ_std': (1e-2, 4), 'αᵢⱼ_std': (1e-2, 4), 'βᵢⱼ_std': (1e-2, 4), 
+    'Vᵢᵢ': (-1, 1), 'λᵢᵢ': (-1, 1), 'Vᵢⱼ': (-1, 1), 'λᵢⱼ': (-1, 1), 'αᵢⱼ': (-1, 1), 'βᵢⱼ': (-1, 1), 
+    'γ1': (1e-4, 2), 'γ2': (1e-4, 2), 'γ3': (1e-4, 2), 'Vᵢᵢ_std': (1e-2, 4), 'λᵢᵢ_std': (1e-2, 4), 
+    'Vᵢⱼ_std': (1e-2, 4), 'λᵢⱼ_std': (1e-2, 4), 'αᵢⱼ_std': (1e-2, 4), 'βᵢⱼ_std': (1e-2, 4), 
     'γ1_std': (1e-2, 1), 'γ2_std': (1e-2, 1), 'γ3_std': (1e-2, 1),
 }
 
@@ -794,6 +818,7 @@ file_paths: FilePaths = {
     "processed":   ROOT / "processed",
     "param_data":  ROOT / "param_data",
     "player_fits": ROOT / "player_fits",
+    "simulations": ROOT / "simulations",
     "dyad_data":   ROOT / "dyad_data",
     "discrete":    ROOT / "discrete",
     "visuals":     ROOT / "visuals",

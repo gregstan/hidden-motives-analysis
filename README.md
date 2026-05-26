@@ -91,10 +91,10 @@ and embedding sanity checks.
 Open these in a browser:
 
 - **Violin of recovery correlations**:
-  [`demo_files/player_fits/simulation_results/corr_violin_Vij_first.html`](demo_files/player_fits/simulation_results/corr_violin_Vij_first.html)
+  [`demo_files/simulations/corr_violin_Vij_first.html`](demo_files/simulations/corr_violin_Vij_first.html)
 
 - **Correlation vs. round** (belief accuracy improving over sequential games):
-  [`demo_files/player_fits/simulation_results/corr_by_round_sim_pred.html`](demo_files/player_fits/simulation_results/corr_by_round_sim_pred.html)
+  [`demo_files/simulations/corr_by_round_sim_pred.html`](demo_files/simulations/corr_by_round_sim_pred.html)
   — select **μ(Vij)** in the dropdown.
 
 ### Section 7 (3D belief update visualization): HTML figures

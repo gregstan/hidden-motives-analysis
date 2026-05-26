@@ -20,7 +20,7 @@ This document maps explains core variables and data types.
   - experiment_2: Fitted parameters for experiment 2 data
   - experiment_3: Fitted parameters for experiment 3 data
   - loss_reports: CSV files mapping parameter sets to losses per player
-  - simulation_results: html figures and CSV tables of processed simulation data
+- **simulations**: html figures and CSV tables of processed simulation data
 - **param_data**:
   * Data produced by run_analysis_bayes or run_analysis_mle
 - **dyad_data**:

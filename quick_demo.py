@@ -133,7 +133,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
         demo_root / "visuals" / "inequality_aversion",
         demo_root / "player_fits" / "experiment_0",
         demo_root / "player_fits" / "loss_reports" / "experiment_0",
-        demo_root / "player_fits" / "simulation_results",
+        demo_root / "simulations",
         demo_root / "player_fits" / "experiment_2",
         demo_root / "player_fits" / "loss_reports" / "experiment_2",
         demo_root / "player_fits" / "experiment_3",
