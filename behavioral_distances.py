@@ -1192,7 +1192,7 @@ def compute_model_space_embedding(
 def plot_model_space_mds(
     general_settings: GeneralSettings,
     file_paths: FilePaths,
-    fig_lay: FigLay,
+    figure_layout: FigLay,
     distance_matrix_df: Optional[pd.DataFrame] = None,
     distance_name: Optional[str] = None,
     n_dimensions: int = 2,
@@ -1212,7 +1212,7 @@ def plot_model_space_mds(
     Arguments:
         • general_settings: GeneralSettings — for experiment metadata in the title.
         • file_paths: FilePaths — must contain 'processed' and 'visuals'.
-        • fig_lay: FigLay — layout constants from config.py.
+        • figure_layout: FigLay — layout constants from config.py.
         • distance_matrix_df: pd.DataFrame | None — pairwise distance matrix indexed by
             utility_idx. If None, loads the cached embedding from 'processed/'.
         • distance_name: str (default 'ampd_uniform_shared') — used to locate/build the
@@ -1261,7 +1261,7 @@ def plot_model_space_mds(
         }
     ]
 
-    marker_size = int(fig_lay.get("markersize", 16) * 2)
+    marker_size = int(figure_layout.get("markersize", 16) * 2)
     marker_outline = dict(width=1.5, color="hsla(0, 0%, 0%, 0.45)")
 
     def _hover(row: pd.Series) -> str:
@@ -1384,7 +1384,7 @@ def plot_model_space_mds(
                 xanchor="center", yanchor="middle",
                 font=dict(
                     size=14,
-                    family=fig_lay.get("font", {}).get("family", "Calibri"),
+                    family=figure_layout.get("font", {}).get("family", "Calibri"),
                     color="white",
                 ),
             ))
@@ -1402,20 +1402,20 @@ def plot_model_space_mds(
     distance_label = distance_name.replace("_", " ").title()
     n_models = len(df)
     fig.update_layout(
-        template=fig_lay.get("template", "plotly_white"),
+        template=figure_layout.get("template", "plotly_white"),
         title=f"Model-Space MDS — {distance_label} Distances ({n_models} models)",
-        titlefont_size=fig_lay["titlefont_size"],
+        titlefont_size=figure_layout["titlefont_size"],
         title_x=0.5,
-        font=fig_lay.get("font", {}),
-        hoverlabel=fig_lay.get("hoverlabel", {}),
+        font=figure_layout.get("font", {}),
+        hoverlabel=figure_layout.get("hoverlabel", {}),
         margin=dict(l=120, r=180, t=140, b=100),
         xaxis=dict(title="MDS Dimension 1", range=mds_axis_range,
-                   scaleanchor="y", scaleratio=1, **fig_lay.get("xaxis", {})),
+                   scaleanchor="y", scaleratio=1, **figure_layout.get("xaxis", {})),
         yaxis=dict(title="MDS Dimension 2", range=mds_axis_range,
-                   **fig_lay.get("yaxis", {})),
+                   **figure_layout.get("yaxis", {})),
         annotations=annotations,
         legend=dict(orientation="h", x=0.0, y=-0.15,
-                    font=dict(size=fig_lay.get("font", {}).get("size", 20))),
+                    font=dict(size=figure_layout.get("font", {}).get("size", 20))),
     )
 
     if include_dropdown:
@@ -1445,9 +1445,9 @@ def plot_model_space_mds(
             buttons=buttons, direction="down",
             x=0.01, xanchor="left", y=1.12, yanchor="top",
             bgcolor=(_hsla(hue=0, saturation_percent=0, lightness_percent=20, alpha=0.85) 
-                     if "dark" in fig_lay.get("template", "") 
+                     if "dark" in figure_layout.get("template", "") 
                      else _hsla(hue=0, saturation_percent=0, lightness_percent=94, alpha=0.92)),
-            font=dict(size=20, family=fig_lay.get("font", {}).get("family", "Calibri")),
+            font=dict(size=20, family=figure_layout.get("font", {}).get("family", "Calibri")),
         )])
 
     out_path = os.path.join(file_paths["visuals"], f"mds_{distance_name}.html")
@@ -1459,7 +1459,7 @@ def plot_model_space_mds(
 def plot_distance_to_winner_vs_delta_bic(
     general_settings: GeneralSettings,
     file_paths: FilePaths,
-    fig_lay: FigLay,
+    figure_layout: FigLay,
     distance_matrix_df: Optional[pd.DataFrame] = None,
     require_ic_data: bool = True,
 ) -> go.Figure:
@@ -1475,7 +1475,7 @@ def plot_distance_to_winner_vs_delta_bic(
     Arguments:
         • general_settings: GeneralSettings — for title metadata and 'ampd_settings'.
         • file_paths: FilePaths — must contain 'processed' and 'visuals'.
-        • fig_lay: FigLay — layout constants from config.py.
+        • figure_layout: FigLay — layout constants from config.py.
         • distance_matrix_df: pd.DataFrame | None (default None) — square AMPD matrix
             indexed by utility_idx. If None, loaded from general_settings['ampd_settings'].
         • require_ic_data: bool (default True) — if True, exclude models without BIC.
@@ -1509,7 +1509,7 @@ def plot_distance_to_winner_vs_delta_bic(
     sub_df = sub_df.set_index("utility_idx").loc[shared_idxs].reset_index()
     sub_df["dist_to_winner"] = dist_to_winner.values
 
-    marker_size = int(fig_lay.get("markersize", 16) * 2)
+    marker_size = int(figure_layout.get("markersize", 16) * 2)
     k_min, k_max = int(sub_df["k_params"].min()), int(sub_df["k_params"].max())
 
     hover_texts = [
@@ -1542,7 +1542,7 @@ def plot_distance_to_winner_vs_delta_bic(
         x=0.0, y=0.0,
         text=f"Winner (#{int(winner_row['BIC_rank'])})",
         showarrow=True, arrowhead=2, ax=40, ay=-40,
-        font=dict(size=20, family=fig_lay.get("font", {}).get("family", "Calibri")),
+        font=dict(size=20, family=figure_layout.get("font", {}).get("family", "Calibri")),
     )
 
     valid_pairs = sub_df["dist_to_winner"].notna()
@@ -1557,15 +1557,15 @@ def plot_distance_to_winner_vs_delta_bic(
         corr = float("nan")
         corr_label = "r = N/A"
     fig.update_layout(
-        template=fig_lay.get("template", "plotly_white"),
+        template=figure_layout.get("template", "plotly_white"),
         title=f"Distance to BIC Winner vs ΔBIC — {corr_label} ({n_valid_pairs} of {len(sub_df)} models computed)",
-        titlefont_size=fig_lay["titlefont_size"],
+        titlefont_size=figure_layout["titlefont_size"],
         title_x=0.5,
-        font=fig_lay.get("font", {}),
-        hoverlabel=fig_lay.get("hoverlabel", {}),
+        font=figure_layout.get("font", {}),
+        hoverlabel=figure_layout.get("hoverlabel", {}),
         margin=dict(l=120, r=180, t=140, b=100),
-        xaxis=dict(title="AMPD Distance to BIC-Winning Model", **fig_lay.get("xaxis", {})),
-        yaxis=dict(title="ΔBIC (vs Best Model)", **fig_lay.get("yaxis", {})),
+        xaxis=dict(title="AMPD Distance to BIC-Winning Model", **figure_layout.get("xaxis", {})),
+        yaxis=dict(title="ΔBIC (vs Best Model)", **figure_layout.get("yaxis", {})),
     )
 
     out_path = os.path.join(file_paths["visuals"], "dist_to_winner_vs_dbic.html")
@@ -1643,7 +1643,7 @@ def compute_top_model_coherence(
 def plot_top_model_ampd_heatmap(
     general_settings: GeneralSettings,
     file_paths: FilePaths,
-    fig_lay: FigLay,
+    figure_layout: FigLay,
     distance_matrix_df: Optional[pd.DataFrame] = None,
     top_n: int = 50,
     require_ic_data: bool = True,
@@ -1659,7 +1659,7 @@ def plot_top_model_ampd_heatmap(
     Arguments:
         • general_settings: GeneralSettings — read for 'ampd_settings' when loading from file.
         • file_paths: FilePaths — must contain 'processed' and 'visuals'.
-        • fig_lay: FigLay — layout constants from config.py.
+        • figure_layout: FigLay — layout constants from config.py.
         • distance_matrix_df: pd.DataFrame | None (default None) — pairwise distance matrix
             indexed by utility_idx. If None, loaded from general_settings['ampd_settings'].
         • top_n: int (default 50) — number of top-BIC models to include.
@@ -1743,16 +1743,16 @@ def plot_top_model_ampd_heatmap(
     ))
 
     fig.update_layout(
-        template=fig_lay.get("template", "plotly_white"),
+        template=figure_layout.get("template", "plotly_white"),
         title=f"Pairwise AMPD — Top {actual_n} BIC-Ranked Models",
-        titlefont_size=fig_lay["titlefont_size"],
+        titlefont_size=figure_layout["titlefont_size"],
         title_x=0.5,
-        font=fig_lay.get("font", {}),
-        hoverlabel=fig_lay.get("hoverlabel", {}),
+        font=figure_layout.get("font", {}),
+        hoverlabel=figure_layout.get("hoverlabel", {}),
         margin=dict(l=140, r=160, t=140, b=140),
-        xaxis=dict(title="Model (BIC Rank)", tickangle=-45, **fig_lay.get("xaxis", {})),
+        xaxis=dict(title="Model (BIC Rank)", tickangle=-45, **figure_layout.get("xaxis", {})),
         yaxis=dict(title="Model (BIC Rank)", autorange="reversed",
-                   scaleanchor="x", scaleratio=1, **fig_lay.get("yaxis", {})),
+                   scaleanchor="x", scaleratio=1, **figure_layout.get("yaxis", {})),
     )
 
     out_path = os.path.join(file_paths["visuals"], f"top_model_heatmap_{actual_n}.html")

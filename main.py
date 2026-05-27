@@ -24,17 +24,43 @@ run_code_settings: RunCodeSettings = {
 def main():
     """Execute main code."""
 
-    run_param_recovery_by_k(
+    compute_architecture_compression_curve(
         general_settings=general_settings,
         file_paths=file_paths,
-        fig_lay=fig_lay,
-        param_bds=param_bds,
-        k_params_range=(2, 7),
-        correlate_all_params=True,
-        run_k_in_parallel=False,
-        n_players=73,
-        n_games=120
+        create_new_file=True,
     )
+
+    plot_architecture_compression_curve(
+        general_settings=general_settings,
+        file_paths=file_paths,
+        figure_layout=figure_layout,
+    )
+    exit()
+    # run_param_recovery_by_k(
+    #     general_settings=general_settings,
+    #     file_paths=file_paths,
+    #     figure_layout=figure_layout,
+    #     param_bds=param_bds,
+    #     k_params_range=(2, 9),
+    #     correlate_all_params=True,
+    #     n_players=73,
+    #     n_games=120
+    # )
+
+    "Re-render the recovery figure from the saved CSV without rerunning the simulation."
+    _recovery_dir = os.path.join(str(file_paths['simulations']), "param_recovery_by_k")
+    _recovery_csv = os.path.join(_recovery_dir, "param_recovery_by_k.csv")
+    _recovery_fig = os.path.join(_recovery_dir, "param_recovery_by_k.html")
+    if os.path.exists(_recovery_csv):
+        _corr_df = pd.read_csv(_recovery_csv, encoding="utf-8-sig")
+        plot_param_recovery_by_k(
+            corr_df=_corr_df,
+            figure_layout=figure_layout,
+            out_fig_path=_recovery_fig,
+            include_dropdown=True
+        )
+        print(f"Re-rendered recovery figure → {_recovery_fig}")
+
     exit()
     "Apply master random seed when reproducibility mode is enabled."
     _master_seed = general_settings.get('random_seeds', {}).get('seed', None)
@@ -51,7 +77,7 @@ def main():
 
         sample_ratios = list(np.round(np.linspace(start=0.05, stop=0.95, num=19), decimals=3))
         verify_particle_filter_fidelity(general_settings=general_settings, utility_settings=utility_settings,
-                                        param_info=param_info, file_paths=file_paths, fig_lay=fig_lay,
+                                        param_info=param_info, file_paths=file_paths, figure_layout=figure_layout,
                                         sample_ratios=sample_ratios, n_predictors=8, n_games_per_dyad=8)
 
         use_dynamic_predictor = True
@@ -62,7 +88,7 @@ def main():
 
         df_merged = run_simulation_recovery_analysis(
             general_settings=general_settings, file_paths=file_paths,
-            fig_lay=fig_lay, export_fig=True, create_new_file=True, produce_figures=True,
+            figure_layout=figure_layout, export_fig=True, create_new_file=True, produce_figures=True,
             correlation_csv_name="correlation_results.csv", include_dropdown=False,
             use_dynamic_predictor=use_dynamic_predictor,
         )
@@ -83,11 +109,11 @@ def main():
         run_param_recovery_by_k(
             general_settings=general_settings,
             file_paths=file_paths,
-            fig_lay=fig_lay,
+            figure_layout=figure_layout,
             param_bds=param_bds,
         )
 
-        plot_param_recovery_by_round(df_merged=df_merged, fig_lay=fig_lay)
+        plot_param_recovery_by_round(df_merged=df_merged, figure_layout=figure_layout)
         run_update_speed_simulation_regression(general_settings=general_settings)
 
         update_speeds = analyze_update_speed_in_human_bot(
@@ -95,7 +121,7 @@ def main():
         )
         plot_update_speed_by_counterpart(
             update_speeds_per_counterpart=update_speeds['update_speeds_per_counterpart'],
-            fig_lay=fig_lay, export_fig=export_fig, file_name="visuals/update_speeds_per_avatar.html",
+            figure_layout=figure_layout, export_fig=export_fig, file_name="visuals/update_speeds_per_avatar.html",
         )
 
     if run_code_settings['run_illustrate_belief_updates']:
@@ -123,14 +149,14 @@ def main():
             general_settings=general_settings,
             utility_settings=utility_settings,
             file_paths=file_paths,
-            fig_lay=fig_lay,
+            figure_layout=figure_layout,
             n_rounds=9,
         )
 
         visualize_bayesian_updates_3d(
             dyad_games_or_key=0,
             player_uuid=2,
-            fig_lay=fig_lay,
+            figure_layout=figure_layout,
             file_paths=file_paths,
             general_settings=general_settings,
             fix_z_axis=True,
@@ -139,7 +165,7 @@ def main():
         for participant_number in range(n_players_experiment_2):
             belief_accuracy_analysis(
                 file_paths=file_paths, participant_num=participant_number,
-                general_settings=general_settings, fig_lay=fig_lay,
+                general_settings=general_settings, figure_layout=figure_layout,
                 fitted_by_player=True, compute_optimum_updates=True, animate_figure=False,
             )
 
@@ -147,7 +173,7 @@ def main():
 
         alternative_model_contest(
             general_settings=general_settings, param_info=param_info, param_bds=param_bds,
-            utility_settings=utility_settings, file_paths=file_paths, fig_lay=fig_lay,
+            utility_settings=utility_settings, file_paths=file_paths, figure_layout=figure_layout,
         )
 
     if run_code_settings['run_typological_bayesian_models']:
@@ -203,8 +229,8 @@ def main():
             check_for_n_players='all', dynamic_updating=dynamic_updating,
         )
 
-        plot_ic_scores_delta_bic(fig_lay=fig_lay, file_paths=file_paths, general_settings=general_settings, include_dropdown=False)
-        plot_ic_robustness_analysis(general_settings=general_settings, file_paths=file_paths, fig_lay=fig_lay)
+        plot_ic_scores_delta_bic(figure_layout=figure_layout, file_paths=file_paths, general_settings=general_settings, include_dropdown=False)
+        plot_ic_robustness_analysis(general_settings=general_settings, file_paths=file_paths, figure_layout=figure_layout)
 
         utility_setting_contribution_analysis(
             general_settings=general_settings, file_paths=file_paths, utility_settings_universe=utility_settings,
@@ -286,7 +312,7 @@ def main():
         plot_architecture_compression_curve(
             general_settings=general_settings,
             file_paths=file_paths,
-            fig_lay=fig_lay,
+            figure_layout=figure_layout,
         )
 
     if run_code_settings['run_model_recovery_simulation']:
@@ -313,7 +339,7 @@ def main():
         plot_model_recovery_simulation(
             general_settings=general_settings,
             file_paths=file_paths,
-            fig_lay=fig_lay,
+            figure_layout=figure_layout,
         )
 
     if run_code_settings['run_parameter_distribution_results']:
@@ -336,12 +362,12 @@ def main():
 
         for player_role in ('chooser', 'predictor'):
             population_parameter_distribution_histograms(
-                general_settings=general_settings, file_paths=file_paths, fig_lay=fig_lay,
+                general_settings=general_settings, file_paths=file_paths, figure_layout=figure_layout,
                 player_role=player_role, use_initial_params=True, create_new_file=create_new_file,
             )
             for ratio_mode in ('absolute', 'skip_negative'):
                 subpopulation_stats_and_param_ratio_histograms(
-                    general_settings=general_settings, file_paths=file_paths, fig_lay=fig_lay,
+                    general_settings=general_settings, file_paths=file_paths, figure_layout=figure_layout,
                     player_role=player_role, use_initial_params=True, create_new_file=False,
                     ratio_mode=ratio_mode, as_subplots=True,
                 )
@@ -358,7 +384,7 @@ def main():
     if run_code_settings['run_inequality_aversion_analysis']:
 
         visualize_inequality_aversion_bot_competition(
-            fig_lay=fig_lay, file_paths=file_paths,
+            figure_layout=figure_layout, file_paths=file_paths,
             param_strong=0.75, param_weak=0.25, temperature=1.0,
             param_self_values=[0.0, 0.25, 0.5, 0.75, 1.0],
             param_altr_values=[0.0, 0.25, 0.5, 0.75, 1.0],

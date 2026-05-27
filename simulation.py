@@ -1,6 +1,5 @@
 from bayesian import *
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 
 "=========================================================================================="
 "========== Simulation 1) The Optimizer Accurately Recovers Predictor Parameters =========="
@@ -945,7 +944,7 @@ def compute_param_recovery_correlations(df: pd.DataFrame, dir_path: str, out_csv
     return corr_df
 
 
-def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSettings, file_paths: FilePaths, export_fig: bool = True, create_new_file: bool = False, 
+def run_simulation_recovery_analysis(figure_layout: dict, general_settings: GeneralSettings, file_paths: FilePaths, export_fig: bool = True, create_new_file: bool = False, 
                                      produce_figures: bool = True, include_dropdown: bool = True, correlation_csv_name: str = "correlation_results.csv", use_dynamic_predictor: bool = False) -> pd.DataFrame:
     """
     End-to-end analysis of simulation-based parameter recovery.
@@ -963,7 +962,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                - line plots of correlation vs round.
 
     Arguments:
-        • fig_lay: dict;
+        • figure_layout: dict;
             Plotly layout configuration used for all generated figures.
         • general_settings: GeneralSettings;
             Settings for the Bayesian analysis and plotting (e.g., dark_mode).
@@ -988,7 +987,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
             The merged, long-format simulation DataFrame (all dyads × rounds).
     """
     def plot_correlation(df: pd.DataFrame, file_paths: FilePaths, round_selection: str = "first", as_scatterplot: bool = True, params: list = None, boxplot_param: str = "Vij", 
-                        include_dropdown: bool = True, fig_lay: dict = None, export_fig: bool = True, out_path: str = "corr_plot.html", fitted_suffix: str = "_fitted_predictor"):
+                        include_dropdown: bool = True, figure_layout: dict = None, export_fig: bool = True, out_path: str = "corr_plot.html", fitted_suffix: str = "_fitted_predictor"):
         """
         Visualize true vs fitted parameters for a chosen round.
 
@@ -1005,8 +1004,8 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
 
         `round_selection` can be "first", "final", or a specific integer round.
         """
-        if fig_lay is None:
-            fig_lay = {}
+        if figure_layout is None:
+            figure_layout = {}
         if as_scatterplot and (params is None or len(params) == 0):
             params = ["Vii", "Vij", "Vii_std", "Vij_std", "τ"]
 
@@ -1092,7 +1091,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                         f"{param}_true_predictor=%{{x:.3f}}<br>"
                         f"{param}{fitted_suffix}=%{{y:.3f}}<extra></extra>"
                     ),
-                    marker=dict(size=fig_lay.get("markersize", 12))
+                    marker=dict(size=figure_layout.get("markersize", 12))
                 )
                 fig.add_trace(scatter_trace)
                 i_trace += 1
@@ -1202,13 +1201,13 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                 )
 
             fig.update_layout(
-                template=fig_lay.get("template", "plotly_dark"),
+                template=figure_layout.get("template", "plotly_dark"),
                 title=f"Scatter: round={round_selection}, param={params[0]}",
-                xaxis=dict(title="Chooser True Param", **fig_lay.get("xaxis", {}), scaleanchor="y", scaleratio=1),
-                yaxis=dict(title="Predictor Fitted Param", **fig_lay.get("yaxis", {})),
+                xaxis=dict(title="Chooser True Param", **figure_layout.get("xaxis", {}), scaleanchor="y", scaleratio=1),
+                yaxis=dict(title="Predictor Fitted Param", **figure_layout.get("yaxis", {})),
                 updatemenus=[dict(type='dropdown', showactive=True, buttons=param_buttons, x=1.3, y=0.9)],
-                hoverlabel=fig_lay.get("hoverlabel", {}),
-                font=fig_lay.get("font", {})
+                hoverlabel=figure_layout.get("hoverlabel", {}),
+                font=figure_layout.get("font", {})
             )
 
             if export_fig:
@@ -1267,14 +1266,14 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
             fig.update_yaxes(range=[-1.2, 1.2])
             fig.update_layout(
                 title=title_text, 
-                titlefont_size=fig_lay['titlefont_size']-2,
-                template=fig_lay.get("template", "plotly_dark"),
-                title_x=fig_lay['title_x'], title_y=fig_lay['title_y'], 
-                xaxis=dict(title=axis_title(param, 'predictor', 'true'), **fig_lay.get("xaxis", {})),
-                yaxis=dict(title=axis_title(param, 'predictor', 'fitted'), **fig_lay.get("yaxis", {})),
-                hoverlabel=fig_lay.get("hoverlabel", {}),
+                titlefont_size=figure_layout['titlefont_size']-2,
+                template=figure_layout.get("template", "plotly_dark"),
+                title_x=figure_layout['title_x'], title_y=figure_layout['title_y'], 
+                xaxis=dict(title=axis_title(param, 'predictor', 'true'), **figure_layout.get("xaxis", {})),
+                yaxis=dict(title=axis_title(param, 'predictor', 'fitted'), **figure_layout.get("yaxis", {})),
+                hoverlabel=figure_layout.get("hoverlabel", {}),
                 margin=dict(l=150, r=120, t=120, b=120),
-                font=fig_lay.get("font", {}),
+                font=figure_layout.get("font", {}),
                 annotations=[dict(
                     text=cor_text,
                     x=0.02, y=0.85, xref='paper', yref='paper',
@@ -1356,7 +1355,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
                     as_scatterplot=False,
                     boxplot_param=param,
                     file_paths=file_paths,
-                    fig_lay=fig_lay,
+                    figure_layout=figure_layout,
                     export_fig=export_fig,
                     include_dropdown=include_dropdown,
                     out_path=os.path.join(sim_dir, f"corr_violin_{param}_{round_selection}.html"),
@@ -1365,7 +1364,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
             "Scatterplot"
             plot_correlation(
                 df=df_combined,
-                fig_lay=fig_lay,
+                figure_layout=figure_layout,
                 export_fig=export_fig,
                 round_selection=round_selection,
                 as_scatterplot=True,
@@ -1378,7 +1377,7 @@ def run_simulation_recovery_analysis(fig_lay: dict, general_settings: GeneralSet
         "Correlation by round => line"
         plot_param_recovery_by_round(
             general_settings=general_settings,
-            df_merged=df_combined, params=["Vii", "Vij", "Vii_std", "Vij_std", "τ"], fig_lay=fig_lay, 
+            df_merged=df_combined, params=["Vii", "Vij", "Vii_std", "Vij_std", "τ"], figure_layout=figure_layout, 
             export_fig=export_fig, create_new_file=create_new_file, file_paths=file_paths, 
             file_name=("corr_by_round_sim_pred.html" if use_dynamic_predictor else "corr_by_round.html"),
             corr_csv_name=("correlation_results_by_round_sim_pred.csv" if use_dynamic_predictor else "correlation_results_by_round.csv"),
@@ -1885,12 +1884,15 @@ def create_simulated_experiment(
 _SENTINEL = object()  # used as a sentinel for random_seed to distinguish "not provided" from None (unseeded)
 
 
-def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FilePaths, fig_lay: FigLay, param_bds: ParamBounds,
+def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FilePaths, figure_layout: FigLay, param_bds: ParamBounds,
                             n_players: int | None = None, fit_predictor_role: bool = False, n_games: int | None = None,
                             k_params_range: tuple[int, int] | None = None, n_altruism_steps: int | None = None,
                             evenly_space_altruism: bool | None = None, utility_settings_by_k: dict[int, dict[str, bool]] | None = None,
-                            correlate_all_params: bool | None = None, run_k_in_parallel: bool | None = None,
-                            random_seed=_SENTINEL, use_existing_fits: bool = False) -> tuple[pd.DataFrame, dict[int, Any]]:
+                            correlate_all_params: bool | None = None,
+                            random_seed=_SENTINEL, use_existing_fits: bool = False,
+                            base_hue: int | None = None,
+                            temperature_is_param: bool | None = None,
+                            softmax_temperature: float | None = None) -> tuple[pd.DataFrame, dict[int, Any]]:
     """
     Run parameter-recovery simulations across utility dimensionalities (k) and summarize accuracy.
 
@@ -1917,7 +1919,7 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
             cascadable arguments below.
         • file_paths: FilePaths
             Project file-path dict; used for input CSVs and output directories.
-        • fig_lay: FigLay
+        • figure_layout: FigLay
             Plotly figure layout template for the output figure.
         • param_bds: ParamBounds
             Parameter bounds dict used to sample random true parameter vectors.
@@ -1941,9 +1943,6 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
             Explicit k → utility settings mapping; if None the IC CSV is used.
         • correlate_all_params: bool | None
             True → correlate every free mean parameter; False → Vᵢⱼ only.
-            None → cascade, then False.
-        • run_k_in_parallel: bool | None
-            True → ThreadPoolExecutor across k values (disables mp.Pool per-k).
             None → cascade, then False.
         • random_seed: int | None | _SENTINEL
             RNG seed. _SENTINEL (default) → cascade from settings, then None (unseeded).
@@ -1979,8 +1978,10 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         evenly_space_altruism = bool(prs.get('evenly_space_altruism', True))
     if correlate_all_params is None:
         correlate_all_params = bool(prs.get('correlate_all_params', False))
-    if run_k_in_parallel is None:
-        run_k_in_parallel = bool(prs.get('run_k_in_parallel', False))
+    if temperature_is_param is None:
+        temperature_is_param = bool(general_settings.get('temperature_is_param', False))
+    if softmax_temperature is None:
+        softmax_temperature = float(general_settings.get('softmax_temperature', 1.0))
     if random_seed is _SENTINEL:
         random_seed = prs.get('random_seed', None)
 
@@ -2017,7 +2018,7 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
     print(f"  players/k:     {n_players_per_k} (n_players={n_players} padded to multiple of 4)")
     print(f"  games/player:  {n_games}   fit predictor role: {fit_predictor_role}")
     print(f"  total fits:    {n_players_per_k * len(k_param_values)}")
-    print(f"  parallel k:    {run_k_in_parallel}   random seed: {random_seed}")
+    print(f"  random seed:   {random_seed}")
     print(f"{'='*70}\n")
 
     "---------- (A) Resolve utility_settings_by_k ----------"
@@ -2176,24 +2177,19 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         file_paths_k['param_data']  = os.path.join(_sim_root, 'param_data')
         histories_file_path = os.path.join(file_paths_k['processed'], k_file_name)
 
-        "Pad n_players to a multiple of 4 for round-robin batch assignment."
-        n_players_k = n_players + (4 - n_players % 4) % 4
-        if n_players_k != n_players:
-            print(f"[k={k_params}] n_players={n_players} is not a multiple of 4 — padded to {n_players_k}.")
-
         "Build the altruism target list — always generated to keep random_gen state consistent."
         if evenly_space_altruism:
             steps = max(2, int(n_altruism_steps))
             altruism_grid = list(np.linspace(altruism_lower_bound, altruism_upper_bound, steps))
-            reps = math.ceil(n_players_k / steps)
-            altruism_targets = (altruism_grid * reps)[:n_players_k]
+            reps = math.ceil(n_players_per_k / steps)
+            altruism_targets = (altruism_grid * reps)[:n_players_per_k]
             random_gen.shuffle(altruism_targets)
         else:
             altruism_targets = [float(random_gen.uniform(altruism_lower_bound, altruism_upper_bound))
-                                for _ in range(n_players_k)]
+                                for _ in range(n_players_per_k)]
 
         histories_k, true_params_by_uuid_k = create_simulated_experiment(
-            n_players=n_players_k,
+            n_players=n_players_per_k,
             n_games=n_games,
             k_params=k_params,
             utility_settings_k=u_settings_k,
@@ -2213,10 +2209,6 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         general_settings_k['experiment_num'] = 3
         general_settings_k['write_mode'] = 'overwrite'
         general_settings_k['fit_predictor_role'] = fit_predictor_role
-        if run_k_in_parallel:
-            "Disable mp.Pool within each k — the k-level ThreadPoolExecutor already fills the CPU."
-            general_settings_k['run_in_parallel'] = False
-
         k_phase1[k_params] = {
             'histories_file_path':  histories_file_path,
             'file_paths_k':         file_paths_k,
@@ -2227,12 +2219,11 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
             'n_players_k':          n_players_k,
         }
 
-    "Phase 2: fit — parallel across k when run_k_in_parallel=True, sequential otherwise."
+    "Phase 2 (sequential): fit each k in turn."
     def _fit_one_k(meta: dict) -> None:
         "Load histories from disk rather than memory so only one k's data is live at a time."
         with open(meta['histories_file_path'], 'r', encoding='utf-8') as _f:
             histories_k = json.load(_f)
-        "player_uuids=None: auto-selection via player_type='synthetic' in player_info."
         run_analysis_bayes(
             histories_data=histories_k,
             file_paths=meta['file_paths_k'],
@@ -2243,25 +2234,18 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         )
 
     if not use_existing_fits:
-        if run_k_in_parallel:
-            print(f"\n[Phase 2] Fitting all {len(k_param_values)} k values in parallel via ThreadPoolExecutor...")
-            t_phase2 = time.time()
-            with ThreadPoolExecutor(max_workers=len(k_param_values)) as executor:
-                list(executor.map(_fit_one_k, [k_phase1[k] for k in k_param_values]))
-            print(f"[Phase 2] Parallel fitting complete in {_fmt_duration(time.time() - t_phase2)}.")
-        else:
-            k_fit_times: list[float] = []
-            for k_phase2_idx, k_params in enumerate(k_param_values, 1):
-                n_players_k_fitted = k_phase1[k_params]['n_players_k']
-                print(f"\n[k={k_params}  {k_phase2_idx}/{len(k_param_values)}] Phase 2: Fitting {n_players_k_fitted} players...")
-                t_k_fit = time.time()
-                _fit_one_k(k_phase1[k_params])
-                k_elapsed = time.time() - t_k_fit
-                k_fit_times.append(k_elapsed)
-                k_remaining = len(k_param_values) - k_phase2_idx
-                eta = (sum(k_fit_times) / len(k_fit_times)) * k_remaining
-                eta_str = f" — ETA: {_fmt_duration(eta)}" if k_remaining > 0 else ""
-                print(f"[k={k_params}  {k_phase2_idx}/{len(k_param_values)}] Phase 2 done in {_fmt_duration(k_elapsed)}.{eta_str}")
+        k_fit_times: list[float] = []
+        for k_phase2_idx, k_params in enumerate(k_param_values, 1):
+            n_players_k_fitted = k_phase1[k_params]['n_players_k']
+            print(f"\n[k={k_params}  {k_phase2_idx}/{len(k_param_values)}] Phase 2: Fitting {n_players_k_fitted} players...")
+            t_k_fit = time.time()
+            _fit_one_k(k_phase1[k_params])
+            k_elapsed = time.time() - t_k_fit
+            k_fit_times.append(k_elapsed)
+            k_remaining = len(k_param_values) - k_phase2_idx
+            eta = (sum(k_fit_times) / len(k_fit_times)) * k_remaining
+            eta_str = f" — ETA: {_fmt_duration(eta)}" if k_remaining > 0 else ""
+            print(f"[k={k_params}  {k_phase2_idx}/{len(k_param_values)}] Phase 2 done in {_fmt_duration(k_elapsed)}.{eta_str}")
     else:
         print("\n[Phase 2] Skipped — use_existing_fits=True.")
 
@@ -2289,9 +2273,10 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         df_k = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
         if correlate_all_params:
+            temperature_keys = set() if temperature_is_param else {'τ', 'temp'}
             params_to_correlate = [
                 param_key for param_key in param_info_k['keys']
-                if '_std' not in param_key and '_cov' not in param_key and param_key not in ('τ', 'temp')
+                if '_std' not in param_key and '_cov' not in param_key and param_key not in temperature_keys
             ]
         else:
             params_to_correlate = ['Vᵢⱼ']
@@ -2367,68 +2352,66 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         )
         print(f"[k={k_params}  {k_phase3_idx}/{len(k_param_values)}] Phase 3: {corr_summary or 'no results'}")
 
-    "---------- Build & save tidy CSV ----------"
+    "---------- Load BIC and equation per k from IC comparison CSV ----------"
+    k_bic_map:      dict[int, float] = {}
+    k_equation_map: dict[int, str]   = {}
     try:
-        corr_by_k_df = pd.DataFrame(aggregate_records).sort_values(["k", "role", "param"])
+        ic_csv_path = os.path.join(file_paths["bic_aic"], "IC_Analysis_Comparison_Table_Experiment3.csv")
+        if os.path.exists(ic_csv_path):
+            ic_meta_df = pd.read_csv(ic_csv_path, encoding="utf-8", engine="python")
+            for k_lookup in k_param_values:
+                k_rows = ic_meta_df[ic_meta_df["k_params"] == k_lookup]
+                if k_rows.empty:
+                    continue
+                if "BIC_rank" in k_rows.columns and (k_rows["BIC_rank"] == 0).any():
+                    winner = k_rows.loc[k_rows["BIC_rank"] == 0].iloc[0]
+                else:
+                    winner = k_rows.iloc[k_rows["BIC"].argmin()]
+                k_bic_map[k_lookup]      = float(winner["BIC"])    if "BIC"      in winner.index else float("nan")
+                k_equation_map[k_lookup] = str(winner["equation"]) if "equation" in winner.index else ""
+    except Exception:
+        pass
+
+    "---------- Build & save tidy CSV ----------"
+    corr_by_k_df = pd.DataFrame(aggregate_records)
+    if not corr_by_k_df.empty:
+        corr_by_k_df = corr_by_k_df.rename(columns={"role": "player_role"})
+        corr_by_k_df["bic"]      = corr_by_k_df["k"].map(k_bic_map)
+        corr_by_k_df["equation"] = corr_by_k_df["k"].map(k_equation_map)
+        col_order    = ["k", "player_role", "n_data", "param", "corr", "agg_corr", "bic", "equation"]
+        corr_by_k_df = corr_by_k_df[[c for c in col_order if c in corr_by_k_df.columns]]
+        corr_by_k_df = corr_by_k_df.sort_values(["k", "player_role", "param"])
+    try:
         corr_by_k_df.to_csv(out_csv_path, index=False, encoding="utf-8-sig")
-        print(f"Saved summary CSV to: {out_csv_path}")
+        print(f"Saved summary CSV to: {pretty_path(out_csv_path)}")
     except (PermissionError, OSError):
         "Pass if I have the file open."
         pass
 
-    "---------- Plotly figure (corr vs k) for the primary role ----------"
-    primary_records = [r for r in aggregate_records if r["role"] == "chooser"]
-    if primary_records:
-        agg_df = pd.DataFrame(primary_records).groupby("k", as_index=False)["agg_corr"].first()
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=agg_df["k"], y=agg_df["agg_corr"], mode="lines+markers",
-            name="Aggregate 𝑟 (chooser, macro-average across params)",
-            hovertemplate="𝑘 = %{x}<br>𝑟 = %{y:.3f}<extra></extra>",
-            marker=dict(size=fig_lay.get("markersize", 12), color="hsla(120, 50%, 50%, 1.0)")
-        ))
-
-        param_title = 'Altruism' if evenly_space_altruism else 'Parameter'
-        y_title     = f"True {param_title} vs Fitted {param_title} Correlation"
-
-        x_axis = {
-            'title': "Number of Free Parameters (𝑘)",
-            'tickfont': dict(size=24),
-            'title_font': dict(size=30),
-            'tickvals': [1, 2, 3, 4, 5, 6, 7, 8, 9],
-            'ticktext': ['1', '2', '3', '4', '5', '6', '7', '8', '9'],
-            'range': [0.95, 9.05]
-        }
-        y_axis = {
-            'title': y_title,
-            'tickfont': dict(size=24),
-            'title_font': dict(size=30),
-            'tickvals': [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
-            'ticktext': ['0.0', '0.2', '0.4', '0.6', '0.8', '1.0'],
-            'range': [-0.05, 1.05]
-        }
-
-        fig.update_layout(
-            title=f"Chooser {param_title} Recovery Correlation 𝑟 vs. Dimensionality 𝑘",
-            titlefont_size=fig_lay['titlefont_size'] * 0.6, template=fig_lay['template'],
-            title_x=fig_lay['title_x'], title_y=fig_lay['title_y'], showlegend=False,
-            margin=dict(l=560, r=560, t=120, b=100),
-            xaxis=x_axis, yaxis=y_axis,
+    "---------- Plotly figure: corr vs k, delegate to plot_param_recovery_by_k ----------"
+    if not corr_by_k_df.empty:
+        from visualization import plot_param_recovery_by_k as _plot_recovery_figure
+        _plot_recovery_figure(
+            corr_df=corr_by_k_df,
+            figure_layout=figure_layout,
+            k_equation_map=k_equation_map,
+            evenly_space_altruism=evenly_space_altruism,
+            base_hue=base_hue,
+            out_fig_path=out_fig_path,
         )
-        fig.write_html(out_fig_path)
-        print(f"Saved Plotly figure to: {out_fig_path}")
+        print(f"Saved Plotly figure to: {pretty_path(out_fig_path)}")
 
     print(f"\n{'='*70}")
     print(f"[param_recovery_by_k] Complete. Total time: {_fmt_duration(time.time() - time_start_total)}.")
-    print(f"  CSV  → {out_csv_path}")
-    print(f"  Plot → {out_fig_path}")
+    print(f"  CSV  → {pretty_path(out_csv_path)}")
+    print(f"  Plot → {pretty_path(out_fig_path)}")
     print(f"{'='*70}\n")
 
     return corr_by_k_df, simulated_param_recovery_by_k
 
 
 def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_settings: UtilitySettings, 
-                                    param_info: ParamInfo, file_paths: FilePaths, fig_lay: FigLay, sample_ratios: int | list[float] = 5, 
+                                    param_info: ParamInfo, file_paths: FilePaths, figure_layout: FigLay, sample_ratios: int | list[float] = 5, 
                                     random_seed: int | None = None, n_predictors: int = 10, n_games_per_dyad: int = 10) -> pd.DataFrame:
     """
     Verifies that the particle filter (PF) reproduces the full grid-based posterior update (which occurs when the sample_ratio = 1.0).
@@ -2441,7 +2424,7 @@ def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_s
         • utility_settings: dict[str, bool]; Defines the functional form of the utility function.
         • file_paths: dict[str, str | dict[str, str]]; Stores all file paths for storing data.
         • general_settings: dict[str, Any]; Various settings used throughout this analysis.
-        • fig_lay: dict[str: Any]; Establishes the settings for the Plotly figure layout.
+        • figure_layout: dict[str: Any]; Establishes the settings for the Plotly figure layout.
         • sample_ratios: int | list[float]; n uniformly spaced sample ratios between 0 and 1 or an array of sample ratios. 
             - sample_ratio is a general setting that determins the number of probabilities that computed per Bayesian update. 
         • random_seed: int | None; Seed for reproducibility across dyads, parameter draws, and the single dyad structure.
@@ -2697,7 +2680,7 @@ def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_s
         mode="markers+lines",
         name="PF vs Grid: correlation",
         hovertemplate="sample_ratio=%{x:.3f}<br>corr=%{y:.3f}<extra></extra>",
-        marker=dict(size=fig_lay.get("markersize", 12), opacity=0.9)
+        marker=dict(size=figure_layout.get("markersize", 12), opacity=0.9)
     ))
 
     "Invisible anchors to force [0,1]×[0,1] domain"
@@ -2717,27 +2700,27 @@ def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_s
     n_bins = int(general_settings.get("n_bins_per_dimension", 0))
     annot_text = f"𝑛 bins = {n_bins} • 𝑛 games = {n_games_per_dyad} • 𝑛 players = {n_predictors}"
 
-    font_base = fig_lay["annotations"]["font"].copy()
+    font_base = figure_layout["annotations"]["font"].copy()
     font_base.pop("size", None)
-    font_small = dict(**font_base, size=fig_lay["annotations"]["font"]["size"] - 4)
+    font_small = dict(**font_base, size=figure_layout["annotations"]["font"]["size"] - 4)
 
     fig.update_layout(
         title=title,
-        titlefont_size=fig_lay['titlefont_size'],
-        title_x=fig_lay['title_x'],
-        title_y=fig_lay['title_y'],
-        template=fig_lay['template'],
-        hoverlabel=fig_lay['hoverlabel'],
+        titlefont_size=figure_layout['titlefont_size'],
+        title_x=figure_layout['title_x'],
+        title_y=figure_layout['title_y'],
+        template=figure_layout['template'],
+        hoverlabel=figure_layout['hoverlabel'],
         margin=dict(l=560, r=560, t=120, b=200),
-        font=fig_lay['font'], showlegend=False,
+        font=figure_layout['font'], showlegend=False,
         annotations=[
             dict(
                 text=annot_text, font=font_small, xref="paper", yref="paper",
-                showarrow=fig_lay["annotations"]["showarrow"], x=0.5, y=-0.05, 
+                showarrow=figure_layout["annotations"]["showarrow"], x=0.5, y=-0.05, 
             ),
             dict(
                 text=build_utility_equation(utility_settings=utility_settings), font=font_small,
-                showarrow=fig_lay["annotations"]["showarrow"], x=0.5, y=-0.15, xref="paper", yref="paper"
+                showarrow=figure_layout["annotations"]["showarrow"], x=0.5, y=-0.15, xref="paper", yref="paper"
             )            
         ]
     )
@@ -2746,14 +2729,14 @@ def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_s
     fig.update_xaxes(
         title="Sample Ratio (fraction of grid evaluated)",
         range=[0, 1],
-        **fig_lay.get("xaxis", {})
+        **figure_layout.get("xaxis", {})
     )
     fig.update_yaxes(
         title="Correlation (PF posterior vs Grid posterior)",
         range=[0, 1],
         scaleanchor="x",  # Square plot: y anchored to x.
         scaleratio=1,
-        **fig_lay.get("yaxis", {})
+        **figure_layout.get("yaxis", {})
     )
 
     "Save the HTML"
@@ -2782,7 +2765,7 @@ def plot_param_recovery_by_round(
         general_settings: GeneralSettings,
         file_paths: FilePaths,
         params=None,
-        fig_lay: dict = None,
+        figure_layout: dict = None,
         export_fig: bool = True,
         create_new_file: bool = True,
         file_name: str = "corr_by_round.html",
@@ -2813,7 +2796,7 @@ def plot_param_recovery_by_round(
         • params: list[str] | None;
             Parameters to plot (e.g., ["Vii","Vij","Vii_std","Vij_std","τ"]).
             If None, defaults to that list.
-        • fig_lay: dict | None;
+        • figure_layout: dict | None;
             Layout settings (font, template, axis options) for Plotly.
         • export_fig: bool;
             If True, write the Plotly HTML to `dir_path/file_name`. If False, show it.
@@ -2862,8 +2845,8 @@ def plot_param_recovery_by_round(
 
     if params is None:
         params = ["Vij", "Vii", "Vij_std", "Vii_std", "τ"]
-    if fig_lay is None:
-        fig_lay = {}
+    if figure_layout is None:
+        figure_layout = {}
 
     dir_path = str(file_paths['simulations'])
     os.makedirs(dir_path, exist_ok=True)
@@ -3019,20 +3002,20 @@ def plot_param_recovery_by_round(
 
     fig.update_layout(
         title="Correlation Between Fitted Predictor Parameters And True Chooser Parameters by Round",
-        title_x=fig_lay['title_x'], title_y=fig_lay['title_y'],
-        titlefont_size=fig_lay['titlefont_size'] - 15,
+        title_x=figure_layout['title_x'], title_y=figure_layout['title_y'],
+        titlefont_size=figure_layout['titlefont_size'] - 15,
         xaxis=dict(
             title="Round",
             range=[-0.5, max_round + 0.5],
-            **fig_lay.get("xaxis", {})
+            **figure_layout.get("xaxis", {})
         ),
         yaxis=dict(
             title="Correlation",
             range=[-1, 1],
-            **fig_lay.get("yaxis", {})
+            **figure_layout.get("yaxis", {})
         ),
-        template=fig_lay.get("template", "plotly_dark"),
-        hoverlabel=fig_lay.get("hoverlabel", {}),
+        template=figure_layout.get("template", "plotly_dark"),
+        hoverlabel=figure_layout.get("hoverlabel", {}),
         margin=dict(l=150, r=120, t=120, b=120),
         font=dict(
             family="Calibri",
@@ -3658,7 +3641,7 @@ def analyze_update_speed_in_human_bot(file_paths: Dict[str, Dict[str, str] | str
     }
 
 
-def plot_update_speed_by_counterpart(update_speeds_per_counterpart: Dict[str, List[float]], fig_lay: Dict[str, Any], export_fig: bool = True, 
+def plot_update_speed_by_counterpart(update_speeds_per_counterpart: Dict[str, List[float]], figure_layout: Dict[str, Any], export_fig: bool = True, 
                                      file_name: str = "update_speed_violin_boxplot.html", as_bar_chart: bool = True) -> go.Figure:
     """
     Visualize belief-update speed across avatar types / counterparts.
@@ -3677,7 +3660,7 @@ def plot_update_speed_by_counterpart(update_speeds_per_counterpart: Dict[str, Li
         • update_speeds_per_counterpart: dict[str, list[float]];
             Mapping from counterpart label (e.g., "utilitarian") to a list of
             normalized update speeds across participants.
-        • fig_lay: dict[str, Any];
+        • figure_layout: dict[str, Any];
             Plotly layout settings (template, fonts, axes, etc.).
         • export_fig: bool;
             If True, save the figure as an HTML file at `out_path`.
@@ -3777,22 +3760,22 @@ def plot_update_speed_by_counterpart(update_speeds_per_counterpart: Dict[str, Li
     "Uses a fixed title for the update-speed summary."
     fig.update_layout(
         title="Belief Update Speed by Counterpart",
-        titlefont_size=fig_lay.get("titlefont_size", 18) - 4,
-        template=fig_lay.get("template", "plotly_dark"),
-        title_x=fig_lay.get('title_x', 0.5),
-        title_y=fig_lay.get('title_y', 0.95),
+        titlefont_size=figure_layout.get("titlefont_size", 18) - 4,
+        template=figure_layout.get("template", "plotly_dark"),
+        title_x=figure_layout.get('title_x', 0.5),
+        title_y=figure_layout.get('title_y', 0.95),
 
         xaxis=dict(
             title="Counterpart Preference Profile",
-            **fig_lay.get("xaxis", {})
+            **figure_layout.get("xaxis", {})
         ),
         yaxis=dict(
             range=[0.0, 0.5] if as_bar_chart else [0.0, 0.5],
             title="Mean Update Speed (fraction of rounds)",
-            **fig_lay.get("yaxis", {})
+            **figure_layout.get("yaxis", {})
         ),
-        hoverlabel=fig_lay.get("hoverlabel", {}),
-        font=fig_lay.get("font", {}),
+        hoverlabel=figure_layout.get("hoverlabel", {}),
+        font=figure_layout.get("font", {}),
         margin=dict(l=600, r=600, t=120, b=120) if as_bar_chart \
             else dict(l=150, r=120, t=120, b=120)
     )

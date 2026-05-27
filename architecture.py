@@ -2088,7 +2088,7 @@ def compute_model_recovery_simulation(
 def plot_model_recovery_simulation(
     general_settings: dict,
     file_paths: dict,
-    fig_lay: dict,
+    figure_layout: dict,
     generating_model=_UNSET,
     n_candidate_models=_UNSET,
     candidate_model_selection_mode=_UNSET,
@@ -2124,7 +2124,7 @@ def plot_model_recovery_simulation(
     Arguments:
         • general_settings: dict; accepted for API consistency (not currently used).
         • file_paths: dict; must contain 'processed' and 'visuals'.
-        • fig_lay: dict; layout settings (template, font, title_size, base_hue).
+        • figure_layout: dict; layout settings (template, font, title_size, base_hue).
         • generating_model: int; utility_idx of the generating model (default 443).
         • n_candidate_models: int | None; must match the value used in compute (default 100).
         • candidate_model_selection_mode: str; must match compute (default 'hamming').
@@ -2168,8 +2168,8 @@ def plot_model_recovery_simulation(
         all_results_df['utility_idx'] == generating_utility_idx
     ].copy()
 
-    base_hue            = fig_lay.get('base_hue', 220)
-    base_font_size      = max(8, fig_lay.get('font', {}).get('size', 28) // 2)
+    base_hue            = figure_layout.get('base_hue', 220)
+    base_font_size      = max(8, figure_layout.get('font', {}).get('size', 28) // 2)
     axis_font_size      = base_font_size * 2
     line_width          = 6
     marker_size         = 20
@@ -2426,7 +2426,7 @@ def plot_model_recovery_simulation(
                   f'  ({n_candidates} candidates)'),
             x=0.5, xanchor='center',
             y=0.97, yanchor='top',
-            font=dict(size=fig_lay.get('title_size', 22) * 2),
+            font=dict(size=figure_layout.get('title_size', 22) * 2),
         ),
         xaxis=dict(
             title=dict(
@@ -2459,9 +2459,9 @@ def plot_model_recovery_simulation(
             bordercolor=_hsla(hue=0, saturation_percent=0, lightness_percent=60, alpha=0.8),
         )],
         hoverlabel=dict(font=dict(size=base_font_size + 2)),
-        template=fig_lay.get('template', 'plotly_white'),
+        template=figure_layout.get('template', 'plotly_white'),
         font=dict(
-            family=fig_lay.get('font', {}).get('family', 'Calibri'),
+            family=figure_layout.get('font', {}).get('family', 'Calibri'),
             size=base_font_size,
         ),
         margin=dict(l=120, r=80, t=170, b=100),

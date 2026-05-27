@@ -214,7 +214,6 @@ class ParameterRecoverySettings(TypedDict, total=False):
     n_altruism_steps: int     # Grid points across the altruism (Vᵢⱼ) range
     evenly_space_altruism: bool   # True → grid; False → uniform random sampling
     correlate_all_params: bool    # True → all free mean params; False → altruism only
-    run_k_in_parallel: bool       # Parallelize fitting across k values via ThreadPoolExecutor
     random_seed: int | None       # RNG seed; None → unseeded
 
 
@@ -746,7 +745,6 @@ general_settings: GeneralSettings = {
         'n_altruism_steps':       7,
         'evenly_space_altruism':  True,
         'correlate_all_params':   False,
-        'run_k_in_parallel':      True,
         'random_seed':            None,
     },
     'random_seeds': {
@@ -795,9 +793,8 @@ param_info = make_param_info(param_bds=param_bds, utility_settings=utility_setti
 txt_color = "white" if dark_mode else "black"
 txtfam = "Calibri"
 
-fig_lay: FigLay = {
+figure_layout: FigLay = {
     "template": "plotly_dark" if dark_mode else "plotly_white",
-    "base_hue": 200,
     "font": dict(family=txtfam, color=txt_color, size=24),
     "tickfont": dict(family=txtfam, color=txt_color, size=30),
     "titlefont_size": 48, "title_x": 0.5, "title_y": 0.96, "scale": ("x", 1),
@@ -808,10 +805,22 @@ fig_lay: FigLay = {
     "yaxis" : {"title_font": dict(family=txtfam, color=txt_color, size=34), 
         "tickfont": dict(size=30, family=txtfam, color=txt_color)},
     "hoverlabel": dict(font_size=30, font_family=txtfam),
-    "markersize": 16
+    "markersize": 16,
+    "base_hue": 200,
 }
 
 ROOT = Path(__file__).resolve().parent
+
+
+def pretty_path(path) -> str:
+    """
+    Returns a shortened display path relative to ROOT's parent, prefixed with '...'.
+    Falls back to the full string if relpath fails (e.g. different drive on Windows).
+    """
+    try:
+        return '...' + os.path.relpath(str(path), str(ROOT.parent))
+    except ValueError:
+        return str(path)
 
 file_paths: FilePaths = {
     "raw_data":    ROOT / "raw_data",

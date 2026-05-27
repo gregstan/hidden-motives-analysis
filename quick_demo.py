@@ -363,7 +363,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
         df_merged = run_simulation_recovery_analysis(
             general_settings=general_settings,
             file_paths=demo_file_paths,
-            fig_lay=fig_lay,
+            figure_layout=figure_layout,
             export_fig=True,
             create_new_file=True,
             produce_figures=True,
@@ -377,7 +377,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
                 df_merged=df_merged,
                 general_settings=general_settings,
                 file_paths=demo_file_paths,
-                fig_lay=fig_lay,
+                figure_layout=figure_layout,
             )
 
     "=========================================================================================="
@@ -405,7 +405,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             utility_settings=utility_settings,
             param_info=param_info,
             file_paths=demo_file_paths,
-            fig_lay=fig_lay,
+            figure_layout=figure_layout,
             sample_ratios=particle_filter_sample_ratios,
             n_predictors=particle_filter_n_predictors,
             n_games_per_dyad=particle_filter_n_games,
@@ -432,7 +432,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             utility_settings_by_k    = None,
             general_settings         = general_settings,
             file_paths               = {**demo_file_paths, "bic_aic": file_paths["bic_aic"]},
-            fig_lay                  = fig_lay,
+            figure_layout                  = figure_layout,
             param_bds                = param_bds,
             analysis_experiment_num  = 0,
             random_seed              = None,
@@ -531,7 +531,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
                         visualize_bayesian_updates_3d(
                             dyad_games_or_key=dyad_games,
                             player_uuid=2,
-                            fig_lay=fig_lay,
+                            figure_layout=figure_layout,
                             file_paths=demo_file_paths,
                             general_settings=general_settings,
                             fix_z_axis=True,
@@ -581,7 +581,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
                 param_bds=param_bds,
                 utility_settings=utility_settings,
                 file_paths=demo_real_file_paths,
-                fig_lay=fig_lay,
+                figure_layout=figure_layout,
                 check_for_n_players=2 if light_mode else 'all',
             )
 
@@ -682,7 +682,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             )
 
             plot_ic_scores_delta_bic(
-                fig_lay=fig_lay,
+                figure_layout=figure_layout,
                 file_paths=demo_real_file_paths,
                 general_settings=ic_general_settings,
                 include_dropdown=False,
@@ -691,7 +691,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             plot_ic_robustness_analysis(
                 general_settings=ic_general_settings,
                 file_paths=demo_real_file_paths,
-                fig_lay=fig_lay,
+                figure_layout=figure_layout,
             )
 
             utility_setting_contribution_analysis(
@@ -766,7 +766,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             plot_architecture_compression_curve(
                 general_settings=arch_general_settings,
                 file_paths=demo_ic_file_paths,
-                fig_lay=fig_lay,
+                figure_layout=figure_layout,
             )
 
     "=========================================================================================="
@@ -817,7 +817,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             plot_model_recovery_simulation(
                 general_settings=recovery_general_settings,
                 file_paths=demo_ic_file_paths,
-                fig_lay=fig_lay,
+                figure_layout=figure_layout,
             )
 
     "=========================================================================================="
@@ -863,7 +863,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
                 population_parameter_distribution_histograms(
                     general_settings=distribution_settings,
                     file_paths=demo_real_file_paths,
-                    fig_lay=fig_lay,
+                    figure_layout=figure_layout,
                     player_role=player_role,
                     use_initial_params=True,
                     create_new_file=True,
@@ -872,7 +872,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
                     subpopulation_stats_and_param_ratio_histograms(
                         general_settings=distribution_settings,
                         file_paths=demo_real_file_paths,
-                        fig_lay=fig_lay,
+                        figure_layout=figure_layout,
                         player_role=player_role,
                         use_initial_params=True,
                         create_new_file=False,
@@ -907,7 +907,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
         print("\n" + _section_header("SECTION 13: Inequality aversion bot competition heatmaps"))
 
         visualize_inequality_aversion_bot_competition(
-            fig_lay=fig_lay,
+            figure_layout=figure_layout,
             file_paths=demo_real_file_paths,
             param_strong=0.75,
             param_weak=0.25,

@@ -9,12 +9,12 @@ def _hsla(hue: int, saturation_percent: int = 100, lightness_percent: int = 50, 
     """
     Returns an hsla() color string compatible with Plotly and CSS.
 
-    The standard color scheme for this codebase uses a fixed base_hue from fig_lay and
+    The standard color scheme for this codebase uses a fixed base_hue from figure_layout and
     increments the hue by 20 degrees for each additional series in a multi-series figure.
     Saturation (100%), lightness (50%), and alpha remain fixed across a set of series unless
     deliberately varied for emphasis. Example:
 
-        base_hue = fig_lay.get('base_hue', 200)
+        base_hue = figure_layout.get('base_hue', 200)
         for series_index, series_label in enumerate(series_labels):
             color = _hsla(hue=base_hue + 20 * series_index)
 
@@ -35,7 +35,7 @@ def _hsla(hue: int, saturation_percent: int = 100, lightness_percent: int = 50, 
 "=========================================================================================="
 
 def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str | int, player_role: PlayerRole, general_settings: GeneralSettings,
-                                  utility_settings: UtilitySettings, file_paths: FilePaths, fig_lay: FigLay, n_rounds: int = 5, dark_zero_lines: bool = True,
+                                  utility_settings: UtilitySettings, file_paths: FilePaths, figure_layout: FigLay, n_rounds: int = 5, dark_zero_lines: bool = True,
                                   temperature_scale: float = 0.75) -> None:
     """
     Generate a 3-row × N-column Plotly figure visualizing Bayesian belief updating in 2D.
@@ -60,7 +60,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
             Boolean toggles selecting the active utility functional form.
         • file_paths: FilePaths
             Directory paths used to locate the player's saved parameter grid files.
-        • fig_lay: FigLay
+        • figure_layout: FigLay
             Figure layout template controlling fonts, colors, colorscales, and sizing.
         • n_rounds: int
             Number of rounds (columns) to display. Rounds are selected from the filtered game list.
@@ -244,7 +244,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
             x=Vii_vals,
             y=Vij_vals,
             z=likelihood_2d.T,
-            colorscale=fig_lay.get("colorscales", ["Viridis"])[0],
+            colorscale=figure_layout.get("colorscales", ["Viridis"])[0],
             hovertemplate=("Vᵢᵢ: %{x:.3f}, Vᵢⱼ: %{y:.3f}<br>Lik: %{z:.3f}<extra></extra>"),
             showscale=False, zmin=0, zmax=1,
         )
@@ -270,7 +270,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
             x=Vii_vals,
             y=Vij_vals,
             z=prior_2d.T,
-            colorscale=fig_lay.get("colorscales", ["Viridis"])[1] if len(fig_lay.get("colorscales", []))>1 else "Plasma",
+            colorscale=figure_layout.get("colorscales", ["Viridis"])[1] if len(figure_layout.get("colorscales", []))>1 else "Plasma",
             zmin=0, zmax=max_prior_prob,
             hovertemplate=("Vᵢᵢ: %{x:.3f}, Vᵢⱼ: %{y:.3f}<br>Prob: %{z:.5f}<extra></extra>"),
             showscale=False
@@ -284,10 +284,10 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
 
     "4) Stylistic adjustments"
     fig.update_layout(
-        template=fig_lay.get("template", "plotly_dark"),
+        template=figure_layout.get("template", "plotly_dark"),
         title="Bayesian Updates for {} vs. {}".format(player_uuid, counterpart_uuid),
-        title_x=fig_lay['title_x'], title_y=fig_lay['title_y'], 
-        titlefont_size=fig_lay['titlefont_size'] * 0.5, 
+        title_x=figure_layout['title_x'], title_y=figure_layout['title_y'], 
+        titlefont_size=figure_layout['titlefont_size'] * 0.5, 
         margin=dict(l=120, r=120, t=120, b=60 + 20 * n_rounds),
     ) 
 
@@ -372,14 +372,14 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
 
     if general_settings.get('export_fig'):
         fig.write_html(out_path)
-        print(f"Saved 2D Bayesian updates figure to {out_path}")
+        print(f"Saved 2D Bayesian updates figure to {pretty_path(out_path)}")
     else:
         fig.show()
 
     return fig
 
 
-def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uuid: PlayerUUID, fig_lay: Dict[str, Any], file_paths: FilePaths, 
+def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uuid: PlayerUUID, figure_layout: Dict[str, Any], file_paths: FilePaths, 
                                   general_settings: GeneralSettings, fix_z_axis: bool = True):
     """
     Generate an interactive 3D two-panel figure with a game-by-game slider.
@@ -401,7 +401,7 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
             provided, the dyad data is loaded from file.
         • player_uuid: PlayerUUID
             UUID of the predictor player whose beliefs to visualize.
-        • fig_lay: Dict[str, Any]
+        • figure_layout: Dict[str, Any]
             Figure layout template controlling colorscales, fonts, and sizing.
         • file_paths: FilePaths
             Directory paths used for loading dyad data and (optionally) exporting the figure.
@@ -516,7 +516,7 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
     
     "Apply the shared figure layout."
     fig.update_layout(
-        template=fig_lay["template"] if fig_lay else None,
+        template=figure_layout["template"] if figure_layout else None,
         hoverlabel=dict(font_size=14),
         scene=dict(
             xaxis=dict(title="Vᵢᵢ", zeroline=True, zerolinewidth=4, nticks=9),
@@ -537,7 +537,7 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
     "Fix the color axis for scene 1 if requested."
     fig.update_layout(
         coloraxis=dict(
-            colorscale=fig_lay["colorscales"][0] if "colorscales" in fig_lay else "Viridis",
+            colorscale=figure_layout["colorscales"][0] if "colorscales" in figure_layout else "Viridis",
             cmin=0, cmax=global_max_prob if fix_z_axis else None,
             showscale=False
         )
@@ -644,7 +644,7 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
             z=full_grid.T,
             x=Vᵢᵢ_vals,
             y=Vᵢⱼ_vals,
-            colorscale=fig_lay["colorscales"][0],
+            colorscale=figure_layout["colorscales"][0],
             opacity=0.8,
             showscale=False,
             name=f"Prior (Game {game_idx})",
@@ -665,7 +665,7 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
             marker=dict(
                 size=6,
                 color=scatter_z,
-                colorscale=fig_lay["colorscales"][0],
+                colorscale=figure_layout["colorscales"][0],
                 opacity=0.9
             ),
             name=f"Prior Probabilities",
@@ -682,7 +682,7 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
             z=likelihood_surface.T,
             x=Vᵢᵢ_vals,
             y=Vᵢⱼ_vals,
-            colorscale=fig_lay["colorscales"][1],
+            colorscale=figure_layout["colorscales"][1],
             opacity=0.8,
             showscale=False,
             name=f"Likelihood (Game {game_idx})",
@@ -762,9 +762,9 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
                 fig.data[trace_idx].update(scene="scene2")
             trace_idx += 1
     
-    "Use fig_lay's width and height if provided."
-    if fig_lay.get("width") and fig_lay.get("height"):
-        fig.update_layout(width=fig_lay["width"], height=fig_lay["height"])
+    "Use figure_layout's width and height if provided."
+    if figure_layout.get("width") and figure_layout.get("height"):
+        fig.update_layout(width=figure_layout["width"], height=figure_layout["height"])
 
     file_name = f"bayesian_update_visualization_{dyad_name}"
     if isinstance(dyad_games_or_key, int):
@@ -782,7 +782,7 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
     return fig
 
 
-def belief_accuracy_analysis(file_paths: FilePaths, general_settings: GeneralSettings, fig_lay: FigLay, participant_num: int, 
+def belief_accuracy_analysis(file_paths: FilePaths, general_settings: GeneralSettings, figure_layout: FigLay, participant_num: int, 
                              fitted_by_player: bool = True, compute_optimum_updates: bool = False, animate_figure: bool = False) -> None:
     """
     Visualize how accurately a predictor's posterior beliefs track their counterpart's true preferences.
@@ -797,7 +797,7 @@ def belief_accuracy_analysis(file_paths: FilePaths, general_settings: GeneralSet
             Directory paths used to locate saved parameter grid files and figure output directories.
         • general_settings: GeneralSettings
             Must include 'experiment_num', 'update_method', and related settings.
-        • fig_lay: FigLay
+        • figure_layout: FigLay
             Figure layout template controlling fonts, colors, and sizing.
         • participant_num: int
             Integer index into the sorted player list; used as a convenience alternative to
@@ -1157,7 +1157,7 @@ def belief_accuracy_analysis(file_paths: FilePaths, general_settings: GeneralSet
         )],
         showlegend=False, hoverlabel=dict(font_size=20), 
         margin=dict(l=80, r=80, t=120, b=100), 
-        template=fig_lay['template'], 
+        template=figure_layout['template'], 
     )
 
     if animate_figure:
@@ -1263,7 +1263,7 @@ def belief_accuracy_analysis(file_paths: FilePaths, general_settings: GeneralSet
 
     return fig
 
-def plot_ic_robustness_analysis(general_settings: Dict[str, Any], file_paths: Dict[str, str], fig_lay: Dict[str, Any]) -> go.Figure:
+def plot_ic_robustness_analysis(general_settings: Dict[str, Any], file_paths: Dict[str, str], figure_layout: Dict[str, Any]) -> go.Figure:
     """
     Plot IC robustness diagnostics from the information criterion analysis results file.
 
@@ -1278,7 +1278,7 @@ def plot_ic_robustness_analysis(general_settings: Dict[str, Any], file_paths: Di
             Must include 'experiment_num' (int) to locate the correct results file.
         • file_paths: Dict[str, str]
             Must include 'bic_aic' path where IC results JSON files are stored.
-        • fig_lay: Dict[str, Any]
+        • figure_layout: Dict[str, Any]
             Figure layout template controlling fonts, colors, and figure sizing.
 
     Returns:
@@ -1320,7 +1320,7 @@ def plot_ic_robustness_analysis(general_settings: Dict[str, Any], file_paths: Di
         y=sum_delta_loss[1:],
         mode="lines+markers",
         name="Δ Min Loss",
-        marker=dict(size=fig_lay.get("markersize", 10)+2, color='hsla(115, 65%, 40%, 1.0)'),
+        marker=dict(size=figure_layout.get("markersize", 10)+2, color='hsla(115, 65%, 40%, 1.0)'),
         line=dict(width=line_width, color='hsla(155, 65%, 20%, 1.0)')
     )
     fig.add_trace(trace_sum_loss, row=1, col=1)
@@ -1332,7 +1332,7 @@ def plot_ic_robustness_analysis(general_settings: Dict[str, Any], file_paths: Di
         y=rank_changes[1:],
         mode="lines+markers",
         name="Sum of Rank Changes",
-        marker=dict(size=fig_lay.get("markersize", 10)+2, color='hsla(200, 65%, 40%, 1.0)'),
+        marker=dict(size=figure_layout.get("markersize", 10)+2, color='hsla(200, 65%, 40%, 1.0)'),
         line=dict(width=line_width, dash="solid", color='hsla(200, 65%, 20%, 1.0)')
     )
     fig.add_trace(trace_rank, row=1, col=2)
@@ -1343,48 +1343,48 @@ def plot_ic_robustness_analysis(general_settings: Dict[str, Any], file_paths: Di
 
     fig.update_annotations(font_size=24)
     fig.update_layout(
-        template=fig_lay.get("template", "plotly_dark"),
+        template=figure_layout.get("template", "plotly_dark"),
         title="Robustness of IC Results",
-        titlefont_size=fig_lay['titlefont_size'] + 6,
+        titlefont_size=figure_layout['titlefont_size'] + 6,
         margin=dict(l=150, r=100, t=150, b=120),
         title_x=0.5, title_y= 0.98,
         xaxis=dict(
             title="Analysis Iteration",
-            **fig_lay.get("xaxis",{}), 
+            **figure_layout.get("xaxis",{}), 
             tickvals=tickvals_x,
             ticktext=ticktext_x,
             range=[2 - epsilon_x, x_iter2[-1] + epsilon_x]
         ),
         xaxis2=dict(
             title="Analysis Iteration",
-            **fig_lay.get("xaxis",{}), 
+            **figure_layout.get("xaxis",{}), 
             tickvals=tickvals_x,
             ticktext=ticktext_x,
             range=[2 - epsilon_x, x_iter2[-1] + epsilon_x]
         ),
         yaxis=dict(
             title="Sum of Δ Minimum Loss",
-            **fig_lay.get("yaxis",{})
+            **figure_layout.get("yaxis",{})
         ),
         yaxis2=dict(
             title="Sum (or Median) Rank Change" if rank_med else "Sum of Rank Changes",
-            **fig_lay.get("yaxis",{})
+            **figure_layout.get("yaxis",{})
         ),
-        font=fig_lay.get("font", {}),
-        hoverlabel=fig_lay.get("hoverlabel", {}),
+        font=figure_layout.get("font", {}),
+        hoverlabel=figure_layout.get("hoverlabel", {}),
         legend=dict(x=0.5, y=-0.2, xanchor="center", orientation="h")
     )
 
     if general_settings.get('export_fig'):
         out_file_name: str = "robustness_analysis.html"
         out_path = os.path.join(file_paths['visuals'], out_file_name)
-        print(f"Saved robustness figure to {out_path}.")
+        print(f"Saved robustness figure to {pretty_path(out_path)}.")
         fig.write_html(out_path)
         
     return fig
 
 
-def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: dict, include_dropdown: bool = True, annotate_canonical_models: bool = True) -> go.Figure:
+def plot_ic_scores_delta_bic(figure_layout: dict, file_paths: dict, general_settings: dict, include_dropdown: bool = True, annotate_canonical_models: bool = True) -> go.Figure:
     """
     Creates a Plotly scatterplot of ΔBIC scores for all utility-model configurations,
     sorted from lowest (best) to highest. By default, a single trace uses a continuous
@@ -1393,7 +1393,7 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
     option, revealing two traces (True/False) with distinct legend entries.
 
     Arguments:
-        • fig_lay: Dict[str, Any]
+        • figure_layout: Dict[str, Any]
             Layout preferences (template, font, axis styles, etc.) used for consistent
             aesthetics across figures.
 
@@ -1496,7 +1496,7 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
     k_max = df["k_params"].max()
 
     "Marker size (scaled ~1.8x)"
-    default_marker_size = int(fig_lay.get("markersize", 12) * 2)
+    default_marker_size = int(figure_layout.get("markersize", 12) * 2)
 
     trace_kparams = go.Scatter(
         x=df["model_rank"],
@@ -1589,24 +1589,24 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
 
     "8) Overall layout and styling"
     fig.update_layout(
-        template=fig_lay.get("template", "plotly_dark"),
+        template=figure_layout.get("template", "plotly_dark"),
         title=f"IC Scores (ΔBIC) for All Utility Functional Forms; 𝑛 = {n_data} Data Points",
-        titlefont_size=fig_lay['titlefont_size'],
-        font=fig_lay.get("font", {}),
-        hoverlabel=fig_lay.get("hoverlabel", {}),
+        titlefont_size=figure_layout['titlefont_size'],
+        font=figure_layout.get("font", {}),
+        hoverlabel=figure_layout.get("hoverlabel", {}),
         margin=dict(l=180, r=150, t=150, b=120),
         title_x=0.5,
         xaxis=dict(
             title="Model Rank (1 = Best)",
-            **fig_lay.get("xaxis", {})
+            **figure_layout.get("xaxis", {})
         ),
         yaxis=dict(
             title="ΔBIC (Difference from Best Model)",
-            **fig_lay.get("yaxis", {})
+            **figure_layout.get("yaxis", {})
         ),
         legend=dict(
             orientation="h", x=0.0, y=-0.15,
-            font=dict(size=fig_lay.get("font", {}).get("size", 16))
+            font=dict(size=figure_layout.get("font", {}).get("size", 16))
         )
     )
 
@@ -1689,7 +1689,7 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
         "The single trace for k_params is visible, so the color scale carries the encoding."
         out_path = os.path.join(file_paths["bic_aic"], "ic_scores_scatter.html")
         fig.write_html(out_path)
-        print(f"Saved scatter plot to '{out_path}' [No Dropdown Mode].")
+        print(f"Saved scatter plot to '{pretty_path(out_path)}' [No Dropdown Mode].")
         return fig
 
     "10) Build a dropdown to toggle coloring"
@@ -1746,7 +1746,7 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
 
     "11) Write out HTML and return figure"
     out_path = os.path.join(file_paths["visuals"], "ic_scores_scatter.html")
-    print(f"Saved scatter plot to '{out_path}' [Dropdown Mode].")
+    print(f"Saved scatter plot to '{pretty_path(out_path)}' [Dropdown Mode].")
     fig.write_html(out_path)
     
     return fig
@@ -1755,7 +1755,7 @@ def plot_ic_scores_delta_bic(fig_lay: dict, file_paths: dict, general_settings: 
 def plot_participant_architecture_mds(
     general_settings: dict,
     file_paths: dict,
-    fig_lay: dict,
+    figure_layout: dict,
     color_by: str = "model_weight_entropy",
     include_dropdown: bool = True,
     export_fig: bool = True,
@@ -1772,7 +1772,7 @@ def plot_participant_architecture_mds(
     Arguments:
         • general_settings: dict — for experiment metadata in the title.
         • file_paths: dict — must contain 'processed' and 'visuals'.
-        • fig_lay: dict — layout constants from config.py.
+        • figure_layout: dict — layout constants from config.py.
         • color_by: str (default 'model_weight_entropy') — the column used for the default
             color encoding. One of: 'model_weight_entropy', 'effective_number_of_models',
             'top_model_delta_BIC', or any 'P_<setting>' column.
@@ -1834,7 +1834,7 @@ def plot_participant_architecture_mds(
             else:
                 runner_up_lookup[player_uuid_key] = {"utility_idx": None, "equation": "?"}
 
-    marker_size = int(fig_lay.get("markersize", 16) * 2)
+    marker_size = int(figure_layout.get("markersize", 16) * 2)
     marker_outline = dict(width=1.5, color="hsla(0, 0%, 0%, 0.45)")
 
     def _participant_hover(row: pd.Series) -> str:
@@ -1975,12 +1975,12 @@ def plot_participant_architecture_mds(
     n_participants = len(plot_df)
     fig = go.Figure(data=data_traces)
     fig.update_layout(
-        template=fig_lay.get("template", "plotly_white"),
+        template=figure_layout.get("template", "plotly_white"),
         title=f"Participant Utility Function MDS — Energy Distance (Exp {experiment_num-1}, N={n_participants})",
-        titlefont_size=fig_lay["titlefont_size"]-10,
+        titlefont_size=figure_layout["titlefont_size"]-10,
         title_x=0.5,
-        font=fig_lay.get("font", {}),
-        hoverlabel=fig_lay.get("hoverlabel", {}),
+        font=figure_layout.get("font", {}),
+        hoverlabel=figure_layout.get("hoverlabel", {}),
         margin=dict(l=500, r=560, t=140, b=100),
         xaxis=dict(
             title="Utility Function MDS Dimension 1",
@@ -1988,14 +1988,14 @@ def plot_participant_architecture_mds(
             tickvals=tick_vals,
             ticktext=x_tick_text,
             scaleanchor="y", scaleratio=1,
-            **fig_lay.get("xaxis", {}),
+            **figure_layout.get("xaxis", {}),
         ),
         yaxis=dict(
             title="Utility Function MDS Dimension 2",
             range=mds_axis_range,
             tickvals=tick_vals,
             ticktext=y_tick_text,
-            **fig_lay.get("yaxis", {}),
+            **figure_layout.get("yaxis", {}),
         ),
     )
 
@@ -2047,10 +2047,10 @@ def plot_participant_architecture_mds(
             x=-0.50 if dropdown_to_side else 0.03, 
             y=1.15 if dropdown_to_side else 1.00, 
             bgcolor=(
-                _hsla(hue=0, saturation_percent=0, lightness_percent=20, alpha=0.85) if "dark" in fig_lay.get("template", "")
+                _hsla(hue=0, saturation_percent=0, lightness_percent=20, alpha=0.85) if "dark" in figure_layout.get("template", "")
                 else _hsla(hue=0, saturation_percent=0, lightness_percent=94, alpha=0.92)
             ),
-            font=dict(size=16, family=fig_lay.get("font", {}).get("family", "Calibri")),
+            font=dict(size=16, family=figure_layout.get("font", {}).get("family", "Calibri")),
         )])
 
     if export_fig:
@@ -2063,7 +2063,7 @@ def plot_participant_architecture_mds(
 def plot_architecture_compression_curve(
     general_settings: dict,
     file_paths: dict,
-    fig_lay: dict,
+    figure_layout: dict,
     export_fig: bool = True,
     base_hue: int | None = None,
 ) -> go.Figure:
@@ -2073,9 +2073,9 @@ def plot_architecture_compression_curve(
     Arguments:
         • general_settings: dict; Project settings (kept for API consistency).
         • file_paths: dict; Project file paths with keys 'processed', 'bic_aic', 'visuals', 'file_names'.
-        • fig_lay: dict; Layout settings from config.py (template, font, base_hue, title_size, etc.).
+        • figure_layout: dict; Layout settings from config.py (template, font, base_hue, title_size, etc.).
         • export_fig: bool; If True, write HTML to visuals/population_architecture_curve.html.
-        • base_hue: int | None; Starting hue for the color scheme. Overrides fig_lay['base_hue']
+        • base_hue: int | None; Starting hue for the color scheme. Overrides figure_layout['base_hue']
           when provided. Curves use base_hue and base_hue+20; criterion markers start at base_hue+40.
 
     Returns:
@@ -2085,8 +2085,8 @@ def plot_architecture_compression_curve(
     _EQ_CHAR_LIMIT = 115   # equation strings longer than this are truncated with "..."
 
     proc_dir       = str(file_paths['processed'])
-    base_font_size = fig_lay.get('font', {}).get('size', 16)
-    base_hue       = base_hue if base_hue is not None else fig_lay.get('base_hue', 200)
+    base_font_size = figure_layout.get('font', {}).get('size', 16)
+    base_hue       = base_hue if base_hue is not None else figure_layout.get('base_hue', 200)
 
     "=== Load CSVs ==="
     curve_df  = pd.read_csv(os.path.join(proc_dir, 'population_architecture_curve.csv'),                encoding='utf-8-sig')
@@ -2292,7 +2292,7 @@ def plot_architecture_compression_curve(
             text='Population Utility Function Compression Curve',
             x=0.5, xanchor='center',
             y=0.97, yanchor='top',
-            font=dict(size=fig_lay.get('title_size', 22) * 2),
+            font=dict(size=figure_layout.get('title_size', 22) * 2),
         ),
         xaxis=dict(
             title='Number of utility functions (M)',
@@ -2311,9 +2311,9 @@ def plot_architecture_compression_curve(
             zerolinecolor=_hsla(hue=0, saturation_percent=0, lightness_percent=47, alpha=0.5),
         ),
         hoverlabel=dict(font=dict(size=max(8, int(base_font_size * 2 * 0.6) - 4))),
-        template=fig_lay.get('template', 'plotly_white'),
+        template=figure_layout.get('template', 'plotly_white'),
         font=dict(
-            family=fig_lay.get('font', {}).get('family', 'Calibri'),
+            family=figure_layout.get('font', {}).get('family', 'Calibri'),
             size=base_font_size,
         ),
         margin=dict(l=80, r=50, t=120, b=80),
@@ -2326,11 +2326,205 @@ def plot_architecture_compression_curve(
         fig.write_html(out_path, config={'responsive': True})
 
 
+def plot_param_recovery_by_k(
+    corr_df:               pd.DataFrame,
+    figure_layout:         FigLay,
+    k_equation_map:        dict[int, str] | None = None,
+    evenly_space_altruism: bool = True,
+    base_hue:              int | None = None,
+    out_fig_path:          str | None = None,
+    include_dropdown:      bool = True,
+) -> go.Figure:
+    """
+    Plots parameter-recovery correlation (𝑟) versus number of free parameters (𝑘).
+
+    Arguments:
+        • corr_df: DataFrame with columns k, player_role, param, corr, agg_corr [, equation, bic].
+            - One row per (k, player_role, param) combination.
+            - corr: per-param Pearson 𝑟 between true and fitted values.
+            - agg_corr: macro-average 𝑟 across all params for this (k, player_role).
+        • figure_layout: Layout settings dict (base_hue, markersize, template, etc.).
+        • k_equation_map: {k_int: equation_str}; derived from corr_df['equation'] if None.
+        • evenly_space_altruism: Controls y-axis title wording (Altruism vs Parameter).
+        • base_hue: HSL hue origin for the first series; defaults to figure_layout.get('base_hue', 200).
+        • out_fig_path: If provided, saves the figure as HTML at this path.
+        • include_dropdown: If True, renders the view-selector dropdown menu.
+
+    Returns:
+        • go.Figure: The Plotly figure (also saved if out_fig_path is set).
+    """
+    if corr_df.empty:
+        return go.Figure()
+
+    base_hue_value       = base_hue if base_hue is not None else figure_layout.get('base_hue', 200)
+    marker_size_value    = figure_layout.get("markersize", 16) + 2
+    line_width_value     = 4
+    axis_title_font_size = 27
+    altruism_param_names = {'Vᵢⱼ', 'Vij'}
+
+    "Derive k→equation lookup from DataFrame when not supplied."
+    if k_equation_map is None and 'equation' in corr_df.columns:
+        k_equation_map = (
+            corr_df.dropna(subset=['equation'])
+            .drop_duplicates('k')[['k', 'equation']]
+            .set_index('k')['equation'].to_dict()
+        )
+    if k_equation_map is None:
+        k_equation_map = {}
+
+    "Build per-(k, role) lookup dicts: param→corr dict and aggregate corr scalar."
+    k_role_param_corrs: dict = {}
+    k_role_agg_corr:    dict = {}
+    for _, data_row in corr_df.iterrows():
+        lookup_key = (data_row['k'], data_row['player_role'])
+        if lookup_key not in k_role_param_corrs:
+            k_role_param_corrs[lookup_key] = {}
+        k_role_param_corrs[lookup_key][data_row['param']] = data_row['corr']
+        k_role_agg_corr[lookup_key] = data_row['agg_corr']
+
+    "Filter to altruism rows once; use .isin() so Unicode subscript params match correctly."
+    altruism_df      = corr_df[corr_df['param'].isin(altruism_param_names)]
+
+    k_values_sorted  = sorted(corr_df['k'].unique())
+    roles_in_data    = list(dict.fromkeys(corr_df['player_role']))
+
+    figure           = go.Figure()
+    trace_metadata:  list[dict] = []
+
+    for role_series_idx, player_role in enumerate(roles_in_data):
+
+        "--- Aggregate trace: macro-average 𝑟 across all params ---"
+        y_aggregate_values = [k_role_agg_corr.get((k_val, player_role), float('nan')) for k_val in k_values_sorted]
+        hover_agg_texts    = []
+        for k_val in k_values_sorted:
+            param_corr_dict = k_role_param_corrs.get((k_val, player_role), {})
+            hover_lines     = [f"𝑘 = {k_val}", player_role]
+            for param_key, corr_val in sorted(param_corr_dict.items()):
+                hover_lines.append(f"𝑟({param_key}) = {corr_val:.3f}")
+            equation_str = k_equation_map.get(k_val, "")
+            if equation_str:
+                hover_lines.append(equation_str)
+            hover_agg_texts.append("<br>".join(hover_lines))
+
+        agg_trace_color = _hsla(base_hue_value + 20 * role_series_idx * 2)
+        figure.add_trace(go.Scatter(
+            x=k_values_sorted, y=y_aggregate_values,
+            mode="lines+markers",
+            name=f"𝑟 aggregate ({player_role})",
+            customdata=hover_agg_texts,
+            hovertemplate="%{customdata}<extra></extra>",
+            visible=(role_series_idx == 0),
+            marker=dict(size=marker_size_value, color=agg_trace_color),
+            line=dict(width=line_width_value, color=agg_trace_color),
+        ))
+        trace_metadata.append({"role": player_role, "view": "aggregate"})
+
+        "--- Altruism trace: per-k Vᵢⱼ correlation only ---"
+        y_altruism_values  = []
+        hover_alt_texts    = []
+        role_altruism_df   = altruism_df[altruism_df['player_role'] == player_role].set_index('k')
+        for k_val in k_values_sorted:
+            if k_val in role_altruism_df.index:
+                alt_corr_val    = role_altruism_df.loc[k_val, 'corr']
+                alt_param_label = role_altruism_df.loc[k_val, 'param']
+            else:
+                alt_corr_val    = float('nan')
+                alt_param_label = 'Vᵢⱼ'
+            y_altruism_values.append(alt_corr_val)
+            hover_lines  = [f"𝑘 = {k_val}", player_role]
+            if alt_corr_val == alt_corr_val:  # not NaN
+                hover_lines.append(f"𝑟({alt_param_label}) = {alt_corr_val:.3f}")
+            equation_str = k_equation_map.get(k_val, "")
+            if equation_str:
+                hover_lines.append(equation_str)
+            hover_alt_texts.append("<br>".join(hover_lines))
+
+        alt_trace_color = _hsla(base_hue_value + 20 * (role_series_idx * 2 + 1))
+        figure.add_trace(go.Scatter(
+            x=k_values_sorted, y=y_altruism_values,
+            mode="lines+markers",
+            name=f"𝑟 altruism ({player_role})",
+            customdata=hover_alt_texts,
+            hovertemplate="%{customdata}<extra></extra>",
+            visible=(role_series_idx == 0),
+            marker=dict(size=marker_size_value, color=alt_trace_color),
+            line=dict(width=line_width_value, color=alt_trace_color),
+        ))
+        trace_metadata.append({"role": player_role, "view": "altruism"})
+
+    "Build dropdown: aggregate / altruism / both for each role."
+    def _visibility_flags(visible_views: set, visible_roles: set) -> list[bool]:
+        return [(meta["view"] in visible_views and meta["role"] in visible_roles) for meta in trace_metadata]
+
+    dropdown_buttons = []
+    for player_role in roles_in_data:
+        role_set    = {player_role}
+        role_suffix = f" ({player_role})" if len(roles_in_data) > 1 else ""
+        dropdown_buttons.append(dict(
+            label=f"𝑟 both{role_suffix}", method="update",
+            args=[{"visible": _visibility_flags({"aggregate", "altruism"}, role_set)}],
+        ))
+        dropdown_buttons.append(dict(
+            label=f"𝑟 aggregate{role_suffix}", method="update",
+            args=[{"visible": _visibility_flags({"aggregate"}, role_set)}],
+        ))
+        dropdown_buttons.append(dict(
+            label=f"𝑟 altruism{role_suffix}", method="update",
+            args=[{"visible": _visibility_flags({"altruism"}, role_set)}],
+        ))
+
+    y_axis_title = "Parameter Recovery Correlation (𝑟)"
+
+    figure.update_layout(
+        title="Parameter Recovery Correlation by 𝑘",
+        titlefont_size=figure_layout['titlefont_size'] * 0.6,
+        template=figure_layout['template'],
+        title_x=figure_layout['title_x'],
+        title_y=figure_layout['title_y'],
+        showlegend=True,
+        legend=dict(
+            x=0.07, y=0.28, xanchor='left', yanchor='bottom',
+            font=dict(size=16),
+            bgcolor='rgba(128,128,128,0.08)', bordercolor='rgba(128,128,128,0.25)', borderwidth=1,
+        ),
+        hoverlabel=dict(font_size=28),
+        margin=dict(l=560, r=560, t=140, b=100),
+        xaxis=dict(
+            title="Number of Free Parameters (𝑘)",
+            tickfont=dict(size=24),
+            title_font=dict(size=axis_title_font_size),
+            tickvals=[1, 2, 3, 4, 5, 6, 7, 8, 9],
+            ticktext=['1', '2', '3', '4', '5', '6', '7', '8', '9'],
+            range=[0.95, 9.05],
+        ),
+        yaxis=dict(
+            title=y_axis_title,
+            tickfont=dict(size=24),
+            title_font=dict(size=axis_title_font_size),
+            tickvals=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+            ticktext=['0.0', '0.2', '0.4', '0.6', '0.8', '1.0'],
+            range=[-0.05, 1.05],
+        ),
+        updatemenus=[dict(
+            buttons=dropdown_buttons,
+            direction="down",
+            showactive=True,
+            x=0.92,  xanchor="right",
+            y=0.32, yanchor="bottom",
+        )] if include_dropdown else [],
+    )
+
+    if out_fig_path is not None:
+        figure.write_html(out_fig_path)
+
+    return figure
+
+
 def main():
     import sys
-    from config import general_settings, file_paths, fig_lay
+    from config import general_settings, file_paths, figure_layout
     plot_ic_scores_delta_bic(
-        fig_lay=fig_lay,
+        figure_layout=figure_layout,
         file_paths=file_paths,
         general_settings=general_settings,
         include_dropdown=True,

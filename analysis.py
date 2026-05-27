@@ -11,7 +11,7 @@ _UNSET = object()   # sentinel: "caller did not provide — read from general_se
 "=========================================================================================="
 
 def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict[str, Any], param_bds: Dict[str, Tuple[float, float]],
-                              utility_settings: UtilitySettings, file_paths: Dict[str, str], fig_lay: Dict[str, Any],
+                              utility_settings: UtilitySettings, file_paths: Dict[str, str], figure_layout: Dict[str, Any],
                               check_for_n_players: Union[int, str] = 'all') -> Dict[str, float]:
     """
     Fits and compares multiple alternative cognitive models (Bayesian and non-Bayesian) 
@@ -395,22 +395,22 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
     "Set title and axis labels"
     fig.update_layout(
         title="Model Comparison by Negative Log-Likelihood Loss",
-        template=fig_lay.get("template", "plotly_dark"),
-        font=fig_lay["font"],
-        hoverlabel=fig_lay["hoverlabel"],
+        template=figure_layout.get("template", "plotly_dark"),
+        font=figure_layout["font"],
+        hoverlabel=figure_layout["hoverlabel"],
         margin=dict(l=120, r=120, t=120, b=120),
-        titlefont_size=fig_lay['titlefont_size'],
-        title_x=fig_lay['title_x'], 
-        title_y=fig_lay['title_y'],
+        titlefont_size=figure_layout['titlefont_size'],
+        title_x=figure_layout['title_x'], 
+        title_y=figure_layout['title_y'],
         xaxis=dict(
             title="Models",
-            tickfont=fig_lay["xaxis"]["tickfont"],
-            title_font=fig_lay["xaxis"]["title_font"]
+            tickfont=figure_layout["xaxis"]["tickfont"],
+            title_font=figure_layout["xaxis"]["title_font"]
         ),
         yaxis=dict(
             title="Total Negative Log-Likelihood (Lower is Better)",
-            tickfont=fig_lay["yaxis"]["tickfont"],
-            title_font=fig_lay["yaxis"]["title_font"]
+            tickfont=figure_layout["yaxis"]["tickfont"],
+            title_font=figure_layout["yaxis"]["title_font"]
         )
     )
 
@@ -420,7 +420,7 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
     output_html_path = os.path.join(visuals_path, "model_losses_bar_chart.html")
     fig.write_html(output_html_path)
 
-    print("Saved model losses bar chart to", output_html_path)
+    print(f"Saved model losses bar chart to {pretty_path(output_html_path)}")
 
     pp.pprint(model_losses)
     return model_losses
@@ -1515,7 +1515,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         comp_csv_path = prep.ensure_directory_and_join(file_paths["bic_aic"], 
                             f"IC_Analysis_Comparison_Table_Experiment{experiment_num}.csv")
         comp_df.to_csv(comp_csv_path, index=False, encoding='utf-8-sig')
-        print(f"Saved comparison table to: {comp_csv_path}\n")
+        print(f"Saved comparison table to: {pretty_path(comp_csv_path)}\n")
 
         return comp_df
 
@@ -1546,7 +1546,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             df_file_path = os.path.join(base_file_paths["bic_aic"], 
                 f"All_Utility_Forms_IC_Analysis_Experiment{experiment_num}.csv")
             df.to_csv(df_file_path, index=False, encoding='utf-8-sig')
-            print(f"Saved DataFrame to {df_file_path}")
+            print(f"Saved DataFrame to {pretty_path(df_file_path)}")
         except (PermissionError, OSError):
             pass
 
@@ -5178,7 +5178,7 @@ def population_parameter_distribution_df(general_settings: dict[str, Any], file_
     return df
 
 
-def population_parameter_distribution_histograms(general_settings: dict[str, Any], file_paths: dict[str, str], fig_lay: Dict[str, Any], player_role: str = 'predictor', 
+def population_parameter_distribution_histograms(general_settings: dict[str, Any], file_paths: dict[str, str], figure_layout: Dict[str, Any], player_role: str = 'predictor', 
                                                  use_initial_params: bool | None = None, create_new_file: bool | None = None) -> go.Figure:
     """
     Visualize histograms of parameter values in df. 
@@ -5188,7 +5188,7 @@ def population_parameter_distribution_histograms(general_settings: dict[str, Any
         • general_settings: Dict[str, Any]; High-level settings (analysis mode, etc.).
         • file_paths: dict[str, str]; Paths to files/directories for reading/writing data.
         • param_info: dict[str, Any]; Contains parameter keys, bounds, guesses, etc.
-        • fig_lay: dict[str, Any]; Determines the aesthetic qualities of the figure.
+        • figure_layout: dict[str, Any]; Determines the aesthetic qualities of the figure.
 
     Returns:
         • go.Figure
@@ -5245,11 +5245,11 @@ def population_parameter_distribution_histograms(general_settings: dict[str, Any
     fig = ff.create_distplot([hist_data[key] for key in group_labels], group_labels, bin_size=hist_sizes, 
                              colors=hist_colors, show_curve=True, show_rug=True)
     
-    font_info = copy.deepcopy(fig_lay["font"])
+    font_info = copy.deepcopy(figure_layout["font"])
     font_info["size"] = 36
 
-    fig.update_layout(title=title, template=fig_lay["template"], hoverlabel=dict(font_size=14), 
-                      titlefont_size=fig_lay['titlefont_size']+6, font=font_info,
+    fig.update_layout(title=title, template=figure_layout["template"], hoverlabel=dict(font_size=14), 
+                      titlefont_size=figure_layout['titlefont_size']+6, font=font_info,
                       xaxis=dict(range=[-1, 2]))
 
     "Categorize parameters"
@@ -5304,8 +5304,8 @@ def population_parameter_distribution_histograms(general_settings: dict[str, Any
                             args=[{"visible": visible}]))
 
     fig.update_layout(updatemenus=[dict(active=0, x=1.06, y=1.00, buttons=buttons)], 
-                      legend={"x": 1.0, "y": 0.96, "font": font_info}, titlefont_size=fig_lay['titlefont_size'], 
-                      title_x=fig_lay['title_x'], title_y=fig_lay['title_y'], font=fig_lay['font'])
+                      legend={"x": 1.0, "y": 0.96, "font": font_info}, titlefont_size=figure_layout['titlefont_size'], 
+                      title_x=figure_layout['title_x'], title_y=figure_layout['title_y'], font=figure_layout['font'])
 
     if general_settings.get('export_fig', True):
         fig.write_html(os.path.join(file_paths["visuals"], file_name))
@@ -5316,7 +5316,7 @@ def population_parameter_distribution_histograms(general_settings: dict[str, Any
     return fig
 
 
-def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, any], file_paths: dict[str, str], fig_lay: Dict[str, Any], player_role: str = 'predictor', 
+def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, any], file_paths: dict[str, str], figure_layout: Dict[str, Any], player_role: str = 'predictor', 
                                 use_initial_params: bool | None = None, create_new_file: bool | None = None, ratio_mode: str = "skip_negative", as_subplots: bool = False, print_: bool = True) -> dict:
     """
     Computes:
@@ -5473,12 +5473,12 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
         y_axis = dict(title=y_title, title_font=dict(size=30))
 
         fig_self.update_layout(
-            template=fig_lay.get("template","plotly_dark"),
+            template=figure_layout.get("template","plotly_dark"),
             title=f"Self-interest to Altruism Ratio ({role_str} Parameters; 𝑛 = {n_self_valid})",
             title_x=0.5, title_y=0.94,
             margin=dict(l=100, r=100, t=80, b=100),
             xaxis=x_axis, yaxis=y_axis,
-            font=fig_lay.get("font", {"size": 16})
+            font=figure_layout.get("font", {"size": 16})
         )
 
         "Guilt figure"
@@ -5501,7 +5501,7 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
                 line=dict(color='hsla(260, 100%, 80%, 1.0)', dash='dash', width=4)
             )
         fig_guilt.update_layout(
-            template=fig_lay.get("template","plotly_dark"),
+            template=figure_layout.get("template","plotly_dark"),
             title=f"Guilt to Envy Ratio ({role_str} Parameters; 𝑛 = {n_guilt_valid})",
             title_x=0.5, title_y=0.94,
             margin=dict(l=100, r=100, t=80, b=100),
@@ -5514,7 +5514,7 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
                 'range': [x_min, x_max]
             },
             yaxis=y_axis,
-            font=fig_lay.get("font", {"size": 16})
+            font=figure_layout.get("font", {"size": 16})
         )
 
         if export_fig:
@@ -5722,9 +5722,9 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
 
         fig_sub.update_layout(
             title_text=title_text,
-            template=fig_lay.get("template","plotly_dark"),
+            template=figure_layout.get("template","plotly_dark"),
             margin=dict(l=105, r=80, t=120, b=100),
-            font=fig_lay.get("font", {"size": 22}),
+            font=figure_layout.get("font", {"size": 22}),
             title_x=0.5, title_y=0.98,
             showlegend=False
         )
@@ -6081,7 +6081,7 @@ def inequality_aversion_sanity_check(file_paths: FilePaths, param_strong: float,
     return scores
 
 
-def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: FilePaths, *, param_strong: float = 0.75, param_weak: float = 0.25, 
+def visualize_inequality_aversion_bot_competition(figure_layout: FigLay, file_paths: FilePaths, *, param_strong: float = 0.75, param_weak: float = 0.25, 
                                                   param_self_values: List[float] = (0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0), 
                                                   param_altr_values: List[float] = (0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0), 
                                                   temperature: float = 1.0, ratio_numerator: Literal["envious", "guilty"] = "envious", show_text_values: bool = False, 
@@ -6108,7 +6108,7 @@ def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: F
         where **higher values mean the 'envious' bot fits better**.
 
     Arguments:
-        • fig_lay : FigLay
+        • figure_layout : FigLay
             Standard Plotly layout dictionary (template, colorscales, title_x/y, font sizes, etc.).
         • file_paths : FilePaths
             Paths used by `inequality_aversion_sanity_check` to load the trial histories.
@@ -6206,10 +6206,10 @@ def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: F
         text_template = "%{text}"
 
     "Colorscale & template from figure layout settings"
-    colorscales = fig_lay.get("colorscales", ["Plasma"])
+    colorscales = figure_layout.get("colorscales", ["Plasma"])
     colorscale  = colorscales[1] if len(colorscales) > 1 else colorscales[0]
-    template    = fig_lay.get("template", "plotly_dark")
-    base_font   = fig_lay.get("font_size", 14)
+    template    = figure_layout.get("template", "plotly_dark")
+    base_font   = figure_layout.get("font_size", 14)
 
     "Evenly-spaced tick positions (5 ticks) with 2-decimal text for both axes and colorbar."
     _n_ticks = 5
@@ -6271,8 +6271,8 @@ def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: F
     fig.update_layout(
         template=template,
         title=title_txt,
-        title_x=fig_lay.get("title_x", 0.5),
-        title_y=fig_lay.get("title_y", 0.95) - 0.07,
+        title_x=figure_layout.get("title_x", 0.5),
+        title_y=figure_layout.get("title_y", 0.95) - 0.07,
         font=dict(size=base_font, color="white" if template == "plotly_dark" else "black"),
         margin=dict(l=615, r=615, t=160, b=80),
         xaxis=dict(
@@ -6306,7 +6306,7 @@ def visualize_inequality_aversion_bot_competition(fig_lay: FigLay, file_paths: F
         out_path = os.path.join(root, f"{stub}.html")
         fig.write_html(out_path)
         if print_:
-            print(f"Saved heatmap to: {out_path}")
+            print(f"Saved heatmap to: {pretty_path(out_path)}")
 
     return fig
 
