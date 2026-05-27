@@ -4,7 +4,7 @@ from visualization import *
 from visualization import _hsla
 from utilities import compute_hamming_distance_matrix, compute_conditional_hamming_distance_matrix
 from behavioral_distances import *
-from behavioral_distances import _fmt_duration, _ampd_distance_name, _load_ampd_matrix_from_settings, _classical_mds
+from behavioral_distances import _fmt_duration, _ampd_distance_name, _classical_mds
 from analysis import *
 
 _UNSET = object()   # sentinel: "caller did not provide - read from general_settings"
@@ -328,7 +328,7 @@ def compute_participant_cloud_distances(
     """
     Computes pairwise participant cloud distances using the energy distance formulation.
     Each participant is treated as a BIC-weight distribution over utility models (from
-    extract_participant_model_combined_fits); the AMPD matrix (from compute_ampd_distance_matrix)
+    extract_participant_model_combined_fits); the AMPD matrix (from compute_ampd_matrix)
     provides the distance geometry over model space.
 
     Two matrices are computed and saved:
@@ -341,7 +341,7 @@ def compute_participant_cloud_distances(
 
     Arguments:
         • general_settings: dict — used to load the AMPD matrix via
-            _load_ampd_matrix_from_settings.
+            compute_ampd_matrix.
         • file_paths: dict — must contain 'processed'.
         • create_new_file: bool (default False) — if False and output CSVs exist, load
             and return them without recomputing.
@@ -374,8 +374,8 @@ def compute_participant_cloud_distances(
     combined_fits_df = pd.read_csv(
         os.path.join(file_paths["processed"], "participant_model_combined_fits.csv"),
     )
-    ampd_matrix_df = _load_ampd_matrix_from_settings(
-        general_settings=general_settings, file_paths=file_paths,
+    ampd_matrix_df = compute_ampd_matrix(
+        general_settings=general_settings, file_paths=file_paths, create_new_file=False,
     )
     print(f"AMPD matrix loaded: {ampd_matrix_df.shape[0]}×{ampd_matrix_df.shape[1]}")
 
@@ -667,9 +667,10 @@ def compute_architecture_compression_curve(
     n_consecutive_low_marginal_gains_required=_UNSET,
     cumulative_gain_threshold=_UNSET,
     diagnose_selected_library_redundancy=_UNSET,
-    ampd_matrix_name_or_path=_UNSET,
     n_workers=_UNSET,
     create_new_file: bool = False,
+    param_bds=None,
+    utility_settings=None,
 ) -> pd.DataFrame:
     """
     Population architecture compression curve.
@@ -700,12 +701,13 @@ def compute_architecture_compression_curve(
         • cumulative_gain_threshold: float; A(M) threshold for cumulative-gain criterion.
         • diagnose_selected_library_redundancy: bool; Compute per-architecture pruning cost,
             assignment counts, and AMPD similarity flags.
-        • ampd_matrix_name_or_path: str | None; Filename or absolute path of the AMPD matrix.
-            AMPD-dependent output columns are NaN if not provided.
         • n_workers: int | None; Worker count for parallel exhaustive search.
             None = cpu_count − 1.
         • create_new_file: bool; If False and the final CSV exists, load and return it without
             recomputation.  Partial CSV enables resume after interruption.
+        • param_bds: ParamBounds | None; Required to auto-generate the AMPD matrix when not
+            found on disk. If None and the matrix is missing, raises FileNotFoundError.
+        • utility_settings: UtilitySettings | None; Same requirement as param_bds.
 
     Returns:
         • pd.DataFrame: one row per M.
@@ -723,7 +725,6 @@ def compute_architecture_compression_curve(
     if n_consecutive_low_marginal_gains_required is _UNSET: n_consecutive_low_marginal_gains_required = ia.get('n_consecutive_low_marginal_gains_required', 1)
     if cumulative_gain_threshold             is _UNSET: cumulative_gain_threshold             = ia.get('cumulative_gain_threshold', 0.80)
     if diagnose_selected_library_redundancy  is _UNSET: diagnose_selected_library_redundancy  = ia.get('diagnose_selected_library_redundancy', True)
-    if ampd_matrix_name_or_path              is _UNSET: ampd_matrix_name_or_path              = ia.get('ampd_matrix_name_or_path', None)
     if n_workers                             is _UNSET: n_workers                             = ia.get('n_workers', None)
 
     proc_dir    = file_paths['processed']
@@ -1067,28 +1068,20 @@ def compute_architecture_compression_curve(
     selected_metabic_M               = M_vals[int(np.argmin(meta_bic_vals))]
     curve_df['selected_by_meta_bic'] = [k_val == selected_metabic_M for k_val in M_vals]
 
-    "=== AMPD matrix — loaded from explicit path if given, otherwise auto-resolved from settings ==="
-    ampd_df = None;  ampd_idx_set = set();  ampd_col_set = set();  all_ampd_pos = np.array([])
-    try:
-        if ampd_matrix_name_or_path is not None:
-            ampd_path = (ampd_matrix_name_or_path if os.path.isabs(ampd_matrix_name_or_path)
-                         else os.path.join(proc_dir, ampd_matrix_name_or_path))
-            ampd_df = pd.read_csv(ampd_path, index_col=0)
-        else:
-            ampd_df = _load_ampd_matrix_from_settings(general_settings, file_paths)
-        ampd_df.index   = ampd_df.index.astype(int)
-        ampd_df.columns = ampd_df.columns.astype(int)
-        ampd_idx_set    = set(ampd_df.index.tolist())
-        ampd_col_set    = set(ampd_df.columns.tolist())
-        flat            = ampd_df.values.flatten()
-        all_ampd_pos    = flat[~np.isnan(flat) & (flat > 0)]
-        print(f"AMPD behavioral-distance matrix loaded: {ampd_df.shape[0]}×{ampd_df.shape[1]}")
-    except FileNotFoundError as _fnf:
-        print(f"Warning: AMPD behavioral-distance matrix not found — AMPD columns will be NaN.")
-        print(f"  Searched path: {_fnf}")
-        print(f"  Run compute_ampd_distance_matrix() with the current general_settings['ampd_settings'] first.")
-    except Exception as _ampd_exc:
-        print(f"Warning: could not load AMPD behavioral-distance matrix ({type(_ampd_exc).__name__}: {_ampd_exc}); AMPD columns will be NaN.")
+    "=== AMPD matrix ==="
+    ampd_idx_set = set();  ampd_col_set = set();  all_ampd_pos = np.array([])
+    ampd_df = compute_ampd_matrix(
+        general_settings=general_settings, file_paths=file_paths,
+        param_bds=param_bds, utility_settings=utility_settings,
+        create_new_file=False,
+    )
+    ampd_df.index   = ampd_df.index.astype(int)
+    ampd_df.columns = ampd_df.columns.astype(int)
+    ampd_idx_set    = set(ampd_df.index.tolist())
+    ampd_col_set    = set(ampd_df.columns.tolist())
+    flat            = ampd_df.values.flatten()
+    all_ampd_pos    = flat[~np.isnan(flat) & (flat > 0)]
+    print(f"AMPD behavioral-distance matrix loaded: {ampd_df.shape[0]}×{ampd_df.shape[1]}")
 
     lib_min_l = [];  lib_mean_l = [];  lib_med_l = [];  lib_max_l = [];  near_pair_l = []
     for row_idx, row in curve_df.iterrows():
@@ -1537,10 +1530,7 @@ def compute_model_recovery_simulation(
     if not os.path.exists(_gitignore_path):
         with open(_gitignore_path, 'w', encoding='utf-8') as _gig:
             _gig.write('*\n')
-    registry_df   = pd.read_csv(
-        os.path.join(processed_dir, 'all_utility_functions.csv'),
-        dtype={'utility_bitstring': str},
-    )
+    registry_df   = all_utility_functions_dataframe(file_paths=file_paths)
     _non_flag_columns = {
         'utility_idx', 'utility_bitstring', 'k_params', 'redundant_with', 'differing_settings',
         'n_data', 'pvar', 'param_norm_sd', 'loss_nll', 'AIC', 'BIC', 'ΔAIC', 'ΔBIC',
@@ -1624,7 +1614,10 @@ def compute_model_recovery_simulation(
             )
             distance_matrix_df = pd.read_csv(ampd_matrix_path, index_col=0)
         else:
-            distance_matrix_df = _load_ampd_matrix_from_settings(general_settings, file_paths)
+            distance_matrix_df = compute_ampd_matrix(
+                general_settings=general_settings, file_paths=file_paths,
+                param_bds=param_bds, utility_settings=utility_settings, create_new_file=False,
+            )
         distance_matrix_df.index   = distance_matrix_df.index.astype(int)
         distance_matrix_df.columns = distance_matrix_df.columns.astype(int)
     else:
@@ -1681,23 +1674,21 @@ def compute_model_recovery_simulation(
     if candidate_model_selection_mode == 'ampd':
         ampd_metrics_df = distance_matrix_df
     else:
-        try:
-            if ampd_matrix_name_or_path is not None:
-                _ampd_metr_path = (
-                    ampd_matrix_name_or_path if os.path.isabs(ampd_matrix_name_or_path)
-                    else os.path.join(processed_dir, ampd_matrix_name_or_path)
-                )
-                ampd_metrics_df = pd.read_csv(_ampd_metr_path, index_col=0)
-            else:
-                ampd_metrics_df = _load_ampd_matrix_from_settings(general_settings, file_paths)
-            ampd_metrics_df.index   = ampd_metrics_df.index.astype(int)
-            ampd_metrics_df.columns = ampd_metrics_df.columns.astype(int)
-            print(f"AMPD matrix loaded for recovery metrics: "
-                  f"{ampd_metrics_df.shape[0]}×{ampd_metrics_df.shape[1]}")
-        except Exception as _ampd_err:
-            print(f"  Warning: could not load AMPD matrix ({_ampd_err}). "
-                  f"AMPD recovery metrics will be NaN.")
-            ampd_metrics_df = None
+        if ampd_matrix_name_or_path is not None:
+            _ampd_metr_path = (
+                ampd_matrix_name_or_path if os.path.isabs(ampd_matrix_name_or_path)
+                else os.path.join(processed_dir, ampd_matrix_name_or_path)
+            )
+            ampd_metrics_df = pd.read_csv(_ampd_metr_path, index_col=0)
+        else:
+            ampd_metrics_df = compute_ampd_matrix(
+                general_settings=general_settings, file_paths=file_paths,
+                param_bds=param_bds, utility_settings=utility_settings, create_new_file=False,
+            )
+        ampd_metrics_df.index   = ampd_metrics_df.index.astype(int)
+        ampd_metrics_df.columns = ampd_metrics_df.columns.astype(int)
+        print(f"AMPD matrix loaded for recovery metrics: "
+              f"{ampd_metrics_df.shape[0]}×{ampd_metrics_df.shape[1]}")
 
     try:
         cond_hamming_metrics_df = compute_conditional_hamming_distance_matrix(

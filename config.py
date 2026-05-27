@@ -713,6 +713,7 @@ general_settings: GeneralSettings = {
         'parameter_pairing_mode':   'shared',
         'player_roles':             None,
         'random_seed':              None,
+        'softmax_temperature':      1.5,     # AMPD-specific τ; independent of global softmax_temperature
     },
     'individual_architecture_settings': {
         'population_top_n_models':                   120,

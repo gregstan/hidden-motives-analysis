@@ -214,11 +214,11 @@ file exists, load and return it immediately.  Otherwise compute, write to disk, 
 ```python
 "Canonical generate-cache-retrieve skeleton"
 def compute_something(general_settings, file_paths, create_new_file: bool | None = None):
+    "Step 1 — settings-encoded path"
+    output_path = os.path.join(file_paths['processed'], _build_filename(general_settings))
     "Step 2 — resolve sentinel"
     if create_new_file is None:
         create_new_file = general_settings.get('create_new_file', False)
-    "Step 1 — settings-encoded path"
-    output_path = os.path.join(file_paths['processed'], _build_filename(general_settings))
     "Step 3 — check, load, or generate"
     if not create_new_file and os.path.exists(output_path):
         return pd.read_csv(output_path, encoding='utf-8-sig')

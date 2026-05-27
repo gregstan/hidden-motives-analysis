@@ -20,32 +20,19 @@ run_code_settings: RunCodeSettings = {
     'run_inequality_aversion_analysis':     False,
 }
 
-
 def main():
     """Execute main code."""
 
-    compute_architecture_compression_curve(
-        general_settings=general_settings,
-        file_paths=file_paths,
-        create_new_file=True,
-    )
-
-    plot_architecture_compression_curve(
+    run_param_recovery_by_k(
         general_settings=general_settings,
         file_paths=file_paths,
         figure_layout=figure_layout,
+        param_bds=param_bds,
+        k_params_range=(2, 9),
+        correlate_all_params=True,
+        n_players=73,
+        n_games=120
     )
-    exit()
-    # run_param_recovery_by_k(
-    #     general_settings=general_settings,
-    #     file_paths=file_paths,
-    #     figure_layout=figure_layout,
-    #     param_bds=param_bds,
-    #     k_params_range=(2, 9),
-    #     correlate_all_params=True,
-    #     n_players=73,
-    #     n_games=120
-    # )
 
     "Re-render the recovery figure from the saved CSV without rerunning the simulation."
     _recovery_dir = os.path.join(str(file_paths['simulations']), "param_recovery_by_k")
@@ -212,7 +199,7 @@ def main():
             utility_settings=utility_settings,
             build_equation_function=build_utility_equation,
             file_paths=file_paths,
-            compute_ampd_fn=compute_ampd_distance_matrix,
+            compute_ampd_fn=compute_ampd_matrix,
             general_settings=general_settings,
             param_bds=param_bds,
         )
@@ -295,7 +282,7 @@ def main():
         )
 
         "Ensure the AMPD distance matrix exists; generate if not already cached."
-        compute_ampd_distance_matrix(
+        compute_ampd_matrix(
             general_settings=general_settings,
             file_paths=file_paths,
             param_bds=param_bds,
@@ -320,7 +307,7 @@ def main():
         "Generate the AMPD matrix first when AMPD-based candidate selection is requested."
         mr = general_settings.get('model_recovery_settings', {})
         if mr.get('candidate_model_selection_mode', 'hamming') == 'ampd':
-            compute_ampd_distance_matrix(
+            compute_ampd_matrix(
                 general_settings=general_settings,
                 file_paths=file_paths,
                 param_bds=param_bds,

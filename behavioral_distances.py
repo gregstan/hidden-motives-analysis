@@ -2,7 +2,7 @@ import hashlib
 import time
 from visualization import *
 from visualization import _hsla
-from utilities import compute_hamming_distance_matrix, compute_conditional_hamming_distance_matrix
+from utilities import compute_hamming_distance_matrix, compute_conditional_hamming_distance_matrix, all_utility_functions_dataframe
 
 
 "=========================================================================================="
@@ -129,7 +129,7 @@ def average_model_policy_distance(
             'penalty': log the failed payoff and substitute 0.5 (maximum-entropy fallback).
         • participant_parameter_pools: dict[str, list[float]] | None (default None)
             Required when parameter_sampling_mode='participant_sampled'. Pre-built by
-            compute_ampd_distance_matrix; maps each parameter name to the full pool of
+            compute_ampd_matrix; maps each parameter name to the full pool of
             all participant-fitted values for that parameter across all models and roles.
 
     Returns:
@@ -155,10 +155,7 @@ def average_model_policy_distance(
         nonlocal registry_df
         if isinstance(model_ref, int):
             if registry_df is None:
-                registry_df = pd.read_csv(
-                    os.path.join(file_paths["processed"], "all_utility_functions.csv"),
-                    dtype={"utility_bitstring": str},
-                )
+                registry_df = all_utility_functions_dataframe(file_paths=file_paths)
             row = registry_df[registry_df["utility_idx"] == model_ref]
             if len(row) == 0:
                 raise ValueError(f"utility_idx {model_ref} not found in registry.")
@@ -523,11 +520,11 @@ def _ampd_pair_worker(args: tuple) -> list:
     return batch_results
 
 
-def compute_ampd_distance_matrix(
+def compute_ampd_matrix(
     general_settings: GeneralSettings,
     file_paths: FilePaths,
-    param_bds: Dict[str, Tuple[float, float]],
-    utility_settings: UtilitySettings,
+    param_bds: Optional[Dict[str, Tuple[float, float]]] = None,
+    utility_settings: Optional[UtilitySettings] = None,
     metric: Optional[str] = None,
     n_games: Optional[int] = None,
     n_iters: Optional[int] = None,
@@ -620,7 +617,7 @@ def compute_ampd_distance_matrix(
     player_roles = player_roles if player_roles is not None else _ampd_cfg.get("player_roles", None)
     random_seed = random_seed if random_seed is not None else _ampd_cfg.get("random_seed", None)
 
-    tau = float(general_settings.get("softmax_temperature", 1.5))
+    tau = float(_ampd_cfg.get("softmax_temperature", general_settings.get("softmax_temperature", 1.5)))
 
     "=== Build participant parameter pools if participant_sampled mode is requested ==="
     participant_parameter_pools: Optional[Dict[str, List[float]]] = None
@@ -671,10 +668,7 @@ def compute_ampd_distance_matrix(
             exit()
 
     "Load full registry (all models) to build the master index."
-    registry_df = pd.read_csv(
-        os.path.join(file_paths["processed"], "all_utility_functions.csv"),
-        dtype={"utility_bitstring": str},
-    )
+    registry_df = all_utility_functions_dataframe(file_paths=file_paths)
     all_utility_idxs: List[int] = sorted(registry_df["utility_idx"].astype(int).tolist())
     n_all = len(all_utility_idxs)
 
@@ -682,8 +676,8 @@ def compute_ampd_distance_matrix(
         file_paths=file_paths, metric=metric,
         parameter_sampling_mode=parameter_sampling_mode,
         parameter_pairing_mode=parameter_pairing_mode,
-        player_roles=player_roles,
-        softmax_temperature=tau, n_games=n_games, n_iters=n_iters,
+        player_roles=player_roles, softmax_temperature=tau, 
+        n_games=n_games, n_iters=n_iters,
         random_seed=random_seed,
     )
     alt_path = master_path[:-4] + "_.csv"
@@ -822,6 +816,13 @@ def compute_ampd_distance_matrix(
             print("All pairs already computed — returning master matrix.")
         return master_df
 
+    if param_bds is None or utility_settings is None:
+        raise ValueError(
+            f"compute_ampd_matrix: {n_remaining} pairs still need to be computed but "
+            "param_bds and utility_settings were not provided. Pass both to compute the matrix, "
+            "or run compute_ampd_matrix() interactively first."
+        )
+
     def _save_master(df: pd.DataFrame) -> None:
         try:
             df.to_csv(master_path)
@@ -952,45 +953,6 @@ def compute_ampd_distance_matrix(
 "=========================================================================================="
 
 
-def _load_ampd_matrix_from_settings(
-    general_settings: GeneralSettings,
-    file_paths: FilePaths,
-) -> pd.DataFrame:
-    """
-    Loads the AMPD master matrix whose path is determined entirely by
-    general_settings['ampd_settings']. This is the canonical way for model-space geometry functions to
-    obtain the distance matrix without requiring the caller to pass it explicitly.
-
-    Arguments:
-        • general_settings: GeneralSettings — must contain 'ampd_settings' and 'softmax_temperature'.
-        • file_paths: FilePaths — must contain 'processed'.
-
-    Returns:
-        • pd.DataFrame — the full AMPD master matrix indexed and columned by utility_idx.
-    """
-    _ampd_cfg = general_settings.get("ampd_settings", {})
-    tau = float(general_settings.get("softmax_temperature", 1.5))
-    master_path = _build_ampd_cache_path(
-        file_paths=file_paths,
-        metric=_ampd_cfg.get("metric", "normalized_jsd"),
-        parameter_sampling_mode=_ampd_cfg.get("parameter_sampling_mode", "uniform"),
-        parameter_pairing_mode=_ampd_cfg.get("parameter_pairing_mode", "shared"),
-        player_roles=_ampd_cfg.get("player_roles", None),
-        softmax_temperature=tau,
-        n_games=_ampd_cfg.get("n_games", 625),
-        n_iters=_ampd_cfg.get("n_iters", 250),
-        random_seed=_ampd_cfg.get("random_seed", None),
-    )
-    if not os.path.exists(master_path):
-        raise FileNotFoundError(
-            f"AMPD master matrix not found: {master_path}\n"
-            "Run compute_ampd_distance_matrix() first, or check general_settings['ampd_settings']."
-        )
-    df = pd.read_csv(master_path, index_col=0)
-    df.index = df.index.astype(int)
-    df.columns = df.columns.astype(int)
-    return df
-
 
 def _ampd_distance_name(general_settings: GeneralSettings) -> str:
     """
@@ -1038,33 +1000,6 @@ def _classical_mds(distance_matrix: np.ndarray, n_dimensions: int = 2) -> Tuple[
     return mds_coordinates, top_eigenvalues
 
 
-def _load_registry_with_ic_filter(
-    file_paths: FilePaths,
-    require_ic_data: bool = True,
-) -> pd.DataFrame:
-    """
-    Loads the central utility-function registry and optionally filters to only rows
-    that have IC data (non-null BIC). Models without IC data are excluded from
-    geometry plots so that embeddings and rankings are meaningful without needing
-    to rerun the full IC analysis.
-
-    Arguments:
-        • file_paths: FilePaths — must contain 'processed'.
-        • require_ic_data: bool (default True) — if True, keep only rows where BIC is not NaN.
-
-    Returns:
-        • pd.DataFrame — registry rows, sorted by BIC_rank ascending.
-    """
-    registry_df = pd.read_csv(
-        os.path.join(file_paths["processed"], "all_utility_functions.csv"),
-        dtype={"utility_bitstring": str},
-    )
-    if require_ic_data:
-        registry_df = registry_df[registry_df["BIC"].notna()].copy()
-    if "BIC_rank" in registry_df.columns:
-        registry_df = registry_df.sort_values("BIC_rank").reset_index(drop=True)
-    return registry_df
-
 
 def compute_model_space_embedding(
     general_settings: GeneralSettings,
@@ -1109,19 +1044,23 @@ def compute_model_space_embedding(
     if distance_name is None:
         distance_name = _ampd_distance_name(general_settings)
     if distance_matrix_df is None:
-        distance_matrix_df = _load_ampd_matrix_from_settings(general_settings, file_paths)
+        distance_matrix_df = compute_ampd_matrix(
+            general_settings=general_settings, file_paths=file_paths, create_new_file=False,
+        )
 
     out_path = os.path.join(
         file_paths["processed"],
         f"model_space_embedding__{distance_name}__dims={n_dimensions}.csv",
     )
     if not create_new_file and os.path.exists(out_path):
-        print(f"Model-space embedding loaded from cache: {out_path}")
+        print(f"Model-space embedding loaded from cache: {pretty_path(out_path)}")
         return pd.read_csv(out_path, dtype={"utility_bitstring": str})
 
-    registry_df = _load_registry_with_ic_filter(
-        file_paths=file_paths, require_ic_data=require_ic_data,
-    )
+    registry_df = all_utility_functions_dataframe(file_paths=file_paths)
+    if require_ic_data:
+        registry_df = registry_df[registry_df["BIC"].notna()].copy()
+    if "BIC_rank" in registry_df.columns:
+        registry_df = registry_df.sort_values("BIC_rank").reset_index(drop=True)
 
     "Align distance matrix to models that appear in both registry and matrix."
     available_idxs = set(distance_matrix_df.index.astype(int))
@@ -1137,7 +1076,7 @@ def compute_model_space_embedding(
 
     """
     Filter to the largest complete submatrix: keep only models whose row has no NaN entries.
-    Because compute_ampd_distance_matrix fills both triangles simultaneously, any model with
+    Because compute_ampd_matrix fills both triangles simultaneously, any model with
     a fully computed row also has a fully computed column, so this single pass is sufficient
     to guarantee no NaNs in the restricted submatrix. This allows embedding to proceed on a
     partially computed AMPD matrix; re-run with create_new_file=True when more AMPD data is
@@ -1150,7 +1089,7 @@ def compute_model_space_embedding(
         if len(shared_idxs) < 3:
             raise ValueError(
                 f"Only {len(shared_idxs)} models have fully computed AMPD rows — "
-                "need at least 3 for MDS. Run more of compute_ampd_distance_matrix first."
+                "need at least 3 for MDS. Run more of compute_ampd_matrix first."
             )
         dist_sub = distance_matrix_df.loc[shared_idxs, shared_idxs].values.astype(float)
         print(
@@ -1484,11 +1423,15 @@ def plot_distance_to_winner_vs_delta_bic(
         • go.Figure — also written to visuals/dist_to_winner_vs_dbic.html.
     """
     if distance_matrix_df is None:
-        distance_matrix_df = _load_ampd_matrix_from_settings(general_settings, file_paths)
+        distance_matrix_df = compute_ampd_matrix(
+            general_settings=general_settings, file_paths=file_paths, create_new_file=False,
+        )
 
-    registry_df = _load_registry_with_ic_filter(
-        file_paths=file_paths, require_ic_data=require_ic_data,
-    )
+    registry_df = all_utility_functions_dataframe(file_paths=file_paths)
+    if require_ic_data:
+        registry_df = registry_df[registry_df["BIC"].notna()].copy()
+    if "BIC_rank" in registry_df.columns:
+        registry_df = registry_df.sort_values("BIC_rank").reset_index(drop=True)
     delta_bic_col = [col for col in registry_df.columns if col in ("ΔBIC", "ΔBIC", "delta_BIC")]
     delta_bic_col = delta_bic_col[0] if delta_bic_col else None
     if delta_bic_col is None:
@@ -1603,13 +1546,17 @@ def compute_top_model_coherence(
         • dict[int, float] — maps each N to the mean pairwise AMPD among the top N models.
     """
     if distance_matrix_df is None:
-        distance_matrix_df = _load_ampd_matrix_from_settings(general_settings, file_paths)
+        distance_matrix_df = compute_ampd_matrix(
+            general_settings=general_settings, file_paths=file_paths, create_new_file=False,
+        )
     if top_ns is None:
         top_ns = [5, 10, 25, 50]
 
-    registry_df = _load_registry_with_ic_filter(
-        file_paths=file_paths, require_ic_data=require_ic_data,
-    )
+    registry_df = all_utility_functions_dataframe(file_paths=file_paths)
+    if require_ic_data:
+        registry_df = registry_df[registry_df["BIC"].notna()].copy()
+    if "BIC_rank" in registry_df.columns:
+        registry_df = registry_df.sort_values("BIC_rank").reset_index(drop=True)
     delta_bic_col = [col for col in registry_df.columns if col in ("ΔBIC", "ΔBIC", "delta_BIC")]
     delta_bic_col = delta_bic_col[0] if delta_bic_col else None
 
@@ -1669,11 +1616,15 @@ def plot_top_model_ampd_heatmap(
         • go.Figure — also written to visuals/top_model_heatmap_{top_n}.html.
     """
     if distance_matrix_df is None:
-        distance_matrix_df = _load_ampd_matrix_from_settings(general_settings, file_paths)
+        distance_matrix_df = compute_ampd_matrix(
+            general_settings=general_settings, file_paths=file_paths, create_new_file=False,
+        )
 
-    registry_df = _load_registry_with_ic_filter(
-        file_paths=file_paths, require_ic_data=require_ic_data,
-    )
+    registry_df = all_utility_functions_dataframe(file_paths=file_paths)
+    if require_ic_data:
+        registry_df = registry_df[registry_df["BIC"].notna()].copy()
+    if "BIC_rank" in registry_df.columns:
+        registry_df = registry_df.sort_values("BIC_rank").reset_index(drop=True)
     delta_bic_col = [col for col in registry_df.columns if col in ("ΔBIC", "ΔBIC", "delta_BIC")]
     delta_bic_col = delta_bic_col[0] if delta_bic_col else None
 
@@ -1696,7 +1647,7 @@ def plot_top_model_ampd_heatmap(
     if len(top_idxs) < 2:
         raise ValueError(
             f"Only {len(top_idxs)} models have fully computed AMPD rows — "
-            "need at least 2 for a heatmap. Run more of compute_ampd_distance_matrix first."
+            "need at least 2 for a heatmap. Run more of compute_ampd_matrix first."
         )
 
     sub = distance_matrix_df.loc[top_idxs, top_idxs].values.astype(float)

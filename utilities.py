@@ -1370,11 +1370,12 @@ def generate_utility_settings(
                 "file_paths must be provided when create_new_file=True so the registry "
                 "can be written to processed/all_utility_functions.csv."
             )
-        registry_df = build_utility_function_registry(
-            utility_settings=utility_settings,
+        registry_df = all_utility_functions_dataframe(
             file_paths=file_paths,
+            utility_settings=utility_settings,
             general_settings=general_settings,
             build_equation_function=build_equation_function,
+            create_new_file=True,
         )
         if return_df:
             return registry_df
@@ -1436,39 +1437,48 @@ def generate_utility_settings(
     return valid_combos
 
 
-def build_utility_function_registry(
-    utility_settings: UtilitySettings,
+def all_utility_functions_dataframe(
     file_paths: FilePaths,
+    utility_settings: Optional[UtilitySettings] = None,
     general_settings: Optional[GeneralSettings] = None,
     build_equation_function: Optional[Callable] = None,
+    create_new_file: bool = False,
 ) -> pd.DataFrame:
     """
-    Builds the central utility-function registry and writes it to
-    processed/all_utility_functions.csv. Every valid utility form receives one canonical
-    row with a stable utility_idx, bitstring, parameter count, equation (if available),
-    redundancy information, parent/sibling/child relations, and IC columns (if available).
+    Returns the central utility-function registry (processed/all_utility_functions.csv).
 
-    Sorting order is k_params ascending, then utility_bitstring ascending. This places
-    simpler models (children) before more complex ones (parents), which supports the
-    warm-starting logic in the IC robustness analysis.
+    Follows the generate-cache-retrieve pattern: loads the cached CSV when it exists and
+    create_new_file is False; otherwise builds from scratch and writes the CSV.
 
     Arguments:
-        • utility_settings: UtilitySettings
-            A canonical utility settings dict used to seed generation. All 14 Boolean keys
-            must be present; their insertion order defines the canonical bitstring order.
         • file_paths: FilePaths
             Must contain 'processed' (output directory). If 'bic_aic' is also present,
             IC results will be merged from the IC analysis CSV.
+        • utility_settings: UtilitySettings | None
+            Required when building from scratch (file missing or create_new_file=True).
+            All 14 Boolean keys must be present; their insertion order defines the canonical
+            bitstring order. May be None when loading an existing file.
         • general_settings: GeneralSettings | None
             Passed to parameter-counting helpers. May be None.
         • build_equation_function: Callable | None
             If provided, called as build_equation_function(settings_dict) to produce the
             human-readable equation string for each utility form. When None, the equation
             column is left blank unless equations can be recovered from an existing IC CSV.
+        • create_new_file: bool (default False)
+            If False and processed/all_utility_functions.csv exists, load and return it
+            without rebuilding. If True, always rebuild and overwrite.
 
     Returns:
         • pd.DataFrame: the registry, one row per valid utility form, sorted and indexed.
     """
+    out_path = os.path.join(file_paths["processed"], "all_utility_functions.csv")
+    if not create_new_file and os.path.exists(out_path):
+        return pd.read_csv(out_path, dtype={"utility_bitstring": str})
+    if utility_settings is None:
+        raise ValueError(
+            f"all_utility_functions_dataframe: processed/all_utility_functions.csv not found "
+            f"({pretty_path(out_path)}) and utility_settings was not provided — cannot build registry."
+        )
     canonical_flag_order: List[str] = list(convert_utility_settings(
         utility_settings=utility_settings, into=dict
     ).keys())
