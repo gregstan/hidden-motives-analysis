@@ -2,7 +2,7 @@ import hashlib
 import time
 from visualization import *
 from visualization import _hsla
-from utilities import compute_hamming_distance_matrix, compute_conditional_hamming_distance_matrix
+from utilities import compute_conditional_hamming_distance_matrix
 from behavioral_distances import *
 from behavioral_distances import _fmt_duration, _ampd_distance_name, _classical_mds
 from analysis import *
@@ -68,8 +68,8 @@ def extract_participant_model_combined_fits(
         print(
             f"\n{'='*72}\n"
             "[TEMPORARY PATCH] Current-repo IC JSON is missing or below the size threshold.\n"
-            f"  Current path  : {ic_json_path}\n"
-            f"  Falling back  : {_OLD_REPO_IC_JSON_PATH}\n"
+            f"  Current path  : {pretty_path(ic_json_path)}\n"
+            f"  Falling back  : {pretty_path(_OLD_REPO_IC_JSON_PATH)}\n"
             "Delete this block once this repo's IC data is fully regenerated.\n"
             f"{'='*72}\n"
         )
@@ -110,7 +110,7 @@ def extract_participant_model_combined_fits(
     print(f"  Game counts computed for {len(n_data_by_player)} participants.")
 
     "Load the IC analysis JSON."
-    print(f"Loading IC JSON: {ic_json_path}")
+    print(f"Loading IC JSON: {pretty_path(ic_json_path)}")
     with open(ic_json_path, "r", encoding="utf-8-sig") as ic_file_handle:
         ic_data = json.load(ic_file_handle)
     ic_results = ic_data.get("ic_results", {})
@@ -230,7 +230,7 @@ def extract_participant_model_combined_fits(
     "Save the combined fits table."
     os.makedirs(str(file_paths["processed"]), exist_ok=True)
     combined_fits_df.to_csv(output_csv_path, index=False, encoding="utf-8-sig")
-    print(f"Saved: {output_csv_path}  ({len(combined_fits_df)} rows)")
+    print(f"Saved: {pretty_path(output_csv_path)}  ({len(combined_fits_df)} rows)")
 
     return combined_fits_df
 
@@ -266,7 +266,7 @@ def compute_participant_model_space_centroids(
         file_paths["processed"], "participant_model_space_centroids.csv",
     )
     if not create_new_file and os.path.exists(output_csv_path):
-        print(f"Participant model-space centroids loaded from cache: {output_csv_path}")
+        print(f"Participant model-space centroids loaded from cache: {pretty_path(output_csv_path)}")
         return pd.read_csv(output_csv_path)
 
     combined_fits_df = pd.read_csv(
@@ -280,11 +280,11 @@ def compute_participant_model_space_centroids(
     )
     if not os.path.exists(embedding_csv_path):
         raise FileNotFoundError(
-            f"Model-space embedding not found: {embedding_csv_path}\n"
+            f"Model-space embedding not found: {pretty_path(embedding_csv_path)}\n"
             "Run compute_model_space_embedding first."
         )
     model_embedding_df = pd.read_csv(embedding_csv_path, dtype={"utility_bitstring": str})
-    print(f"Loaded model-space embedding: {embedding_csv_path}  ({len(model_embedding_df)} models)")
+    print(f"Loaded model-space embedding: {pretty_path(embedding_csv_path)}  ({len(model_embedding_df)} models)")
 
     "Inner join to use only models present in both the combined fits and the MDS embedding."
     fits_with_coords_df = combined_fits_df.merge(
@@ -316,7 +316,7 @@ def compute_participant_model_space_centroids(
     centroids_df = pd.DataFrame(centroid_rows)
 
     centroids_df.to_csv(output_csv_path, index=False, encoding="utf-8-sig")
-    print(f"Saved: {output_csv_path}  ({len(centroids_df)} participants)")
+    print(f"Saved: {pretty_path(output_csv_path)}  ({len(centroids_df)} participants)")
     return centroids_df
 
 
@@ -434,8 +434,8 @@ def compute_participant_cloud_distances(
 
     cross_distance_df.to_csv(cross_csv_path, encoding="utf-8-sig")
     energy_distance_df.to_csv(energy_csv_path, encoding="utf-8-sig")
-    print(f"Saved cross distance matrix:  {cross_csv_path}")
-    print(f"Saved energy distance matrix: {energy_csv_path}")
+    print(f"Saved cross distance matrix:  {pretty_path(cross_csv_path)}")
+    print(f"Saved energy distance matrix: {pretty_path(energy_csv_path)}")
 
     return {"cross": cross_distance_df, "energy": energy_distance_df}
 
@@ -479,7 +479,7 @@ def compute_participant_architecture_embedding(
         if cache_is_invalid:
             print("Cached participant architecture embedding is invalid (contains NaN or is all-zero) — regenerating.")
         else:
-            print(f"Participant architecture embedding loaded from cache: {output_csv_path}")
+            print(f"Participant architecture embedding loaded from cache: {pretty_path(output_csv_path)}")
             return cached_embedding_df
 
     energy_distance_csv_path = os.path.join(
@@ -488,7 +488,7 @@ def compute_participant_architecture_embedding(
     )
     if not os.path.exists(energy_distance_csv_path):
         raise FileNotFoundError(
-            f"Energy distance matrix not found: {energy_distance_csv_path}\n"
+            f"Energy distance matrix not found: {pretty_path(energy_distance_csv_path)}\n"
             "Run compute_participant_cloud_distances first."
         )
     energy_distance_df = pd.read_csv(energy_distance_csv_path, index_col=0)
@@ -532,7 +532,7 @@ def compute_participant_architecture_embedding(
         embedding_df = embedding_df.merge(right=participant_summary_df, on="player_uuid", how="left")
 
     embedding_df.to_csv(output_csv_path, index=False, encoding="utf-8-sig")
-    print(f"Saved: {output_csv_path}  ({len(embedding_df)} participants, {n_dimensions}D)")
+    print(f"Saved: {pretty_path(output_csv_path)}  ({len(embedding_df)} participants, {n_dimensions}D)")
     return embedding_df
 
 
@@ -564,7 +564,7 @@ def compute_participant_feature_support(
         file_paths["processed"], "participant_feature_support.csv",
     )
     if not create_new_file and os.path.exists(output_csv_path):
-        print(f"Participant feature support loaded from cache: {output_csv_path}")
+        print(f"Participant feature support loaded from cache: {pretty_path(output_csv_path)}")
         return pd.read_csv(output_csv_path)
 
     combined_fits_df = pd.read_csv(
@@ -620,14 +620,13 @@ def compute_participant_feature_support(
     )
 
     feature_support_df.to_csv(output_csv_path, index=False, encoding="utf-8-sig")
-    print(f"Saved: {output_csv_path}  ({len(feature_support_df)} participants, {len(settings_cols_present)} settings)")
+    print(f"Saved: {pretty_path(output_csv_path)}  ({len(feature_support_df)} participants, {len(settings_cols_present)} settings)")
     return feature_support_df
 
 
 "=========================================================================================="
 "================= Population Architecture Compression Curve ============================="
 "=========================================================================================="
-
 
 def _exhaustive_search_worker(args: tuple) -> tuple:
     """
@@ -1068,6 +1067,18 @@ def compute_architecture_compression_curve(
     selected_metabic_M               = M_vals[int(np.argmin(meta_bic_vals))]
     curve_df['selected_by_meta_bic'] = [k_val == selected_metabic_M for k_val in M_vals]
 
+    "=== H_M: fraction of explainable improvement from chance to fully-individualised ceiling ==="
+    # H(M) = (BIC_chance − score_M) / (BIC_chance − score_fully_individualized)
+    # Fixed denominator: BIC_chance and score_fully_individualized do not change with M.
+    # BIC_chance = 2 × n_total_games × log(2) — the BIC of a 50/50 random predictor (k=0).
+    # This differs from H_form_K in architecture_codebook_summary.csv, which uses a moving
+    # denominator (NLL_chance − NLL(K)) and is therefore not bounded [0,1] in the same way.
+    n_total_games   = int(fits_df.groupby('player_uuid')['n_combined'].first().sum())
+    bic_chance      = 2 * n_total_games * np.log(2)
+    bic_chance_denom = bic_chance - score_fully_indiv
+    curve_df['H_M'] = (bic_chance - curve_df['ic_equivalent_score_M']) / bic_chance_denom
+    curve_df['absolute_gap_closed_versus_chance'] = bic_chance - curve_df['ic_equivalent_score_M']
+
     "=== AMPD matrix ==="
     ampd_idx_set = set();  ampd_col_set = set();  all_ampd_pos = np.array([])
     ampd_df = compute_ampd_matrix(
@@ -1235,6 +1246,7 @@ def compute_architecture_compression_curve(
             'M', 'A_M', 'delta_A_M', 'delta2_A_M', 'kneedle_distance',
             'selected_by_kneedle_elbow', 'selected_by_marginal_gain',
             'selected_by_cumulative_gain', 'selected_by_max_curvature', 'selected_by_meta_bic',
+            'H_M', 'absolute_gap_closed_versus_chance',
         ]
         ic_bic_lookup        = ic_df.set_index('idx')['BIC'].to_dict()
         summary_df           = diag_df.rename(columns={
@@ -1246,14 +1258,12 @@ def compute_architecture_compression_curve(
         for col in [col for col in k_level_cols if col != 'M' and col in curve_k_indexed.columns]:
             summary_df[col] = summary_df['M'].map(curve_k_indexed[col].to_dict())
         front_cols  = [
-            'M', 'A_M', 'delta_A_M', 'delta2_A_M', 'kneedle_distance',
-            'selected_by_kneedle_elbow', 'selected_by_marginal_gain',
-            'selected_by_cumulative_gain', 'selected_by_max_curvature', 'selected_by_meta_bic',
-            'utility_idx', 'k_params', 'population_IC_BIC',
-            'n_players_assigned', 'pct_players_assigned', 'mean_individual_BIC',
-            'pruning_cost', 'pruning_cost_normalized',
-            'nearest_selected_model_idx', 'nearest_selected_model_ampd',
-            'nearest_selected_model_ampd_percentile',
+            'M_models', 'A_M', 'delta_A_M', 'delta2_A_M', 'kneedle_distance', 'selected_by_kneedle_elbow', 
+            'selected_by_marginal_gain', 'selected_by_cumulative_gain', 'selected_by_max_curvature', 
+            'selected_by_meta_bic', 'H_M', 'absolute_gap_closed_versus_chance', 'utility_idx', 'k_params', 
+            'population_IC_BIC', 'n_players_assigned', 'pct_players_assigned', 'mean_individual_BIC', 
+            'pruning_cost', 'pruning_cost_normalized', 'nearest_selected_model_idx', 
+            'nearest_selected_model_ampd', 'nearest_selected_model_ampd_percentile',
             'redundancy_warning_level', 'redundancy_score_optional',
         ]
         "Sort within each M by mean_individual_BIC ascending (best-fitting models first)."
@@ -1274,7 +1284,6 @@ def compute_architecture_compression_curve(
 "=========================================================================================="
 "=============================== Model Recovery Simulation ================================"
 "=========================================================================================="
-
 
 def _recovery_fit_worker(args: tuple) -> list:
     """
@@ -1583,7 +1592,7 @@ def compute_model_recovery_simulation(
     if not create_new_file and os.path.exists(output_csv_path):
         cached_df = pd.read_csv(output_csv_path, encoding='utf-8-sig')
         if not cached_df.empty:
-            print(f"Model recovery simulation loaded from cache: {output_csv_path}"
+            print(f"Model recovery simulation loaded from cache: {pretty_path(output_csv_path)}"
                   f"  ({len(cached_df)} rows)")
             return cached_df
 
@@ -1624,11 +1633,11 @@ def compute_model_recovery_simulation(
     else:
         n_registry_models   = len(registry_df)
         hamming_matrix_path = os.path.join(
-            processed_dir, f'model_distance_hamming__n_models={n_registry_models}.csv'
+            processed_dir, f'model_distance_conditional_hamming__n_models={n_registry_models}.csv'
         )
         if not os.path.exists(hamming_matrix_path):
-            print("Hamming distance matrix not found; computing now...")
-            compute_hamming_distance_matrix(
+            print("Conditional Hamming distance matrix not found; computing now...")
+            compute_conditional_hamming_distance_matrix(
                 file_paths=file_paths, utility_settings=utility_settings,
             )
         distance_matrix_df = pd.read_csv(hamming_matrix_path, index_col=0)
@@ -1732,7 +1741,7 @@ def compute_model_recovery_simulation(
             ic_json_path = _fallback_ic_json_path
         elif not os.path.exists(ic_json_path):
             raise FileNotFoundError(
-                f"IC JSON not found at the expected location:\n  {ic_json_path}\n"
+                f"IC JSON not found at the expected location:\n  {pretty_path(ic_json_path)}\n"
                 "To resolve: place All_Utility_Forms_IC_Analysis_Experiment3.json in the\n"
                 "bic_aic/ directory of this repo. The file is generated by\n"
                 "information_criterion_analysis() or can be obtained from the authors."
@@ -1758,7 +1767,7 @@ def compute_model_recovery_simulation(
             f"Generating model (new registry idx={generating_utility_idx}) not found in "
             f"IC JSON by settings tuple.\n"
             f"  Settings tuple: {_gen_settings_tuple_str}\n"
-            f"  IC JSON path:   {ic_json_path}\n"
+            f"  IC JSON path:   {pretty_path(ic_json_path)}\n"
             f"  IC JSON contains {len(ic_results)} models. The settings tuple above was "
             f"built from flag_columns in all_utility_functions.csv — verify that the "
             f"flag column order matches the IC JSON's key format."
@@ -1881,7 +1890,7 @@ def compute_model_recovery_simulation(
     max_scale_synthetic_path  = os.path.join(processed_dir, f'{_stem}_synthetic_data.json')
     with open(max_scale_synthetic_path, 'w', encoding='utf-8') as _max_scale_file:
         json.dump(max_scale_synthetic_json, _max_scale_file, ensure_ascii=False)
-    print(f"Max-scale synthetic data saved: {max_scale_synthetic_path}")
+    print(f"Max-scale synthetic data saved: {pretty_path(max_scale_synthetic_path)}")
 
     total_start_time = time.time()
 
@@ -2068,7 +2077,7 @@ def compute_model_recovery_simulation(
         if accumulated_dataframes else pd.DataFrame()
     )
     all_results_df.to_csv(output_csv_path, index=False, encoding='utf-8-sig')
-    print(f"\nModel recovery simulation saved: {output_csv_path}  ({len(all_results_df)} rows)")
+    print(f"\nModel recovery simulation saved: {pretty_path(output_csv_path)}  ({len(all_results_df)} rows)")
     print(f"Total time: {_fmt_duration(time.time() - total_start_time)}")
 
     if os.path.exists(partial_csv_path):
@@ -2468,6 +2477,6 @@ def plot_model_recovery_simulation(
     if export_fig:
         out_path = os.path.join(str(file_paths['visuals']), f'{_stem}.html')
         fig.write_html(out_path, config={'responsive': True})
-        print(f"Model recovery simulation plot saved: {out_path}")
+        print(f"Model recovery simulation plot saved: {pretty_path(out_path)}")
 
     return fig

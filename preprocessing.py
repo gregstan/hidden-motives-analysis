@@ -101,7 +101,7 @@ def dataframe(file_path: str, file_name: str) -> pd.DataFrame | None:
 
         return results_df
 
-    print(f"File {file_name} not found at {file_path}. Please check the path.")
+    print(f"File {file_name} not found at {pretty_path(file_path)}. Please check the path.")
     return None
 
 
@@ -111,7 +111,7 @@ def get_files_in_directory(directory_path: str) -> list[str]:
         return [file for file in os.listdir(directory_path) 
                 if os.path.isfile(os.path.join(directory_path, file))]
     except FileNotFoundError:
-        print(f"Directory not found: {directory_path}")
+        print(f"Directory not found: {pretty_path(directory_path)}")
         return []
     except Exception as err:
         print(f"Error: {err}")
@@ -244,7 +244,7 @@ def get_dyad_data(dyad_key: int | DyadKey, file_paths: FilePaths, dyad_already_a
                     if dyad_data is None:
                         raise Exception(f"Failed to extract dyad data for {dyad_key}.")         
         else:
-            raise Exception(f"File path does not exist: {full_path}.")
+            raise Exception(f"File path does not exist: {pretty_path(full_path)}.")
 
     "Process grid-based parameter estimates if they exist"
     for dyad_game in dyad_data:
@@ -767,7 +767,6 @@ def create_unified_dataframe(general_settings: GeneralSettings, file_paths: File
 "=========================================================================================="
 "=================================== Preprocess Raw Data =================================="
 "=========================================================================================="
-
 
 def preprocessing1(df: pd.DataFrame, column_names: ColumnNames, file_paths: FilePaths, create_new_file: bool = False) -> pd.DataFrame:
     """

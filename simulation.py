@@ -563,7 +563,7 @@ def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], 
 
         with open(histories_file_path, 'w', encoding='utf-8') as file:
             json.dump(player_histories, file, ensure_ascii=False, indent=4)
-            print(f"Saved simulated histories to {histories_file_path}.")
+            print(f"Saved simulated histories to {pretty_path(histories_file_path)}.")
  
         histories_info = player_histories['player_info']
 
@@ -1324,7 +1324,7 @@ def run_simulation_recovery_analysis(figure_layout: dict, general_settings: Gene
                 df_game = load_simulated_fits_from_json(path)
                 all_dfs.append(df_game)
         if not all_dfs:
-            print(f"No JSON found in {dir_path}. Returning empty.")
+            print(f"No JSON found in {pretty_path(dir_path)}. Returning empty.")
             return pd.DataFrame()
 
         df_combined = pd.concat(all_dfs, ignore_index=True)
@@ -1744,7 +1744,7 @@ def create_simulated_experiment(
             for player_uuid, player_data in histories_dict.get('player_info', {}).items()
         }
         print(f"[create_simulated_experiment k={k_params}] Loaded existing file "
-              f"({len(true_params_by_uuid)} players): {histories_file_path}")
+              f"({len(true_params_by_uuid)} players): {pretty_path(histories_file_path)}")
         return histories_dict, true_params_by_uuid
 
     n_players_padded = n_players + (4 - n_players % 4) % 4
@@ -2042,7 +2042,7 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         )
         if not os.path.exists(ic_comparison_csv_path):
             raise FileNotFoundError(
-                f"Could not find comparison CSV at {ic_comparison_csv_path}. "
+                f"Could not find comparison CSV at {pretty_path(ic_comparison_csv_path)}. "
                 f"Provide `utility_settings_by_k` explicitly or ensure the IC section wrote this file."
             )
         ic_comparison_dataframe = pd.read_csv(ic_comparison_csv_path, encoding="utf-8", engine="python")
@@ -2089,7 +2089,7 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         ic_comparison_csv_path = os.path.join(file_paths["bic_aic"], file_paths["file_names"]["information_criterion"])
         if not os.path.exists(ic_comparison_csv_path):
             raise FileNotFoundError(
-                f"Missing {ic_comparison_csv_path}. Provide utility_settings_by_k or write the IC comparison CSV first."
+                f"Missing {pretty_path(ic_comparison_csv_path)}. Provide utility_settings_by_k or write the IC comparison CSV first."
             )
         ic_comparison_dataframe = pd.read_csv(ic_comparison_csv_path, encoding="utf-8", engine="python")
         if "include_altruism_term" not in ic_comparison_dataframe.columns:
@@ -2745,16 +2745,16 @@ def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_s
     "Save the HTML"
     html_path = os.path.join(out_dir, f"{file_stub}.html")
     fig.write_html(html_path, include_plotlyjs="cdn")
-    print(f"[verify_pf] Wrote Plotly HTML:     {html_path}")
+    print(f"[verify_pf] Wrote Plotly HTML:     {pretty_path(html_path)}")
 
     "Console report: quick glance at the summary."
     print("\n[verify_pf] Correlation & runtime summary (by sample_ratio):")
     with pd.option_context('display.float_format', lambda display_value: f"{display_value:.3f}"):
         print(summary_df.to_string(index=False))
 
-    print(f"\n[verify_pf] Wrote summary CSV:     {summary_csv_path}")
-    print(f"[verify_pf] Wrote per-param CSV:   {per_param_csv_path}")
-    print(f"[verify_pf] Wrote Plotly HTML:     {html_path}")
+    print(f"\n[verify_pf] Wrote summary CSV:     {pretty_path(summary_csv_path)}")
+    print(f"[verify_pf] Wrote per-param CSV:   {pretty_path(per_param_csv_path)}")
+    print(f"[verify_pf] Wrote Plotly HTML:     {pretty_path(html_path)}")
 
     return summary_df
 
@@ -3042,7 +3042,7 @@ def plot_param_recovery_by_round(
 
     if export_fig:
         fig.write_html(out_path)
-        print(f"Correlation-by-round figure saved to {out_path}")
+        print(f"Correlation-by-round figure saved to {pretty_path(out_path)}")
     else:
         fig.show()
 

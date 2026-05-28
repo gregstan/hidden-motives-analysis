@@ -7,7 +7,7 @@ from config import *
 "=========================================================================================="
 
 analysis_options = {
-    'light_mode': True,           # True: fast/small versions. False: full scale (some sections take hours or months).
+    'light_mode':                   True,   # True: fast/small versions. False: full scale (some sections take hours or months).
 
     # ── No external data required ────────────────────────────────────────────────────────
     'run_model_demos':              False,  # All 505 utility equations, Bayesian core checks, make_param_info.
@@ -36,7 +36,6 @@ analysis_options = {
 "=========================================================================================="
 "==================================== Demo Entry Point ===================================="
 "=========================================================================================="
-
 
 def _section_header(text: str, width: int = 70) -> str:
     padding = width - 2 - len(text)
@@ -492,7 +491,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
         if not simulation_pairs_path.exists() or not basic_files:
             print(
                 "\nWARNING: No simulation data found for visualization.\n"
-                f"Expected: {simulation_pairs_path}\n"
+                f"Expected: {pretty_path(simulation_pairs_path)}\n"
                 "Set analysis_options['run_simulation'] = True and rerun to generate it first."
             )
         else:
@@ -619,7 +618,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             print(
                 "\n" + "!" * 70 + "\n"
                 "CRITICAL WARNING: Processed experiment 3 histories not found at:\n"
-                f"  {exper3_pairs_path}\n"
+                f"  {pretty_path(exper3_pairs_path)}\n"
                 "Section 9 cannot run without this file.\n"
                 + "!" * 70 + "\n"
             )
@@ -731,7 +730,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             print(
                 "\n" + "!" * 70 + "\n"
                 "CRITICAL WARNING: IC JSON not found at:\n"
-                f"  {ic_json_path}\n"
+                f"  {pretty_path(ic_json_path)}\n"
                 "Section 10 cannot run without this file. Generate it by running\n"
                 "information_criterion_analysis() (Section 9), or obtain it from the authors.\n"
                 + "!" * 70 + "\n"
@@ -788,7 +787,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             print(
                 "\n" + "!" * 70 + "\n"
                 "CRITICAL WARNING: IC JSON not found at:\n"
-                f"  {ic_json_path}\n"
+                f"  {pretty_path(ic_json_path)}\n"
                 "Section 11 cannot run without this file. Generate it by running\n"
                 "information_criterion_analysis() (Section 9), or obtain it from the authors.\n"
                 + "!" * 70 + "\n"
@@ -843,7 +842,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             print(
                 "\n" + "!" * 70 + "\n"
                 f"CRITICAL WARNING: Processed experiment {experiment_num_for_distributions} histories not found at:\n"
-                f"  {exper_pairs_path}\n"
+                f"  {pretty_path(exper_pairs_path)}\n"
                 "Section 10 cannot run without this file.\n"
                 + "!" * 70 + "\n"
             )

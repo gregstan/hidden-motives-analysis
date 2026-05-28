@@ -2,7 +2,7 @@ import hashlib
 import time
 from visualization import *
 from visualization import _hsla
-from utilities import compute_hamming_distance_matrix, compute_conditional_hamming_distance_matrix, all_utility_functions_dataframe
+from utilities import compute_conditional_hamming_distance_matrix, all_utility_functions_dataframe
 
 
 "=========================================================================================="
@@ -1264,7 +1264,7 @@ def compute_model_space_embedding(
 
     embedding_df.to_csv(out_path, index=False, encoding='utf-8-sig')
     print(
-        f"Model-space embedding saved: {out_path}  "
+        f"Model-space embedding saved: {pretty_path(out_path)}  "
         f"({len(shared_idxs)} models, {n_dimensions}D, "
         f"stress={stress_approximation:.4f}, "
         f"top eigenvalues: {[round(float(ev), 3) for ev in top_eigenvalues]})"
@@ -1535,7 +1535,7 @@ def plot_model_space_mds(
 
     out_path = os.path.join(file_paths["visuals"], f"mds_{distance_name}.html")
     fig.write_html(out_path)
-    print(f"Model-space MDS saved: {out_path}")
+    print(f"Model-space MDS saved: {pretty_path(out_path)}")
     return fig
 
 
@@ -1657,7 +1657,7 @@ def plot_distance_to_winner_vs_delta_bic(
 
     out_path = os.path.join(file_paths["visuals"], "dist_to_winner_vs_dbic.html")
     fig.write_html(out_path)
-    print(f"Distance-to-winner vs ΔBIC saved: {out_path}  ({corr_label}, {n_valid_pairs} models)")
+    print(f"Distance-to-winner vs ΔBIC saved: {pretty_path(out_path)}  ({corr_label}, {n_valid_pairs} models)")
     return fig
 
 
@@ -1852,6 +1852,6 @@ def plot_top_model_ampd_heatmap(
 
     out_path = os.path.join(file_paths["visuals"], f"top_model_heatmap_{actual_n}.html")
     fig.write_html(out_path)
-    print(f"Top-model AMPD heatmap saved: {out_path}")
+    print(f"Top-model AMPD heatmap saved: {pretty_path(out_path)}")
     return fig
 

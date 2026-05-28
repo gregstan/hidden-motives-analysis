@@ -332,25 +332,40 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
     total = self_interest + altruism + social_comp
 
     if utility_settings.get('include_relative_income_penalty'):
-        "ERC-style relative income penalty: -αᵢⱼ × (σᵢᴬ − 1/2) where σᵢᴬ = πᵢᴬ/(πᵢᴬ+πⱼᴬ)."
-        "Canonical ERC: when fix_self_interest_parameter=True + use_exponential_parameters=True,"
-        "the exponent applies only to the penalty (SI stays linear). Recompute without exp."
-        if utility_settings['fix_self_interest_parameter'] and utility_settings['use_exponential_parameters']:
-            self_interest = utility_term(
-                payoff_1=pay1si, payoff_2=pay2si, weight_1=1, weight_2=0.0, exponent=exp1,
-                use_negativity_parameters=False, use_exponential_parameters=False,
-                single_payoffs_not_differences=utility_settings['single_payoffs_not_differences'],
-                payoff_ratios_not_differences=utility_settings['payoff_ratios_not_differences'])
-            total = self_interest + altruism + social_comp
+        "ERC-style relative income penalty: -αᵢⱼ × (σᵢᴬ − 1/2)² where σᵢᴬ = πᵢᴬ/(πᵢᴬ+πⱼᴬ)."
+        "Bolton & Ockenfels (2000) eq.(2) uses (σᵢ − 1/n)², not linear. γ₁ applies to SI term"
+        "like all other use_exponential_parameters models; γ₃ applies to the RIP exponent in"
+        "the (use_exp=True, single_exp=False) case."
+
+        """
+        REMOVED (2026-05-27): 'Canonical ERC' override that stripped γ₁ from the SI term and
+        pushed the exponent onto the RIP penalty instead. This inverts the intended behaviour:
+        use_exponential_parameters should apply γ₁ to SI (Vᵢᵢ(πᵢᴬ)^γ₁) regardless of
+        fix_self_interest_parameter. fix_self only fixes the weight at 1, not the exponent.
+        Original code kept for reference:
+            if utility_settings['fix_self_interest_parameter'] and utility_settings['use_exponential_parameters']:
+                self_interest = utility_term(
+                    payoff_1=pay1si, payoff_2=pay2si, weight_1=1, weight_2=0.0, exponent=exp1,
+                    use_negativity_parameters=False, use_exponential_parameters=False,
+                    single_payoffs_not_differences=utility_settings['single_payoffs_not_differences'],
+                    payoff_ratios_not_differences=utility_settings['payoff_ratios_not_differences'])
+                total = self_interest + altruism + social_comp
+        """
+
         _denom  = payAi + payAj
         _sigma  = payAi / _denom if _denom > 0 else 0.5
         _dev    = _sigma - 0.5
         if utility_settings['use_exponential_parameters']:
             _exp_rip = (params.get('γ1', 1) if utility_settings.get('single_exponential_parameter')
                         else params.get('γ3', params.get('γ1', 1)))
-            _penalty = -αᵢⱼ * (max(_dev, 0.0) ** _exp_rip - max(-_dev, 0.0) ** _exp_rip)
+            # CHANGED (2026-05-27): was (max(_dev,0)**_exp_rip - max(-_dev,0)**_exp_rip),
+            # a signed form that adds to utility when behind. Now abs(_dev)**_exp_rip so
+            # both directions of inequality subtract from utility symmetrically.
+            _penalty = -αᵢⱼ * abs(_dev) ** _exp_rip
         else:
-            _penalty = -αᵢⱼ * _dev
+            # CHANGED (2026-05-27): was -αᵢⱼ * _dev (linear, asymmetric).
+            # Bolton & Ockenfels (2000) eq.(2) squares the deviation: (σᵢ − 1/2)².
+            _penalty = -αᵢⱼ * _dev ** 2
         if separate_terms:
             return {'self_interest': float(self_interest), 'altruism': float(altruism),
                     'social_comp': float(social_comp + _penalty)}
@@ -887,16 +902,25 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A",
 
     rip_str = ""
     if inc_rip:
-        exp_tag = ("^γ₁" if one_exp else "^γ₃") if use_exp else ""
+        # CHANGED (2026-05-27): (F,*) case was "" (no exponent shown, implied linear).
+        # Now shows "²" to match Bolton & Ockenfels (2000) eq.(2) squared deviation form.
+        exp_tag = ("^γ₁" if one_exp else "^γ₃") if use_exp else "²"
         rip_str = f" - αᵢⱼ × ({payAi}/({payAi} + {payAj}) - 1/2){exp_tag}"
 
-    "Canonical ERC: suppress exponent on SI term when fix_self + use_exp in RIP family."
-    if inc_rip and fix_self and use_exp:
-        use_exp = False
-        _si_str = term("self-interest")
-        use_exp = True
-    else:
-        _si_str = term("self-interest")
+    """
+    REMOVED (2026-05-27): 'Canonical ERC' override that temporarily set use_exp=False when
+    rendering the SI string for fix_self + use_exp models, producing Vᵢᵢ(πᵢᴬ) instead of
+    Vᵢᵢ(πᵢᴬ)^γ₁. Now SI is rendered normally — γ₁ applies to SI just like any other
+    use_exponential_parameters model. Original code kept for reference:
+        if inc_rip and fix_self and use_exp:
+            use_exp = False
+            _si_str = term("self-interest")
+            use_exp = True
+        else:
+            _si_str = term("self-interest")
+    """
+
+    _si_str = term("self-interest")
     return _apply_gamma_to_payoffs(
         utility_ + _si_str + term("altruism") + term("social_comparison") + rip_str,
         utility_settings)

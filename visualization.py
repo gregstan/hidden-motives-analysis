@@ -104,7 +104,7 @@ def visualize_bayesian_updates_2d(player_uuid: str | int, counterpart_uuid: str 
     )
 
     if not os.path.exists(plr_file_path):
-        raise FileNotFoundError(f"File not found for player: {player_uuid} => {plr_file_path}")
+        raise FileNotFoundError(f"File not found for player: {player_uuid} => {pretty_path(plr_file_path)}")
 
     with open(plr_file_path, "r", encoding='utf-8') as file:
         player_dyads = json.load(file)
@@ -775,7 +775,7 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
     out_path = os.path.join(visuals_dir, file_name)
     if general_settings.get('export_fig'):
         fig.write_html(out_path)
-        print(f"Saved {file_name} at {out_path}")
+        print(f"Saved {file_name} at {pretty_path(out_path)}")
     else:
         fig.show()
     
@@ -1679,7 +1679,7 @@ def plot_ic_scores_delta_bic(figure_layout: dict, file_paths: dict, general_sett
             if _plotly_annotations:
                 fig.update_layout(annotations=_plotly_annotations)
         else:
-            print(f"Warning: {_json_path} not found — canonical annotations skipped.")
+            print(f"Warning: {pretty_path(_json_path)} not found — canonical annotations skipped.")
 
     "10) If no dropdown is wanted, hide all Boolean traces"
     if not include_dropdown:
@@ -1789,7 +1789,7 @@ def plot_participant_architecture_mds(
 
     if not os.path.exists(embedding_path):
         raise FileNotFoundError(
-            f"Participant architecture embedding not found: {embedding_path}\n"
+            f"Participant architecture embedding not found: {pretty_path(embedding_path)}\n"
             "Run compute_participant_architecture_embedding first."
         )
     embedding_df = pd.read_csv(embedding_path)
@@ -2056,7 +2056,7 @@ def plot_participant_architecture_mds(
     if export_fig:
         out_path = os.path.join(file_paths["visuals"], "participant_architecture_mds.html")
         fig.write_html(out_path)
-        print(f"Participant utility function MDS saved: {out_path}")
+        print(f"Participant utility function MDS saved: {pretty_path(out_path)}")
     return fig
 
 

@@ -1743,7 +1743,7 @@ def all_utility_functions_dataframe(
             print("Registry builder: IC results merged successfully.")
         else:
             print(
-                f"Registry builder: IC CSV not found at {ic_csv_path}. "
+                f"Registry builder: IC CSV not found at {pretty_path(ic_csv_path)}. "
                 "IC columns left blank; run information_criterion_analysis to populate them."
             )
 
@@ -1855,9 +1855,9 @@ def _merge_ic_results_into_registry(
     try:
         ic_df = pd.read_csv(ic_csv_path)
     except Exception as read_error:
-        print(f"WARNING: Could not read IC CSV at {ic_csv_path}: {read_error}")
+        print(f"WARNING: Could not read IC CSV at {pretty_path(ic_csv_path)}: {read_error}")
         return registry_df
-
+        
     """
     Build a formatted bitstring for each IC row using column names (order-independent).
     The dashed format (XXXX-XXXX-XXXX-XX) must match the registry's utility_bitstring column
@@ -2247,93 +2247,6 @@ def select_utility_settings_subset(
     return _idx_list_to_settings(utility_idx_list=selected_set)
 
 
-def compute_hamming_distance_matrix(
-    file_paths: FilePaths,
-    utility_settings: Optional[UtilitySettings] = None,
-    create_new_file: bool = False,
-) -> pd.DataFrame:
-    """
-    Computes the pairwise Hamming distance matrix over all valid utility forms in the
-    central registry and caches it to processed/. The matrix is symmetric, has a zero
-    diagonal, and contains integer values in [0, 16] (one per Boolean flag position).
-
-    The cache filename encodes the number of models so that a matrix computed on a
-    different registry version does not silently overwrite or shadow the current one:
-        processed/model_distance_hamming__n_models={M}.csv
-
-    Row and column labels are utility_idx values (integers). The matrix can be reloaded
-    by select_utility_settings_subset (hamming mode) and all downstream geometry analyses.
-
-    Arguments:
-        • file_paths: FilePaths
-            Must contain key 'processed' pointing to the directory that holds
-            all_utility_functions.csv and where the distance matrix is cached.
-        • utility_settings: UtilitySettings | None
-            Used to derive canonical flag order when provided. If None, the flag 
-            order is inferred from the registry columns (non-metadata columns).
-        • create_new_file: bool (default False)
-            If False and a cached matrix exists for the current registry size, that
-            file is loaded and returned. If True, the matrix is recomputed and the
-            cache is overwritten.
-
-    Returns:
-        • pd.DataFrame — square symmetric matrix indexed and columned by utility_idx.
-            All values are non-negative integers; diagonal is zero.
-    """
-    registry_df = pd.read_csv(
-        os.path.join(file_paths["processed"], "all_utility_functions.csv"),
-        dtype={"utility_bitstring": str},
-    )
-    n_models = len(registry_df)
-    cache_path = os.path.join(
-        file_paths["processed"], f"model_distance_hamming__n_models={n_models}.csv"
-    )
-
-    "Return cached matrix when available and not overridden."
-    if not create_new_file and os.path.exists(cache_path):
-        hamming_df = pd.read_csv(cache_path, index_col=0)
-        hamming_df.index = hamming_df.index.astype(int)
-        hamming_df.columns = hamming_df.columns.astype(int)
-        print(f"Hamming matrix loaded from cache: {cache_path}  ({n_models}×{n_models})")
-        return hamming_df
-
-    "Extract raw bit strings (dashes removed) indexed by utility_idx for fast comparison."
-    utility_idx_values: List[int] = list(registry_df["utility_idx"].astype(int))
-    raw_bits_by_position: List[str] = [
-        bits.replace("-", "") for bits in registry_df["utility_bitstring"]
-    ]
-
-    "Compute the full upper triangle of pairwise Hamming distances."
-    distance_matrix: List[List[int]] = [
-        [0] * n_models for _ in range(n_models)
-    ]
-    for row_index in range(n_models):
-        row_bits = raw_bits_by_position[row_index]
-        for col_index in range(row_index + 1, n_models):
-            col_bits = raw_bits_by_position[col_index]
-            hamming_distance = sum(a != b for a, b in zip(row_bits, col_bits))
-            distance_matrix[row_index][col_index] = hamming_distance
-            distance_matrix[col_index][row_index] = hamming_distance
-
-    hamming_df = pd.DataFrame(
-        data=distance_matrix,
-        index=utility_idx_values,
-        columns=utility_idx_values,
-    )
-
-    "Sanity checks: symmetry, zero diagonal, integer values, range [0, 16]."
-    assert (hamming_df == hamming_df.T).all().all(), "Hamming matrix is not symmetric."
-    assert (hamming_df.values.diagonal() == 0).all(), "Hamming matrix diagonal is not zero."
-    assert hamming_df.max().max() <= 16, "Hamming distance exceeds 16 (number of flags)."
-
-    hamming_df.to_csv(cache_path)
-    print(
-        f"Hamming matrix computed and cached: {cache_path}  "
-        f"({n_models}×{n_models}, max distance={int(hamming_df.max().max())})"
-    )
-    return hamming_df
-
-
 def compute_conditional_hamming_distance_matrix(
     file_paths: FilePaths,
     utility_settings: Optional[UtilitySettings] = None,
@@ -2357,8 +2270,7 @@ def compute_conditional_hamming_distance_matrix(
 
     Arguments:
         • file_paths: FilePaths — must contain 'processed' pointing to the registry directory.
-        • utility_settings: UtilitySettings | None — unused; present for API parity with
-            compute_hamming_distance_matrix.
+        • utility_settings: UtilitySettings | None — unused; accepted for signature consistency.
         • create_new_file: bool (default False) — if False and a cached matrix exists, load it.
 
     Returns:
@@ -2380,7 +2292,7 @@ def compute_conditional_hamming_distance_matrix(
         cond_hamming_df = pd.read_csv(cache_path, index_col=0)
         cond_hamming_df.index   = cond_hamming_df.index.astype(int)
         cond_hamming_df.columns = cond_hamming_df.columns.astype(int)
-        print(f"Conditional Hamming matrix loaded from cache: {cache_path}  ({n_models}×{n_models})")
+        print(f"Conditional Hamming matrix loaded from cache: {pretty_path(cache_path)}  ({n_models}×{n_models})")
         return cond_hamming_df
 
     "Build settings dicts from bitstrings via convert_utility_settings (canonical key order)."
@@ -2427,7 +2339,7 @@ def compute_conditional_hamming_distance_matrix(
 
     cond_hamming_df.to_csv(cache_path)
     print(
-        f"Conditional Hamming matrix computed and cached: {cache_path}  "
+        f"Conditional Hamming matrix computed and cached: {pretty_path(cache_path)}  "
         f"({n_models}×{n_models}, max distance={int(cond_hamming_df.max().max())})"
     )
     return cond_hamming_df
@@ -3094,7 +3006,7 @@ def load_fitted_parameters(
     params_found = _extract_params(payload)
     if params_found is None:
         raise ValueError(
-            f"Found '{found_path}' but could not find parameter_estimates"
+            f"Found '{pretty_path(found_path)}' but could not find parameter_estimates"
             f"['{update_method}']['{player_uuid}']['{player_role}']['params']."
         )
 
@@ -3739,6 +3651,10 @@ def normalize_pretty_rhs_for_eval(rhs_text: str, sc_mode: str = "twoterm") -> st
                     .replace("−", "-").replace("–", "-").replace("—", "-")
                     .replace("≥", ">=").replace("≤", "<=").replace("≠", "!=")
                     .replace("×", "*").replace("·", "*").replace("⋅", "*"))
+    # ADDED (2026-05-27): convert Unicode superscript '²' (U+00B2) to '**2'.
+    # Used in RIP equations like (σ-1/2)² — note regular **2, not ^2→pow_signed, because
+    # squaring is symmetric: (-x)²=x², matching the abs(_dev)**2 computation in utility().
+    norm = norm.replace("²", "**2")
     "Replace square brackets with parentheses."
     norm = norm.replace("[", "(").replace("]", ")")
     "Insert explicit multiplication where a numeric literal immediately precedes an open paren."

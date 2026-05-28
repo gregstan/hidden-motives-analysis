@@ -1212,7 +1212,7 @@ def run_analysis_mle(histories_data: Histories, file_paths: FilePaths, param_inf
         with open(aggregate_path, "r", encoding='utf-8') as file:
             histories_data_fitted = json.load(file)
         if histories_data_fitted:
-            print(f"Aggregate data loaded from {aggregate_path}.")
+            print(f"Aggregate data loaded from {pretty_path(aggregate_path)}.")
             return histories_data_fitted
 
     "Extract dyads from histories_data"
@@ -1259,7 +1259,7 @@ def run_analysis_mle(histories_data: Histories, file_paths: FilePaths, param_inf
     "Save the final combined aggregate JSON"
     with open(aggregate_path, "w", encoding='utf-8') as file:
         json.dump(histories_data, file, ensure_ascii=False, indent=4)
-    print(f"All dyads processed. Final aggregate data saved to {aggregate_path}.")
+    print(f"All dyads processed. Final aggregate data saved to {pretty_path(aggregate_path)}.")
 
     return histories_data
 

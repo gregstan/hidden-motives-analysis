@@ -2,7 +2,7 @@ import hashlib
 import time
 from visualization import *
 from visualization import _hsla
-from utilities import compute_hamming_distance_matrix, compute_conditional_hamming_distance_matrix
+from utilities import compute_conditional_hamming_distance_matrix
 
 _UNSET = object()   # sentinel: "caller did not provide — read from general_settings"
 
@@ -94,7 +94,7 @@ def alternative_model_contest(general_settings: Dict[str, Any], param_info: Dict
         def _save_progress(label: str) -> None:
             with open(output_path, "w", encoding='utf-8') as _f:
                 json.dump(model_losses, _f, ensure_ascii=False, indent=4)
-            print(f"  [saved after {label}] → {output_path}")
+            print(f"  [saved after {label}] → {pretty_path(output_path)}")
 
         "2) Identify player UUIDs for Experiment 2"
         player_uuids = prep.all_player_uuids(
@@ -783,7 +783,7 @@ def typological_model_comparison_fit_population(file_paths: Dict[str, str], gene
         csv_path = os.path.join(output_dir, f"discrete_fits_k{k_params}.csv")
         df_results = df_results.sort_values(by='total_loss', ascending=True)
         df_results.to_csv(csv_path, index=False, encoding='utf-8-sig')
-        print(f"Finished k={k_params}. All {n_subsets_per_k} subsets processed. Results saved to {csv_path}.")
+        print(f"Finished k={k_params}. All {n_subsets_per_k} subsets processed. Results saved to {pretty_path(csv_path)}.")
         print(df_results)
 
 
@@ -1109,7 +1109,7 @@ def typological_model_comparison_fit_individually(best_profiles: list[tuple[floa
         out_dir = file_paths.get("discrete", ".")
         out_path = os.path.join(out_dir, f"discrete_individual_fits_k={len(best_profiles)}.csv")
         df_results.to_csv(out_path, index=False, encoding='utf-8-sig')
-        print(f"[discrete_individual_fits] Completed. Results saved to {out_path}.")
+        print(f"[discrete_individual_fits] Completed. Results saved to {pretty_path(out_path)}.")
 
     print(f"Total NLL For Individuall Fit k = {len(best_profiles)} Model: {round(total_nll, 6)}")
     return df_results, total_nll
@@ -3285,7 +3285,7 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
         n_total = len(results_dataframe)
         n_pass = int(results_dataframe['equal_loss'].sum())
         n_fail = n_total - n_pass
-        print(f"[Verify] Wrote: {csv_path}")
+        print(f"[Verify] Wrote: {pretty_path(csv_path)}")
         print(f"[Verify] Results: {n_pass}/{n_total} passed  ({n_fail} failures)")
         if n_fail > 0:
             fail_counts = results_dataframe[~results_dataframe['equal_loss']]['changed_utility_setting'].value_counts()
@@ -3767,7 +3767,7 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
     if verbose:
         n_ok = int(df["all_equal"].sum())
         print(f"[Prob-Sanity] {n_ok}/{len(df)} pairs matched within tol={tolerance}.")
-        print(f"[Prob-Sanity] Wrote: {out_path}")
+        print(f"[Prob-Sanity] Wrote: {pretty_path(out_path)}")
 
         "Print a few mismatches (if any) to inspect"
         mismatches = df.loc[~df["all_equal"]].head(10)
@@ -4067,6 +4067,9 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
             .replace("≥", ">=").replace("≤", "<=").replace("≠", "!=")
             .replace("×", "*").replace("·", "*").replace("⋅", "*")
         )
+        # ADDED (2026-05-27): '²' (U+00B2) used in RIP equations like (σ-1/2)².
+        # Squaring is symmetric so **2 is correct (not ^2→pow_signed).
+        normalized = normalized.replace("²", "**2")
         normalized = normalized.replace("[", "(").replace("]", ")")
         "Implicit multiplication"
         normalized = re.sub(r"(?<![A-Za-z0-9_])(\-?\d+(?:\.\d+)?)\s*\(", r"\1*(", normalized)
@@ -4388,9 +4391,9 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
             print("[Verify] First mismatches (preview):")
             print(offenders[cols].to_string(index=False))
 
-        print(f"[Verify] Wrote detailed CSV to: {out_path}")
+        print(f"[Verify] Wrote detailed CSV to: {pretty_path(out_path)}")
         if use_exhaustive and not df.empty:
-            print(f"[Verify] Wrote per-utility summary to: {out_summary_path}")
+            print(f"[Verify] Wrote per-utility summary to: {pretty_path(out_summary_path)}")
             all_match_counts = summary['all_match'].value_counts().to_dict()
             print(f"Equations that always match: {all_match_counts}.")
 
@@ -4576,7 +4579,7 @@ def model_nesting_adjacency_matrices(general_settings: GeneralSettings, utility_
         json.dump(model_nesting_data, file, ensure_ascii=False, indent=4)
 
     if print_:
-        print(f"Saved {model_nesting_file_path}")
+        print(f"Saved {pretty_path(model_nesting_file_path)}")
 
     return model_nesting_data
 

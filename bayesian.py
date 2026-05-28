@@ -2725,7 +2725,7 @@ def run_analysis_bayes(histories_data: Histories, file_paths: FilePaths, param_i
             histories_data_fitted = json.load(file)
         if histories_data_fitted:
             if print_:
-                print(f"Aggregate data loaded from {aggregate_path}.")
+                print(f"Aggregate data loaded from {pretty_path(aggregate_path)}.")
             return histories_data_fitted
 
     if analysis_unit == 'player':
@@ -2839,7 +2839,7 @@ def run_analysis_bayes(histories_data: Histories, file_paths: FilePaths, param_i
         with open(aggregate_path, "w", encoding='utf-8') as file:
             json.dump(histories_data, file, ensure_ascii=False, indent=4)
         if print_:
-            print(f"All {analysis_unit}s processed. Final aggregate data saved to {aggregate_path}.")
+            print(f"All {analysis_unit}s processed. Final aggregate data saved to {pretty_path(aggregate_path)}.")
     except TypeError:
         print(f"TypeError detected!")
 

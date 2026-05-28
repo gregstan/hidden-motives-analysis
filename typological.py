@@ -169,6 +169,7 @@ def choice_probability_discrete(current_game: dict[str, None], agent_params: dic
     else:
         return softmax_(uA=utilityA, uB=utilityB, temperature=temperature)
 
+
 def p_choice_given_avatar_type(pds: int, pdo: int, avatar_type: str, 
                                choice_frequencies_by_type: dict, 
                                game_phase: str | None = 'op',
@@ -221,6 +222,7 @@ def p_choice_given_avatar_type(pds: int, pdo: int, avatar_type: str,
         choice_frequency = choice_frequencies_by_type[(pds, pdo)][avatar_type]
         return 1.0 if choice_frequency > 0 else 0.0
 
+
 def p_avatar_type(priors: dict, avatar_type: str) -> float:
     """
     Prior probability p(avatar_type) in a typological Bayesian model.
@@ -233,6 +235,7 @@ def p_avatar_type(priors: dict, avatar_type: str) -> float:
         • float; Prior weight for that type.
     """    
     return priors[avatar_type]
+
 
 def p_make_choice(pds: int, pdo: int, priors: dict, choice_frequencies_by_type: dict, temperature: float | None = None, game_phase: str | None = None) -> float:
     """
@@ -258,6 +261,7 @@ def p_make_choice(pds: int, pdo: int, priors: dict, choice_frequencies_by_type: 
                                     p_avatar_type(priors=priors, avatar_type=avatar)
             for avatar in priors.keys()]
     )
+
 
 def p_avatar_type_given_choice(pds: int, pdo: int, avatar_type: str, priors: dict, 
                                choice_frequencies_by_type: dict, temperature: float | None = None) -> float:
@@ -289,6 +293,7 @@ def p_avatar_type_given_choice(pds: int, pdo: int, avatar_type: str, priors: dic
     
     return round((p_choice_given_type * p_avatar) / p_choice, 12)
 
+
 def p_avatar_types_given_choice(pds: int, pdo: int, priors: dict, temperature: float | None = None, choice_frequencies_by_type=choice_frequencies_by_type) -> float:
     """
     Posterior over all avatar types given an observed choice.
@@ -311,6 +316,7 @@ def p_avatar_types_given_choice(pds: int, pdo: int, priors: dict, temperature: f
                                            temperature=temperature, choice_frequencies_by_type=choice_frequencies_by_type)
         for avatar in priors.keys()
     }
+
 
 def bayesian_update_discrete(payoffs: dict[str, int], choice: str, 
                              choice_frequencies_by_type: dict, priors: dict, 
