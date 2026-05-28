@@ -1,7 +1,7 @@
-from analysis import *
+from mle import run_analysis_mle
 from behavioral_distances import *
 from architecture import *
-from mle import run_analysis_mle
+from analysis import *
 
 "=========================================================================================="
 "======================================== Run Code ========================================"
@@ -23,31 +23,35 @@ run_code_settings: RunCodeSettings = {
 def main():
     """Execute main code."""
 
-    run_param_recovery_by_k(
+    verify_same_inputs_same_outputs_for_children_and_parents(
         general_settings=general_settings,
         file_paths=file_paths,
-        figure_layout=figure_layout,
         param_bds=param_bds,
-        k_params_range=(2, 9),
-        correlate_all_params=True,
-        n_players=73,
-        n_games=120
+        utility_settings=utility_settings,
+        player_role_to_fit="chooser",
+        fit_for_n_players=1,
+        random_seed=None,
+        numeric_tolerance=1e-3,
+        verbose=True,
     )
 
-    "Re-render the recovery figure from the saved CSV without rerunning the simulation."
-    _recovery_dir = os.path.join(str(file_paths['simulations']), "param_recovery_by_k")
-    _recovery_csv = os.path.join(_recovery_dir, "param_recovery_by_k.csv")
-    _recovery_fig = os.path.join(_recovery_dir, "param_recovery_by_k.html")
-    if os.path.exists(_recovery_csv):
-        _corr_df = pd.read_csv(_recovery_csv, encoding="utf-8-sig")
-        plot_param_recovery_by_k(
-            corr_df=_corr_df,
-            figure_layout=figure_layout,
-            out_fig_path=_recovery_fig,
-            include_dropdown=True
-        )
-        print(f"Re-rendered recovery figure → {_recovery_fig}")
+    run_child_parent_probability_equivalence_smoketest(
+        utility_settings=utility_settings,
+        file_paths=file_paths,
+        param_bds=param_bds,
+        rand_payoff_idx=True,
+        n_trials=12,
+        random_seed=None,
+        tolerance=1e-12,
+        verbose=True,
+    )
 
+    verify_utility_vs_string_equation(
+        utility_function=utility, utility_function_str=build_utility_equation,
+        utility_settings=utility_settings, param_bds=param_bds, n_games=625,
+        random_seed=None, exhaustive_if_large=True, option="A", file_paths=file_paths,
+        comparison_tol=1e-6, decimals=6, verbose=True,
+    )
     exit()
     "Apply master random seed when reproducibility mode is enabled."
     _master_seed = general_settings.get('random_seeds', {}).get('seed', None)

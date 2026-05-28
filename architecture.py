@@ -1530,12 +1530,13 @@ def compute_model_recovery_simulation(
     if not os.path.exists(_gitignore_path):
         with open(_gitignore_path, 'w', encoding='utf-8') as _gig:
             _gig.write('*\n')
-    registry_df   = all_utility_functions_dataframe(file_paths=file_paths)
+    registry_df   = all_utility_functions_dataframe(file_paths=file_paths, general_settings=general_settings)
     _non_flag_columns = {
         'utility_idx', 'utility_bitstring', 'k_params', 'redundant_with', 'differing_settings',
         'n_data', 'pvar', 'param_norm_sd', 'loss_nll', 'AIC', 'BIC', 'ΔAIC', 'ΔBIC',
         'AIC_rank', 'BIC_rank', 'parents', 'siblings', 'children',
-        'ampd_to_best_rand', 'ampd_to_best_real', 'policy_regret_norm', 'equation',
+        'ampd_to_best', 'policy_regret_norm_to_best', 'equation',
+        'canonical_model',
     }
     flag_columns = [col for col in registry_df.columns if col not in _non_flag_columns]
 

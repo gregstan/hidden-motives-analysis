@@ -1681,6 +1681,7 @@ def create_simulated_experiment(
     altruism_targets: list[float],
     file_paths: FilePaths,
     create_new_file: bool | None = None,
+    enforce_memory_limit: bool = False,
 ) -> tuple[dict, dict[str, dict]]:
     """
     Generate (or retrieve) a full synthetic experiment in the same JSON format as the real raw data.
@@ -1753,27 +1754,27 @@ def create_simulated_experiment(
         param_bds=param_bds, utility_settings=utility_settings_k,
         general_settings=general_settings, guess_seed=None, random_guesses_are_unique=True,
     )
-    update_method = general_settings.get('update_method', 'grid')
 
     "Cap n_bins_per_dimension for the simulation UBM so the grid fits in memory."
-    "For real fitting we want full resolution; here we only need realistic belief updates."
-    "prior_grid_from_params enforces n_bins >= 3, so 3 is the hard floor."
-    n_param_dims   = len(param_info_for_ubm['keys'])
-    n_bins_default = int(general_settings.get('n_bins_per_dimension', 7))
-    max_grid_bytes = 400 * 1024 ** 2   # 400 MB safety ceiling
-    n_bins_for_ubm = n_bins_default
-    while n_bins_for_ubm > 3 and (n_bins_for_ubm ** n_param_dims) * n_param_dims * 8 > max_grid_bytes:
-        n_bins_for_ubm -= 1
-    skip_ubm = (n_bins_for_ubm ** n_param_dims) * n_param_dims * 8 > max_grid_bytes
-    if skip_ubm:
-        general_settings_for_ubm = None
-        print(f"[create_simulated_experiment] k={k_params}: grid too large even at n_bins=3 "
-              f"({(3 ** n_param_dims) * n_param_dims * 8 // 1024**2} MB) — skipping UBM for simulation data.")
-    elif n_bins_for_ubm != n_bins_default:
-        general_settings_for_ubm = copy.deepcopy(general_settings)
-        general_settings_for_ubm['n_bins_per_dimension'] = n_bins_for_ubm
-        print(f"[create_simulated_experiment] k={k_params}: reduced n_bins_per_dimension "
-              f"{n_bins_default} → {n_bins_for_ubm} to keep simulation UBM grid under 400 MB.")
+    if enforce_memory_limit:
+        n_param_dims   = len(param_info_for_ubm['keys'])
+        n_bins_default = int(general_settings.get('n_bins_per_dimension', 7))
+        max_grid_bytes = 400 * 1024 ** 2
+        n_bins_for_ubm = n_bins_default
+        while n_bins_for_ubm > 3 and (n_bins_for_ubm ** n_param_dims) * n_param_dims * 8 > max_grid_bytes:
+            n_bins_for_ubm -= 1
+        skip_ubm = (n_bins_for_ubm ** n_param_dims) * n_param_dims * 8 > max_grid_bytes
+        if skip_ubm:
+            general_settings_for_ubm = None
+            print(f"[create_simulated_experiment] k={k_params}: grid too large even at n_bins=3 "
+                  f"({(3 ** n_param_dims) * n_param_dims * 8 // 1024**2} MB) — skipping UBM.")
+        elif n_bins_for_ubm != n_bins_default:
+            general_settings_for_ubm = copy.deepcopy(general_settings)
+            general_settings_for_ubm['n_bins_per_dimension'] = n_bins_for_ubm
+            print(f"[create_simulated_experiment] k={k_params}: reduced n_bins_per_dimension "
+                  f"{n_bins_default} → {n_bins_for_ubm} to keep simulation UBM grid under 400 MB.")
+        else:
+            general_settings_for_ubm = general_settings
     else:
         general_settings_for_ubm = general_settings
 
@@ -1892,7 +1893,8 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
                             random_seed=_SENTINEL, use_existing_fits: bool = False,
                             base_hue: int | None = None,
                             temperature_is_param: bool | None = None,
-                            softmax_temperature: float | None = None) -> tuple[pd.DataFrame, dict[int, Any]]:
+                            softmax_temperature: float | None = None,
+                            enforce_memory_limit: bool = False) -> tuple[pd.DataFrame, dict[int, Any]]:
     """
     Run parameter-recovery simulations across utility dimensionalities (k) and summarize accuracy.
 
@@ -2200,6 +2202,7 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
             altruism_targets=altruism_targets,
             file_paths=file_paths_k,
             create_new_file=False,
+            enforce_memory_limit=enforce_memory_limit,
         )
         n_players_k = len(true_params_by_uuid_k)
         print(f"[k={k_params}  {k_phase1_idx}/{len(k_param_values)}] Phase 1 done in {_fmt_duration(time.time() - t_phase1_k)}.")

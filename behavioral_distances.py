@@ -155,16 +155,16 @@ def average_model_policy_distance(
         nonlocal registry_df
         if isinstance(model_ref, int):
             if registry_df is None:
-                registry_df = all_utility_functions_dataframe(file_paths=file_paths)
+                registry_df = all_utility_functions_dataframe(file_paths=file_paths, general_settings=general_settings)
             row = registry_df[registry_df["utility_idx"] == model_ref]
             if len(row) == 0:
                 raise ValueError(f"utility_idx {model_ref} not found in registry.")
             non_flag_cols = {
                 "utility_idx", "utility_bitstring", "k_params", "redundant_with",
                 "differing_settings", "n_data", "pvar", "param_norm_sd", "loss_nll",
-                "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank",
-                "parents", "siblings", "children",
-                "ampd_to_best_rand", "ampd_to_best_real", "policy_regret_norm", "equation",
+                "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank", "parents", 
+                "siblings", "children", "ampd_to_best", "policy_regret_norm_to_best", 
+                "canonical_model", "equation",
             }
             flag_cols = [col for col in registry_df.columns if col not in non_flag_cols]
             return {col: _parse_csv_bool(row.iloc[0][col]) for col in flag_cols}
@@ -466,6 +466,153 @@ def average_model_policy_distance(
     return total_jsd / n_iters
 
 
+def compute_policy_regret_to_best(
+    winner_idx: int,
+    model_idxs: List[int],
+    general_settings: GeneralSettings,
+    file_paths: FilePaths,
+    param_bds: Dict[str, Tuple[float, float]],
+    softmax_temperature: Optional[float] = None,
+    n_games: int = 625,
+    n_iters: int = 30,
+    random_seed: Optional[int] = None,
+    registry_df: Optional[pd.DataFrame] = None,
+) -> Dict[int, float]:
+    """
+    Computes policy_regret_norm_to_best for each model relative to the BIC winner.
+
+    For each Monte Carlo draw (shared parameters + payoff structure):
+        regret_m = KL(p_winner ‖ p_m) / KL(p_winner ‖ 0.5)
+    where KL(p ‖ 0.5) = log(2) − H(p). Draws where p_winner ≈ 0.5 (denominator < ε)
+    are skipped. Values are averaged over all valid draws.
+
+    Arguments:
+        • winner_idx: int — utility_idx of the BIC winner.
+        • model_idxs: list[int] — utility indices of all models to evaluate.
+        • general_settings: GeneralSettings — for param counting and softmax τ.
+        • file_paths: FilePaths — must contain 'processed'.
+        • param_bds: dict — parameter bounds for uniform sampling.
+        • softmax_temperature: float | None — τ; defaults to general_settings value.
+        • n_games: int — payoff structures per draw (625 = exhaustive 5^4 grid).
+        • n_iters: int — number of parameter draws (default 30).
+        • random_seed: int | None — RNG seed.
+        • registry_df: pd.DataFrame | None — pass the already-loaded registry to avoid
+            re-entering all_utility_functions_dataframe (prevents recursive completeness checks).
+            When None, the registry is loaded fresh without triggering the completeness check.
+
+    Returns:
+        • dict[int, float] — maps each model_idx to its mean policy regret in [0, ∞).
+    """
+    import math as _math
+
+    tau = softmax_temperature if softmax_temperature is not None else float(
+        general_settings.get("softmax_temperature", 1.5)
+    )
+    rng = random.Random(random_seed)
+
+    "Load registry and derive flag columns — skip completeness check to prevent recursive calls."
+    if registry_df is None:
+        registry_df = all_utility_functions_dataframe(file_paths=file_paths)
+    _non_flag: set = {
+        "utility_idx", "utility_bitstring", "k_params", "redundant_with", 
+        "differing_settings", "n_data", "pvar", "param_norm_sd", "loss_nll",
+        "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank", "parents", 
+        "siblings", "children", "ampd_to_best", "policy_regret_norm_to_best", 
+        "canonical_model", "equation",
+    }
+    flag_cols = [col for col in registry_df.columns if col not in _non_flag]
+
+    def _parse_csv_bool(val: Any) -> bool:
+        if isinstance(val, str):
+            return val.strip().lower() not in ("false", "0", "")
+        return bool(val)
+
+    registry_indexed = registry_df.set_index("utility_idx")
+    all_needed_idxs = list({winner_idx} | set(model_idxs))
+    settings_map: Dict[int, UtilitySettings] = {
+        idx: {col: _parse_csv_bool(registry_indexed.loc[idx, col]) for col in flag_cols}
+        for idx in all_needed_idxs
+        if idx in registry_indexed.index
+    }
+
+    "Precompute per-model mean-parameter key lists (cached outside iteration loop)."
+    all_mean_keys = [k for k in param_bds if not k.endswith("_std") and "_cov" not in k]
+    midpoints = {k: 0.5 * (float(param_bds[k][0]) + float(param_bds[k][1])) for k in all_mean_keys}
+    model_mean_keys: Dict[int, List[str]] = {}
+    for idx in all_needed_idxs:
+        if idx not in settings_map:
+            continue
+        pi = make_param_info(
+            param_bds=param_bds, utility_settings=settings_map[idx],
+            general_settings=general_settings, guess_seed=None,
+        )
+        model_mean_keys[idx] = [k for k in pi["keys"] if not k.endswith("_std") and "_cov" not in k]
+
+    "Build the exhaustive 5^4 payoff grid (or a random sample when n_games < 625)."
+    if n_games >= 625:
+        payoff_tuples: List[Dict[str, int]] = [
+            {"As": a, "Ao": b, "Bs": c, "Bo": d}
+            for a, b, c, d in it.product(range(1, 6), repeat=4)
+        ]
+    else:
+        payoff_tuples = [
+            {"As": rng.randint(1, 5), "Ao": rng.randint(1, 5),
+             "Bs": rng.randint(1, 5), "Bo": rng.randint(1, 5)}
+            for _ in range(n_games)
+        ]
+    payoff_tuples_B: List[Dict[str, int]] = [
+        {"As": p["Bs"], "Ao": p["Bo"], "Bs": p["As"], "Bo": p["Ao"]}
+        for p in payoff_tuples
+    ]
+
+    regret_sum:   Dict[int, float] = {idx: 0.0 for idx in model_idxs}
+    regret_count: Dict[int, int]   = {idx: 0   for idx in model_idxs}
+    eps = 1e-12
+
+    for _ in range(n_iters):
+        full_ref = {k: rng.uniform(float(param_bds[k][0]), float(param_bds[k][1])) for k in all_mean_keys}
+        params_map = {
+            idx: {k: full_ref.get(k, midpoints[k]) for k in model_mean_keys.get(idx, [])}
+            for idx in all_needed_idxs
+        }
+        winner_settings = settings_map.get(winner_idx)
+        if winner_settings is None:
+            continue
+        params_winner = params_map[winner_idx]
+
+        for payoffs_A, payoffs_B in zip(payoff_tuples, payoff_tuples_B):
+            try:
+                u_w_A = utility(payoffs=payoffs_A, params=params_winner, utility_settings=winner_settings)
+                u_w_B = utility(payoffs=payoffs_B, params=params_winner, utility_settings=winner_settings)
+                p_w_raw = softmax_(uA=u_w_A, uB=u_w_B, temperature=tau)
+            except Exception:
+                continue
+
+            p_w = max(eps, min(1.0 - eps, p_w_raw))
+            "Denominator = KL(p_winner ‖ 0.5) = log(2) − H(p_winner)"
+            denom = p_w * _math.log(2.0 * p_w) + (1.0 - p_w) * _math.log(2.0 * (1.0 - p_w))
+            if denom < eps:
+                continue
+
+            for idx in model_idxs:
+                if idx not in settings_map or idx not in params_map:
+                    continue
+                try:
+                    u_m_A = utility(payoffs=payoffs_A, params=params_map[idx], utility_settings=settings_map[idx])
+                    u_m_B = utility(payoffs=payoffs_B, params=params_map[idx], utility_settings=settings_map[idx])
+                    p_m = max(eps, min(1.0 - eps, softmax_(uA=u_m_A, uB=u_m_B, temperature=tau)))
+                    kl = p_w * _math.log(p_w / p_m) + (1.0 - p_w) * _math.log((1.0 - p_w) / (1.0 - p_m))
+                    regret_sum[idx]   += kl / denom
+                    regret_count[idx] += 1
+                except Exception:
+                    pass
+
+    return {
+        idx: (regret_sum[idx] / regret_count[idx] if regret_count[idx] > 0 else float("nan"))
+        for idx in model_idxs
+    }
+
+
 def _fmt_duration(seconds: float) -> str:
     """Format a duration in seconds as a human-readable string."""
     total_minutes = int(seconds) // 60
@@ -667,7 +814,7 @@ def compute_ampd_matrix(
                 )
             exit()
 
-    "Load full registry (all models) to build the master index."
+    "Load full registry (all models) to build the master index — no general_settings to prevent recursive completeness checks."
     registry_df = all_utility_functions_dataframe(file_paths=file_paths)
     all_utility_idxs: List[int] = sorted(registry_df["utility_idx"].astype(int).tolist())
     n_all = len(all_utility_idxs)
@@ -759,11 +906,11 @@ def compute_ampd_matrix(
 
     "=== Derive flag columns and settings/equation dicts for all registry models ==="
     non_flag_cols: set = {
-        "utility_idx", "utility_bitstring", "k_params", "redundant_with", "differing_settings",
-        "n_data", "pvar", "param_norm_sd", "loss_nll",
-        "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank",
-        "parents", "siblings", "children",
-        "ampd_to_best_rand", "ampd_to_best_real", "policy_regret_norm", "equation",
+        "utility_idx", "utility_bitstring", "k_params", "redundant_with", 
+        "differing_settings", "n_data", "pvar", "param_norm_sd", "loss_nll",
+        "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank", "parents", 
+        "siblings", "children", "ampd_to_best", "policy_regret_norm_to_best", 
+        "canonical_model", "equation",
     }
     flag_cols = [col for col in registry_df.columns if col not in non_flag_cols]
 
@@ -952,8 +1099,6 @@ def compute_ampd_matrix(
 "=================================== Model-Space Geometry ================================="
 "=========================================================================================="
 
-
-
 def _ampd_distance_name(general_settings: GeneralSettings) -> str:
     """
     Returns the canonical distance_name label derived from general_settings['ampd_settings'].
@@ -998,7 +1143,6 @@ def _classical_mds(distance_matrix: np.ndarray, n_dimensions: int = 2) -> Tuple[
     top_eigenvectors = eigenvectors_all[:, :n_dimensions]
     mds_coordinates = top_eigenvectors * np.sqrt(np.maximum(top_eigenvalues, 0.0))
     return mds_coordinates, top_eigenvalues
-
 
 
 def compute_model_space_embedding(
@@ -1056,7 +1200,7 @@ def compute_model_space_embedding(
         print(f"Model-space embedding loaded from cache: {pretty_path(out_path)}")
         return pd.read_csv(out_path, dtype={"utility_bitstring": str})
 
-    registry_df = all_utility_functions_dataframe(file_paths=file_paths)
+    registry_df = all_utility_functions_dataframe(file_paths=file_paths, general_settings=general_settings)
     if require_ic_data:
         registry_df = registry_df[registry_df["BIC"].notna()].copy()
     if "BIC_rank" in registry_df.columns:
@@ -1194,9 +1338,9 @@ def plot_model_space_mds(
         if col not in {
             "utility_idx", "utility_bitstring", "k_params", "redundant_with",
             "differing_settings", "n_data", "pvar", "param_norm_sd", "loss_nll",
-            "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank", "parents", 
-            "siblings", "children", "ampd_to_best_rand", "ampd_to_best_real", 
-            "policy_regret_norm", "mds_x", "mds_y", "mds_z", "mds_w", "equation",
+            "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank", "parents",
+            "siblings", "children", "ampd_to_best", "policy_regret_norm_to_best",
+            "mds_x", "mds_y", "mds_z", "mds_w", "equation", "canonical_model",
         }
     ]
 
@@ -1427,7 +1571,7 @@ def plot_distance_to_winner_vs_delta_bic(
             general_settings=general_settings, file_paths=file_paths, create_new_file=False,
         )
 
-    registry_df = all_utility_functions_dataframe(file_paths=file_paths)
+    registry_df = all_utility_functions_dataframe(file_paths=file_paths, general_settings=general_settings)
     if require_ic_data:
         registry_df = registry_df[registry_df["BIC"].notna()].copy()
     if "BIC_rank" in registry_df.columns:
@@ -1552,7 +1696,7 @@ def compute_top_model_coherence(
     if top_ns is None:
         top_ns = [5, 10, 25, 50]
 
-    registry_df = all_utility_functions_dataframe(file_paths=file_paths)
+    registry_df = all_utility_functions_dataframe(file_paths=file_paths, general_settings=general_settings)
     if require_ic_data:
         registry_df = registry_df[registry_df["BIC"].notna()].copy()
     if "BIC_rank" in registry_df.columns:
@@ -1620,7 +1764,7 @@ def plot_top_model_ampd_heatmap(
             general_settings=general_settings, file_paths=file_paths, create_new_file=False,
         )
 
-    registry_df = all_utility_functions_dataframe(file_paths=file_paths)
+    registry_df = all_utility_functions_dataframe(file_paths=file_paths, general_settings=general_settings)
     if require_ic_data:
         registry_df = registry_df[registry_df["BIC"].notna()].copy()
     if "BIC_rank" in registry_df.columns:

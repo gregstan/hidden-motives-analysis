@@ -3,6 +3,8 @@
     "conditional_welfare_mode": false,
     "reference_dependent_altruism": false,
     "min_max_rawlsian_leontief": false,
+    "include_welfare_efficiency_term": false,
+    "include_relative_income_penalty": false,
     "use_exponential_parameters": false,
     "apply_exponents_to_payoffs": false,
     "single_exponential_parameter": true,
@@ -13,14 +15,14 @@
     "negativity_social_comparison": true,
     "fix_self_interest_parameter": true,
     "include_social_comparison": true,
-    "include_altruism_term": false,
-    "include_welfare_efficiency_term": false,
-    "include_relative_income_penalty": false
+    "include_altruism_term": false
   },
   "Bolton–Ockenfels ERC (2000)": {
     "conditional_welfare_mode": false,
     "reference_dependent_altruism": false,
     "min_max_rawlsian_leontief": false,
+    "include_welfare_efficiency_term": false,
+    "include_relative_income_penalty": true,
     "use_exponential_parameters": false,
     "apply_exponents_to_payoffs": false,
     "single_exponential_parameter": false,
@@ -31,14 +33,14 @@
     "negativity_social_comparison": false,
     "fix_self_interest_parameter": false,
     "include_social_comparison": false,
-    "include_altruism_term": false,
-    "include_welfare_efficiency_term": false,
-    "include_relative_income_penalty": true
+    "include_altruism_term": false
   },
   "Charness–Rabin (2002) conditional welfare": {
     "conditional_welfare_mode": true,
     "reference_dependent_altruism": false,
     "min_max_rawlsian_leontief": false,
+    "include_welfare_efficiency_term": false,
+    "include_relative_income_penalty": false,
     "use_exponential_parameters": false,
     "apply_exponents_to_payoffs": false,
     "single_exponential_parameter": true,
@@ -49,14 +51,14 @@
     "negativity_social_comparison": false,
     "fix_self_interest_parameter": false,
     "include_social_comparison": false,
-    "include_altruism_term": false,
-    "include_welfare_efficiency_term": false,
-    "include_relative_income_penalty": false
+    "include_altruism_term": false
   },
   "Andreoni–Miller (2002) CES (warm glow)": {
     "conditional_welfare_mode": false,
     "reference_dependent_altruism": false,
     "min_max_rawlsian_leontief": false,
+    "include_welfare_efficiency_term": false,
+    "include_relative_income_penalty": false,
     "use_exponential_parameters": true,
     "apply_exponents_to_payoffs": false,
     "single_exponential_parameter": true,
@@ -67,14 +69,14 @@
     "negativity_social_comparison": false,
     "fix_self_interest_parameter": true,
     "include_social_comparison": false,
-    "include_altruism_term": true,
-    "include_welfare_efficiency_term": false,
-    "include_relative_income_penalty": false
+    "include_altruism_term": true
   },
   "Engelmann–Strobel (2004) maximin‑efficiency": {
     "conditional_welfare_mode": false,
     "reference_dependent_altruism": false,
     "min_max_rawlsian_leontief": false,
+    "include_welfare_efficiency_term": true,
+    "include_relative_income_penalty": false,
     "use_exponential_parameters": false,
     "apply_exponents_to_payoffs": false,
     "single_exponential_parameter": false,
@@ -85,14 +87,14 @@
     "negativity_social_comparison": false,
     "fix_self_interest_parameter": false,
     "include_social_comparison": true,
-    "include_altruism_term": false,
-    "include_welfare_efficiency_term": true,
-    "include_relative_income_penalty": false
+    "include_altruism_term": false
   },
   "Messick–McClintock (1968) SVO linear": {
     "conditional_welfare_mode": false,
     "reference_dependent_altruism": false,
     "min_max_rawlsian_leontief": false,
+    "include_welfare_efficiency_term": false,
+    "include_relative_income_penalty": false,
     "use_exponential_parameters": false,
     "apply_exponents_to_payoffs": false,
     "single_exponential_parameter": true,
@@ -101,10 +103,8 @@
     "reference_dependent_utility": false,
     "use_negativity_parameters": false,
     "negativity_social_comparison": false,
-    "fix_self_interest_parameter": true,
+    "fix_self_interest_parameter": false,
     "include_social_comparison": false,
-    "include_altruism_term": true,
-    "include_welfare_efficiency_term": false,
-    "include_relative_income_penalty": false
+    "include_altruism_term": true
   }
 }

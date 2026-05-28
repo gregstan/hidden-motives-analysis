@@ -1443,12 +1443,19 @@ def all_utility_functions_dataframe(
     general_settings: Optional[GeneralSettings] = None,
     build_equation_function: Optional[Callable] = None,
     create_new_file: bool = False,
+    param_bds: Optional[Dict] = None,
 ) -> pd.DataFrame:
     """
     Returns the central utility-function registry (processed/all_utility_functions.csv).
 
     Follows the generate-cache-retrieve pattern: loads the cached CSV when it exists and
     create_new_file is False; otherwise builds from scratch and writes the CSV.
+
+    After loading, checks for two classes of incomplete columns and fills them in:
+        • canonical_model: matched against CANONICAL_UTILITY_SPECS — added whenever missing.
+        • ampd_to_best / policy_regret_norm_to_best: AMPD distance and KL-based policy regret
+          from each model to the IC winner. Computed when general_settings is available and
+          the columns are all NaN. compute_ampd_matrix is called to complete the matrix if needed.
 
     Arguments:
         • file_paths: FilePaths
@@ -1459,7 +1466,7 @@ def all_utility_functions_dataframe(
             All 14 Boolean keys must be present; their insertion order defines the canonical
             bitstring order. May be None when loading an existing file.
         • general_settings: GeneralSettings | None
-            Passed to parameter-counting helpers. May be None.
+            Passed to parameter-counting helpers and used to locate AMPD matrix. May be None.
         • build_equation_function: Callable | None
             If provided, called as build_equation_function(settings_dict) to produce the
             human-readable equation string for each utility form. When None, the equation
@@ -1467,51 +1474,159 @@ def all_utility_functions_dataframe(
         • create_new_file: bool (default False)
             If False and processed/all_utility_functions.csv exists, load and return it
             without rebuilding. If True, always rebuild and overwrite.
+        • param_bds: ParamBounds | None
+            Passed to compute_ampd_matrix when AMPD columns need to be computed from scratch.
+            May be None if the AMPD matrix is already fully computed on disk.
 
     Returns:
         • pd.DataFrame: the registry, one row per valid utility form, sorted and indexed.
     """
-    out_path = os.path.join(file_paths["processed"], "all_utility_functions.csv")
-    if not create_new_file and os.path.exists(out_path):
-        return pd.read_csv(out_path, dtype={"utility_bitstring": str})
+    registry_out_path = os.path.join(file_paths["processed"], "all_utility_functions.csv")
+    if not create_new_file and os.path.exists(registry_out_path):
+        loaded_registry_df = pd.read_csv(registry_out_path, dtype={"utility_bitstring": str})
+        registry_csv_needs_resave = False
+
+        "--- canonical_model column: add if missing ---"
+        if "canonical_model" not in loaded_registry_df.columns:
+            non_flag_column_names: set = {
+                "utility_idx", "utility_bitstring", "k_params", "redundant_with",
+                "differing_settings", "n_data", "pvar", "param_norm_sd", "loss_nll",
+                "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank", "parents",
+                "siblings", "children", "ampd_to_best", "policy_regret_norm_to_best",
+                "canonical_model", "equation",
+            }
+            flag_column_names = [col for col in loaded_registry_df.columns if col not in non_flag_column_names]
+            def _parse_csv_bool(val: Any) -> bool:
+                if isinstance(val, str):
+                    return val.strip().lower() not in ("false", "0", "")
+                return bool(val)
+            def _resolve_canonical_model_name(registry_row: pd.Series) -> str:
+                row_flag_values = {col: _parse_csv_bool(registry_row[col]) for col in flag_column_names if col in registry_row}
+                for canonical_model_name, canonical_model_spec in CANONICAL_UTILITY_SPECS.items():
+                    if all(
+                        _parse_csv_bool(canonical_model_spec.get(flag_name, False)) == row_flag_values.get(flag_name, False)
+                        for flag_name in flag_column_names
+                    ):
+                        return canonical_model_name
+                return str(int(registry_row["utility_idx"]))
+            loaded_registry_df.insert(
+                loaded_registry_df.columns.get_loc("k_params") + 1,
+                "canonical_model",
+                loaded_registry_df.apply(_resolve_canonical_model_name, axis=1),
+            )
+            registry_csv_needs_resave = True
+            print("Registry: added canonical_model column.")
+
+        "--- AMPD distance columns: fill each independently when all-NaN ---"
+        bic_data_is_present = "BIC" in loaded_registry_df.columns and loaded_registry_df["BIC"].notna().any()
+        ampd_to_best_is_empty = (
+            "ampd_to_best" in loaded_registry_df.columns
+            and loaded_registry_df["ampd_to_best"].isna().all()
+        )
+        policy_regret_is_empty = (
+            "policy_regret_norm_to_best" in loaded_registry_df.columns
+            and loaded_registry_df["policy_regret_norm_to_best"].isna().all()
+        )
+
+        if bic_data_is_present and general_settings is not None:
+            best_model_utility_idx = int(loaded_registry_df.loc[loaded_registry_df["BIC"].idxmin(), "utility_idx"])
+            all_utility_idx_values = loaded_registry_df["utility_idx"].astype(int).tolist()
+
+            if ampd_to_best_is_empty:
+                try:
+                    from behavioral_distances import compute_ampd_matrix
+                    uniform_ampd_matrix_df = compute_ampd_matrix(
+                        general_settings=general_settings, file_paths=file_paths,
+                        param_bds=param_bds, utility_settings=utility_settings,
+                        create_new_file=False,
+                    )
+                    uniform_ampd_matrix_df.index   = uniform_ampd_matrix_df.index.astype(int)
+                    uniform_ampd_matrix_df.columns = uniform_ampd_matrix_df.columns.astype(int)
+                    loaded_registry_df["ampd_to_best"] = [
+                        float(uniform_ampd_matrix_df.loc[utility_idx_value, best_model_utility_idx])
+                        if (
+                            utility_idx_value in uniform_ampd_matrix_df.index
+                            and best_model_utility_idx in uniform_ampd_matrix_df.columns
+                            and not np.isnan(uniform_ampd_matrix_df.loc[utility_idx_value, best_model_utility_idx])
+                        )
+                        else float("nan")
+                        for utility_idx_value in all_utility_idx_values
+                    ]
+                    "Save immediately so any nested load sees non-NaN ampd_to_best."
+                    loaded_registry_df.to_csv(registry_out_path, index=False, encoding="utf-8-sig")
+                    registry_csv_needs_resave = False
+                    print(f"Registry: populated ampd_to_best (best model idx={best_model_utility_idx}).")
+                except Exception as ampd_to_best_population_error:
+                    print(f"Registry: could not populate ampd_to_best ({ampd_to_best_population_error}).")
+
+            if policy_regret_is_empty and param_bds is not None:
+                try:
+                    from behavioral_distances import compute_policy_regret_to_best
+                    ampd_settings_dict = general_settings.get("ampd_settings", {})
+                    softmax_temperature_value = float(ampd_settings_dict.get(
+                        "softmax_temperature",
+                        general_settings.get("softmax_temperature", 1.5),
+                    ))
+                    policy_regret_value_by_idx = compute_policy_regret_to_best(
+                        winner_idx=best_model_utility_idx,
+                        model_idxs=all_utility_idx_values,
+                        general_settings=general_settings,
+                        file_paths=file_paths,
+                        param_bds=param_bds,
+                        softmax_temperature=softmax_temperature_value,
+                        registry_df=loaded_registry_df,
+                    )
+                    loaded_registry_df["policy_regret_norm_to_best"] = [
+                        policy_regret_value_by_idx.get(utility_idx_value, float("nan"))
+                        for utility_idx_value in all_utility_idx_values
+                    ]
+                    loaded_registry_df.to_csv(registry_out_path, index=False, encoding="utf-8-sig")
+                    registry_csv_needs_resave = False
+                    print(f"Registry: populated policy_regret_norm_to_best (best model idx={best_model_utility_idx}).")
+                except Exception as policy_regret_population_error:
+                    print(f"Registry: could not populate policy_regret_norm_to_best ({policy_regret_population_error}).")
+
+        if registry_csv_needs_resave:
+            loaded_registry_df.to_csv(registry_out_path, index=False, encoding="utf-8-sig")
+        return loaded_registry_df
     if utility_settings is None:
         raise ValueError(
             f"all_utility_functions_dataframe: processed/all_utility_functions.csv not found "
-            f"({pretty_path(out_path)}) and utility_settings was not provided — cannot build registry."
+            f"({pretty_path(registry_out_path)}) and utility_settings was not provided — cannot build registry."
         )
     canonical_flag_order: List[str] = list(convert_utility_settings(
         utility_settings=utility_settings, into=dict
     ).keys())
 
     "Enumerate all valid settings using the same core loop as the existing generator."
-    bool_flags = {key: [False, True] for key in utility_settings.keys()}
-    all_keys = sorted(bool_flags.keys())
-    all_value_combos = it.product(*(bool_flags[k] for k in all_keys))
+    flag_boolean_value_options = {flag_key: [False, True] for flag_key in utility_settings.keys()}
+    all_flag_key_names = sorted(flag_boolean_value_options.keys())
+    all_flag_value_combinations = it.product(*(flag_boolean_value_options[flag_key] for flag_key in all_flag_key_names))
 
     valid_settings_list: List[UtilitySettings] = []
-    for combo in all_value_combos:
-        candidate = dict(zip(all_keys, combo))
-        if is_valid_utility_settings(candidate=candidate):
-            valid_settings_list.append(candidate)
+    for flag_value_combination in all_flag_value_combinations:
+        candidate_settings_dict = dict(zip(all_flag_key_names, flag_value_combination))
+        if is_valid_utility_settings(candidate=candidate_settings_dict):
+            valid_settings_list.append(candidate_settings_dict)
 
     print(f"Registry builder: {len(valid_settings_list)} valid utility forms found.")
 
     "Build one row per valid setting with k_params and utility_bitstring."
-    rows: List[Dict[str, Any]] = []
+    settings_rows: List[Dict[str, Any]] = []
     for settings_dict in valid_settings_list:
         k_params_value = count_free_parameters(
             utility_settings=settings_dict, general_settings=general_settings
         )
         "Bitstring uses the canonical insertion order from convert_utility_settings, then formatted with dashes."
-        raw_bitstring = convert_utility_settings(utility_settings=settings_dict, into=str)
-        utility_bitstring = _format_utility_bitstring(raw_bitstring=raw_bitstring)
+        raw_utility_bitstring = convert_utility_settings(utility_settings=settings_dict, into=str)
+        formatted_utility_bitstring = _format_utility_bitstring(raw_bitstring=raw_utility_bitstring)
 
-        row: Dict[str, Any] = {"k_params": k_params_value, "utility_bitstring": utility_bitstring}
+        settings_row_dict: Dict[str, Any] = {"k_params": k_params_value, "utility_bitstring": formatted_utility_bitstring}
         for flag_name in canonical_flag_order:
-            row[flag_name] = bool(settings_dict[flag_name])
-        rows.append(row)
+            settings_row_dict[flag_name] = bool(settings_dict[flag_name])
+        settings_rows.append(settings_row_dict)
 
-    registry_df = pd.DataFrame(rows)
+    registry_df = pd.DataFrame(settings_rows)
 
     "Sort by k_params ascending, then utility_bitstring ascending for deterministic indexing."
     registry_df = registry_df.sort_values(
@@ -1558,15 +1673,15 @@ def all_utility_functions_dataframe(
     ]
     n_models = len(settings_list)
 
-    parents_by_idx: Dict[int, List[int]] = {idx: [] for idx in range(n_models)}
-    siblings_by_idx: Dict[int, List[int]] = {idx: [] for idx in range(n_models)}
-    children_by_idx: Dict[int, List[int]] = {idx: [] for idx in range(n_models)}
+    parents_by_row_index: Dict[int, List[int]] = {row_index: [] for row_index in range(n_models)}
+    siblings_by_row_index: Dict[int, List[int]] = {row_index: [] for row_index in range(n_models)}
+    children_by_row_index: Dict[int, List[int]] = {row_index: [] for row_index in range(n_models)}
 
-    for row_i in range(n_models):
-        for col_j in range(row_i + 1, n_models):
+    for model_row_index in range(n_models):
+        for other_model_row_index in range(model_row_index + 1, n_models):
             relation_i_to_j, relation_j_to_i, setting_flipped = classify_pair_relation(
-                model_1=settings_list[row_i],
-                model_2=settings_list[col_j],
+                model_1=settings_list[model_row_index],
+                model_2=settings_list[other_model_row_index],
                 utility_settings=utility_settings,
                 general_settings=general_settings,
             )
@@ -1575,30 +1690,42 @@ def all_utility_functions_dataframe(
             if setting_flipped in ("min_max_rawlsian_leontief", "conditional_welfare_mode"):
                 continue
 
-            idx_i = int(registry_df.iloc[row_i]["utility_idx"])
-            idx_j = int(registry_df.iloc[col_j]["utility_idx"])
+            model_utility_idx = int(registry_df.iloc[model_row_index]["utility_idx"])
+            other_model_utility_idx = int(registry_df.iloc[other_model_row_index]["utility_idx"])
 
             if relation_i_to_j == "parent":
-                children_by_idx[row_i].append(idx_j)
-                parents_by_idx[col_j].append(idx_i)
+                children_by_row_index[model_row_index].append(other_model_utility_idx)
+                parents_by_row_index[other_model_row_index].append(model_utility_idx)
             elif relation_i_to_j == "child":
-                parents_by_idx[row_i].append(idx_j)
-                children_by_idx[col_j].append(idx_i)
+                parents_by_row_index[model_row_index].append(other_model_utility_idx)
+                children_by_row_index[other_model_row_index].append(model_utility_idx)
             elif relation_i_to_j == "sibling":
-                siblings_by_idx[row_i].append(idx_j)
-                siblings_by_idx[col_j].append(idx_i)
+                siblings_by_row_index[model_row_index].append(other_model_utility_idx)
+                siblings_by_row_index[other_model_row_index].append(model_utility_idx)
 
-    registry_df["parents"] = [str(sorted(parents_by_idx[i])) for i in range(n_models)]
-    registry_df["siblings"] = [str(sorted(siblings_by_idx[i])) for i in range(n_models)]
-    registry_df["children"] = [str(sorted(children_by_idx[i])) for i in range(n_models)]
+    registry_df["parents"] = [str(sorted(parents_by_row_index[row_index])) for row_index in range(n_models)]
+    registry_df["siblings"] = [str(sorted(siblings_by_row_index[row_index])) for row_index in range(n_models)]
+    registry_df["children"] = [str(sorted(children_by_row_index[row_index])) for row_index in range(n_models)]
 
     "Initialize IC columns as NaN; populated later by information_criterion_analysis or by IC merge below."
     for ic_column_name in ("n_data", "pvar", "param_norm_sd", "loss_nll",
                             "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank"):
         registry_df[ic_column_name] = float("nan")
 
+    "canonical_model: match each row against CANONICAL_UTILITY_SPECS."
+    def _resolve_canonical_model_name_for_builder(registry_row: pd.Series) -> str:
+        row_flag_values = {col: bool(registry_row[col]) for col in canonical_flag_order}
+        for canonical_model_name, canonical_model_spec in CANONICAL_UTILITY_SPECS.items():
+            if all(
+                bool(canonical_model_spec.get(flag_name, False)) == row_flag_values.get(flag_name, False)
+                for flag_name in canonical_flag_order
+            ):
+                return canonical_model_name
+        return str(int(registry_row["utility_idx"]))
+    registry_df["canonical_model"] = registry_df.apply(_resolve_canonical_model_name_for_builder, axis=1)
+
     "Initialize AMPD distance columns as NaN; populated in Stage 3–4."
-    for distance_column_name in ("ampd_to_best_rand", "ampd_to_best_real", "policy_regret_norm"):
+    for distance_column_name in ("ampd_to_best", "policy_regret_norm_to_best"):
         registry_df[distance_column_name] = float("nan")
 
     "Attempt to merge existing IC results from bic_aic/ if the directory and CSV exist."
@@ -1627,64 +1754,76 @@ def all_utility_functions_dataframe(
     """
     non_blank_equation_mask = registry_df["equation"].str.len() > 0
     if non_blank_equation_mask.any():
-        equation_to_idx_list: Dict[str, List[int]] = {}
+        equation_string_to_utility_idx_list: Dict[str, List[int]] = {}
         for _, registry_row in registry_df[non_blank_equation_mask].iterrows():
-            eq = registry_row["equation"]
-            if eq not in equation_to_idx_list:
-                equation_to_idx_list[eq] = []
-            equation_to_idx_list[eq].append(int(registry_row["utility_idx"]))
+            equation_string = registry_row["equation"]
+            if equation_string not in equation_string_to_utility_idx_list:
+                equation_string_to_utility_idx_list[equation_string] = []
+            equation_string_to_utility_idx_list[equation_string].append(int(registry_row["utility_idx"]))
 
         redundant_with_entries: List[str] = []
         differing_settings_entries: List[str] = []
         for _, registry_row in registry_df.iterrows():
-            eq = registry_row["equation"]
-            if eq == "" or eq not in equation_to_idx_list:
+            equation_string = registry_row["equation"]
+            if equation_string == "" or equation_string not in equation_string_to_utility_idx_list:
                 redundant_with_entries.append("")
                 differing_settings_entries.append("")
                 continue
-            sharing_same_equation = tuple(sorted(equation_to_idx_list[eq]))
-            redundant_with_entries.append(str(sharing_same_equation))
+            models_sharing_equation = tuple(sorted(equation_string_to_utility_idx_list[equation_string]))
+            redundant_with_entries.append(str(models_sharing_equation))
 
             "Find which Boolean settings differ among all models that share this equation."
-            group_rows = registry_df[registry_df["utility_idx"].isin(sharing_same_equation)]
-            differing_flags: List[str] = []
+            models_with_same_equation_df = registry_df[registry_df["utility_idx"].isin(models_sharing_equation)]
+            flags_that_differ: List[str] = []
             for flag_name in canonical_flag_order:
-                if group_rows[flag_name].nunique() > 1:
-                    differing_flags.append(flag_name)
-            differing_settings_entries.append(str(tuple(differing_flags)))
+                if models_with_same_equation_df[flag_name].nunique() > 1:
+                    flags_that_differ.append(flag_name)
+            differing_settings_entries.append(str(tuple(flags_that_differ)))
 
         registry_df["redundant_with"] = redundant_with_entries
         registry_df["differing_settings"] = differing_settings_entries
 
     "Arrange columns in the canonical order specified in model_recovery_simulation.md."
-    ic_columns = [
+    ic_column_names = [
         "n_data", "pvar", "param_norm_sd", "loss_nll",
         "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank",
     ]
-    family_columns = ["parents", "siblings", "children"]
-    distance_columns = ["ampd_to_best_rand", "ampd_to_best_real", "policy_regret_norm"]
-    all_ordered_columns = (
+    family_column_names = ["parents", "siblings", "children"]
+    distance_column_names = ["ampd_to_best", "policy_regret_norm_to_best"]
+    all_ordered_column_names = (
         ["utility_idx", "utility_bitstring", "k_params"]
         + canonical_flag_order
         + ["redundant_with", "differing_settings"]
-        + ic_columns
-        + family_columns
-        + distance_columns
-        + ["equation"]
+        + ic_column_names
+        + family_column_names
+        + distance_column_names
+        + ["canonical_model", "equation"]
     )
-    present_ordered_columns = [col for col in all_ordered_columns if col in registry_df.columns]
-    registry_df = registry_df[present_ordered_columns]
+    present_ordered_column_names = [col for col in all_ordered_column_names if col in registry_df.columns]
+    registry_df = registry_df[present_ordered_column_names]
 
     "Write the registry CSV."
-    registry_csv_path = os.path.join(file_paths["processed"], "all_utility_functions.csv")
+    csv_written_successfully = False
     try:
-        registry_df.to_csv(registry_csv_path, index=False, encoding="utf-8-sig")
-        print(f"Registry written: {registry_csv_path}  ({len(registry_df)} rows, "
+        registry_df.to_csv(registry_out_path, index=False, encoding="utf-8-sig")
+        print(f"Registry written: {pretty_path(registry_out_path)}  ({len(registry_df)} rows, "
               f"{registry_df['k_params'].max():.0f} max k_params)")
-    except (PermissionError, OSError) as write_error:
-        print(f"WARNING: Could not write registry to {registry_csv_path}: {write_error}")
+        csv_written_successfully = True
+    except (PermissionError, OSError) as csv_write_error:
+        print(f"WARNING: Could not write registry to {pretty_path(registry_out_path)}: {csv_write_error}")
 
-    return registry_df
+    if not csv_written_successfully:
+        return registry_df
+
+    "Re-enter via the load path so the completeness check populates AMPD distance columns."
+    return all_utility_functions_dataframe(
+        file_paths=file_paths,
+        general_settings=general_settings,
+        param_bds=param_bds,
+        utility_settings=utility_settings,
+        build_equation_function=build_equation_function,
+        create_new_file=False,
+    )
 
 
 def _merge_ic_results_into_registry(
@@ -1869,12 +2008,12 @@ def select_utility_settings_subset(
 
     "Derive canonical flag order from utility_settings if provided; else infer from registry columns."
     non_flag_columns: set = {
-        "utility_idx", "utility_bitstring", "k_params",
+        "utility_idx", "utility_bitstring", "k_params", "canonical_model",
         "redundant_with", "differing_settings",
         "n_data", "pvar", "param_norm_sd", "loss_nll",
         "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank",
         "parents", "siblings", "children",
-        "ampd_to_best_rand", "ampd_to_best_real", "policy_regret_norm",
+        "ampd_to_best", "policy_regret_norm_to_best",
         "equation",
     }
     if utility_settings is not None:
@@ -3381,6 +3520,7 @@ def signed_pow(value: float, exponent: float) -> float:
         return 0.0
     return _math_eval.copysign(abs(value) ** exponent, value)
 
+
 def _canon_sc_grouped_to_twoterm(equation_rhs: str) -> str:
     """
     Rewrites any grouped social comparison term in equation_rhs into two-term form.
@@ -3452,6 +3592,7 @@ def canon_sc_both_ways(equation_rhs: str, mode: str = "twoterm") -> str:
         return _canon_sc_grouped_to_twoterm(grouped_form)
     return grouped_form
 
+
 def _is_token_char(character: str) -> bool:
     """
     Returns True if character can appear inside an operator token (variable name, number, etc.).
@@ -3463,6 +3604,7 @@ def _is_token_char(character: str) -> bool:
         • bool — True if the character is not a delimiter (space, comma, operator, parenthesis).
     """
     return character not in " \t\r\n,^*/+-()"
+
 
 def _find_left_operand(expression: str, caret_index: int) -> tuple[int, int]:
     """
@@ -3510,6 +3652,7 @@ def _find_left_operand(expression: str, caret_index: int) -> tuple[int, int]:
     operand_start += 1
     return operand_start, operand_end
 
+
 def _find_right_operand(expression: str, caret_index: int) -> tuple[int, int]:
     """
     Locates the right operand of the ^ operator at caret_index in expression.
@@ -3545,6 +3688,7 @@ def _find_right_operand(expression: str, caret_index: int) -> tuple[int, int]:
         position += 1
     return operand_start, position
 
+
 def _replace_powers(expression: str) -> str:
     """
     Replaces all ^ exponentiation operators in expression with pow_signed(...) calls.
@@ -3571,6 +3715,7 @@ def _replace_powers(expression: str) -> str:
             + result[right_end:]
         )
     return result
+
 
 def normalize_pretty_rhs_for_eval(rhs_text: str, sc_mode: str = "twoterm") -> str:
     """
@@ -3617,6 +3762,7 @@ def normalize_pretty_rhs_for_eval(rhs_text: str, sc_mode: str = "twoterm") -> st
     out = _re_eval.sub(r"(\d)(?=(pow_signed)\()", r"\1*", out)
     out = _re_eval.sub(r"\)(?=(pow_signed)\()", r")*", out)
     return out
+
 
 def eval_pretty_equation_rhs(
     rhs_filled: str,

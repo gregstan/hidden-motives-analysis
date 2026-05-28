@@ -2326,6 +2326,54 @@ def plot_architecture_compression_curve(
         fig.write_html(out_path, config={'responsive': True})
 
 
+def _wrap_equation_for_hover(eq: str, max_len: int = 55) -> str:
+    """
+    Break a long equation string across multiple lines for Plotly hover text.
+
+    Splits at top-level binary + and − operators (those not inside parentheses),
+    places the operator at the end of the preceding line, and indents continuation
+    lines with non-breaking spaces. Short equations (≤ max_len chars) are returned
+    unchanged.
+
+    Arguments:
+        • eq: str — the equation string (Unicode math notation).
+        • max_len: int — character threshold below which no wrapping occurs.
+
+    Returns:
+        • str — HTML-safe string with <br> line breaks for Plotly hover.
+    """
+    if len(eq) <= max_len:
+        return eq
+
+    depth = 0
+    split_positions = []
+    for i, ch in enumerate(eq):
+        if ch in ('(', '[', '{'):
+            depth += 1
+        elif ch in (')', ']', '}'):
+            depth -= 1
+        elif depth == 0 and ch in ('+', '-') and i > 0:
+            j = i - 1
+            while j >= 0 and eq[j] == ' ':
+                j -= 1
+            if j >= 0 and eq[j] not in ('=', '(', '[', '{', '+', '-'):
+                split_positions.append(i)
+
+    if not split_positions:
+        return eq
+
+    segments = []
+    prev = 0
+    for sp in split_positions:
+        segments.append(eq[prev:sp + 1].strip())
+        prev = sp + 1
+    segments.append(eq[prev:].strip())
+
+    indent = "&nbsp;" * 4
+    lines = [segments[0]] + [indent + seg for seg in segments[1:] if seg]
+    return "<br>".join(lines)
+
+
 def plot_param_recovery_by_k(
     corr_df:               pd.DataFrame,
     figure_layout:         FigLay,
@@ -2403,7 +2451,7 @@ def plot_param_recovery_by_k(
                 hover_lines.append(f"𝑟({param_key}) = {corr_val:.3f}")
             equation_str = k_equation_map.get(k_val, "")
             if equation_str:
-                hover_lines.append(equation_str)
+                hover_lines.append(_wrap_equation_for_hover(equation_str))
             hover_agg_texts.append("<br>".join(hover_lines))
 
         agg_trace_color = _hsla(base_hue_value + 20 * role_series_idx * 2)
@@ -2436,7 +2484,7 @@ def plot_param_recovery_by_k(
                 hover_lines.append(f"𝑟({alt_param_label}) = {alt_corr_val:.3f}")
             equation_str = k_equation_map.get(k_val, "")
             if equation_str:
-                hover_lines.append(equation_str)
+                hover_lines.append(_wrap_equation_for_hover(equation_str))
             hover_alt_texts.append("<br>".join(hover_lines))
 
         alt_trace_color = _hsla(base_hue_value + 20 * (role_series_idx * 2 + 1))
@@ -2461,7 +2509,7 @@ def plot_param_recovery_by_k(
         role_set    = {player_role}
         role_suffix = f" ({player_role})" if len(roles_in_data) > 1 else ""
         dropdown_buttons.append(dict(
-            label=f"𝑟 both{role_suffix}", method="update",
+            label=f"𝑟 all{role_suffix}", method="update",
             args=[{"visible": _visibility_flags({"aggregate", "altruism"}, role_set)}],
         ))
         dropdown_buttons.append(dict(
@@ -2495,7 +2543,7 @@ def plot_param_recovery_by_k(
             title_font=dict(size=axis_title_font_size),
             tickvals=[1, 2, 3, 4, 5, 6, 7, 8, 9],
             ticktext=['1', '2', '3', '4', '5', '6', '7', '8', '9'],
-            range=[0.95, 9.05],
+            range=[0.8, 9.2],
         ),
         yaxis=dict(
             title=y_axis_title,
