@@ -1293,22 +1293,21 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         def model_key_maker(model: tuple[bool] | dict[str: bool] | str, into: type) -> str | tuple[int]:
             """
             Converts models into compact representations, like
-            00000000000010~Uᵢ(A)=Vᵢᵢ(πᵢᴬ-πᵢᴮ)-αᵢⱼ×(max(πⱼᴬ-πᵢᴬ, 0)+max(πᵢᴬ-πⱼᴬ,0))
+            0000-0000-0000-0010~Uᵢ(A)=Vᵢᵢ(πᵢᴬ-πᵢᴮ)-αᵢⱼ×(max(πⱼᴬ-πᵢᴬ, 0)+max(πᵢᴬ-πⱼᴬ,0))
             """
             if into is str:
                 if isinstance(model, str):
                     model = ast.literal_eval(model)
                 if isinstance(model, (dict, tuple)):
-                    model = gnrl.convert_utility_settings(utility_settings=model, into=int)
-                else:
-                    raise TypeError(f"model must be a tuple, dict, or string, not {type(model)}!")
-                
-                return str(model)[1:-1].replace(", ", "") + "~" + build_utility_equation(utility_settings=model).replace(" ", "")
-            
+                    return gnrl.convert_utility_settings(utility_settings=model, into=str) + "~" + build_utility_equation(utility_settings=model).replace(" ", "")
+                raise TypeError(f"model must be a tuple, dict, or string, not {type(model)}!")
+
             elif into is tuple:
-                if isinstance(model, str) and model.split("~")[0].isdigit():
-                    return tuple(int(dig) for dig in model.split("~")[0])
-                raise ValueError(f"If into is tuple, then model must be a string of 0s and 1s.")
+                if isinstance(model, str):
+                    bit_part = model.split("~")[0].replace("-", "")
+                    if bit_part.isdigit():
+                        return tuple(int(dig) for dig in bit_part)
+                raise ValueError(f"If into is tuple, then model must be a formatted bitstring key string.")
 
             raise TypeError(f"into must be str or tuple, not {into}.")
 
@@ -4905,7 +4904,7 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
     child_utility_settings = [model_nesting_data['settings'][child_idx] for child_idx in child_indices]
 
     if child_utility_settings:
-        assert len(list(child_utility_settings[0].keys())) == 14
+        assert len(list(child_utility_settings[0].keys())) == len(config.utility_settings)
 
     "Build a list of best fitting child parameters."
     best_fitting_child_params = []

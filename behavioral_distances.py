@@ -1183,7 +1183,7 @@ def compute_model_space_embedding(
     Returns:
         • pd.DataFrame — one row per embedded model, with columns:
             utility_idx, utility_bitstring, mds_x, mds_y, [mds_z], k_params,
-            BIC, ΔBIC, BIC_rank, equation, all 14 Boolean utility settings.
+            BIC, ΔBIC, BIC_rank, equation, all 16 Boolean utility settings.
     """
     if distance_name is None:
         distance_name = _ampd_distance_name(general_settings)

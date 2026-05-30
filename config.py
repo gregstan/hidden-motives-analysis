@@ -514,9 +514,9 @@ def create_file_name_suffix(general_settings: dict[str, Any], utility_settings: 
 
         file_name_suffix += abreviated_val
 
-    file_name_suffix += "-"
-    for key, val in sorted(utility_settings.items()):
-        file_name_suffix += f"{int(val)}"
+    raw_utility_bits = "".join(str(int(val)) for _, val in sorted(utility_settings.items()))
+    fmt_utility_bits = f"{raw_utility_bits[0:4]}-{raw_utility_bits[4:8]}-{raw_utility_bits[8:12]}-{raw_utility_bits[12:16]}"
+    file_name_suffix += "--" + fmt_utility_bits
 
     return file_name_suffix
 

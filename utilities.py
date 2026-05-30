@@ -1,5 +1,9 @@
 from config import *
 
+"Canonical utility settings dict captured once at module load; used as a template inside functions"
+"whose own 'utility_settings' parameter would otherwise shadow the module-level name."
+_CANONICAL_UTILITY_SETTINGS: UtilitySettings = utility_settings
+
 
 def correlation_xy(df: pd.DataFrame, col_name_x: str, col_name_y: str) -> tuple[float, float]:
     """
@@ -1017,7 +1021,7 @@ def equation_to_settings(equation_function: Callable, utility_settings: UtilityS
         with open(file_path, "r", encoding="utf-8") as file:
             equ_to_settings = json.load(file) 
 
-        if isinstance(equation_to_settings, dict) and all(
+        if isinstance(equ_to_settings, dict) and all(
             isinstance(key, str) for key in equ_to_settings.keys()):
             return equ_to_settings
 
@@ -1039,69 +1043,239 @@ def equation_to_settings(equation_function: Callable, utility_settings: UtilityS
 
 
 def convert_utility_settings(
-    utility_settings: Union[Dict[str, bool], Tuple[bool, ...]],
-    into: type = tuple,
+    utility_settings: Union[
+        Dict[str, bool],
+        Tuple[bool, ...],
+        Tuple[int, ...],
+        str,
+        int,
+    ],
+    into: Union[type, str] = str,
     template: Optional[Dict[str, bool]] = None,
-) -> Union[Dict[str, bool], Tuple[bool, ...]]:
+    input_settings_format: Optional[Dict[str, bool]] = None,
+    sort_alphabetically: bool = False,
+    file_paths: Optional[FilePaths] = None,
+    general_settings: Optional[GeneralSettings] = None,
+) -> Union[Dict[str, bool], Tuple[bool, ...], Tuple[int, ...], str]:
     """
-    Converts between a dict[str, bool] of utility options and a tuple[bool, ...].
-    Key order for dict inputs follows their own insertion order (Python 3.7+ guarantee).
-    Key order for tuple→dict conversion follows `template` (defaults to config.utility_settings).
+    Swiss-army conversion between all representations of a utility settings configuration.
+    All input types are auto-detected; `into` selects the desired output format.
+
+    Accepted input types:
+        • dict[str, bool]     — 16-key UtilitySettings dict (canonical current schema)
+        • tuple[bool|int, ...]— boolean or 0/1-int tuple
+        • str                 — any of:
+            - Raw 16-char bitstring:            "0101010101010101"
+            - Formatted XXXX-XXXX-XXXX-XXXX:   "0101-0101-0101-0101"
+            - JSON tuple-repr:                  "(True, False, ..., True)"
+            - model_key_maker key:              "0101-0101-0101-0101~equation"
+            - Equation string (requires file_paths): "Uᵢ(A)=Vᵢᵢ(...)"
+        • int                 — utility_idx model index in all_utility_functions.csv
+
+    Accepted `into` values:
+        • str       — formatted bitstring XXXX-XXXX-XXXX-XXXX (default)
+        • 'raw_str' — raw 16-char bitstring without dashes (backward-compat)
+        • 'equation'— utility equation string (calls model.build_utility_equation)
+        • tuple     — tuple[bool, ...]
+        • dict      — UtilitySettings dict[str, bool]
+        • int       — tuple[int, ...] of 0/1 values (used internally by model_key_maker)
 
     Arguments:
-        • utility_settings: dict[str, bool] | tuple[bool, ...]; The structure to convert.
-        • into: type; 'tuple', 'dict', 'str', or 'int'. Default is tuple.
-        • template: dict[str, bool] | None; Canonical key order for tuple→dict conversion.
-            Defaults to the global utility_settings from config when not supplied.
+        • utility_settings: any of the above input forms.
+        • into: Union[type, str]; target output format. Default is str (formatted bitstring).
+        • template: dict[str, bool] | None; canonical key order for tuple→dict conversion.
+            Defaults to config.utility_settings when None.
+        • input_settings_format: dict[str, bool] | None; legacy schema map for old inputs.
+            When provided, maps the input's keys onto the current 16-key schema;
+            any keys absent from the current schema are silently ignored, and any
+            current-schema keys not in the old format default to False.
+            Enables transparent 14→16 key translation for legacy IC JSON entries.
+        • sort_alphabetically: bool (default False); when True, sort keys alphabetically
+            before producing bitstring/tuple/dict output. When False, preserve insertion
+            order; a UserWarning is emitted if a dict input deviates from canonical order.
+        • file_paths: FilePaths | None; required for equation-string input (equation_to_settings
+            lookup) and for int-index lookup via all_utility_functions_dataframe.
+        • general_settings: GeneralSettings | None; forwarded to helper functions when needed.
 
     Returns:
-        • dict[str, bool] or tuple[bool, ...]
+        • dict[str, bool], tuple[bool, ...], tuple[int, ...], or str depending on `into`.
 
     Raises:
-        • ValueError if tuple→dict is requested and template cannot be resolved.
+        • ValueError for unrecognized `into`, out-of-range index, or unresolvable input.
+        • TypeError for inputs that are not one of the accepted types.
     """
-    if into not in (tuple, dict, int, str):
-        raise ValueError("`into` must be either `tuple`, `dict`, `str`, or `int`.")
+    "Validate `into`."
+    valid_into = (tuple, dict, str, int, 'raw_str', 'equation')
+    if into not in valid_into:
+        raise ValueError(f"`into` must be one of {valid_into!r}, not {into!r}.")
 
-    if not isinstance(utility_settings, (dict, tuple)):
-        raise TypeError(f"utility_settings must be a tuple or dict, not {type(utility_settings)}.")
+    "--- Input normalization: reduce any input to a dict or tuple ---"
 
-    if into is int or into is str:
-        if isinstance(utility_settings, dict):
-            keys = list(utility_settings.keys())
+    "Integer model-index input: look up by utility_idx."
+    if isinstance(utility_settings, int):
+        model_idx: int = utility_settings
+        resolved: Optional[Dict[str, bool]] = None
+
+        "Primary: look up utility_idx column in the registry CSV."
+        if file_paths is not None:
             try:
-                if into is str:
-                    return "".join("1" if bool(utility_settings[key]) else "0" for key in keys)
-                return tuple(int(utility_settings[k]) for k in keys)
-            except KeyError as err:
-                for key in keys:
-                    if utility_settings.get(key) is None:
-                        print(f"Missing key from utility_settings: {key}")
-                raise KeyError(err)
+                registry_df = all_utility_functions_dataframe(
+                    file_paths=file_paths,
+                    utility_settings=_CANONICAL_UTILITY_SETTINGS,
+                    general_settings=general_settings,
+                )
+                matching_rows = registry_df[registry_df["utility_idx"] == model_idx]
+                if len(matching_rows) == 1:
+                    flag_cols = [col for col in _CANONICAL_UTILITY_SETTINGS.keys() if col in registry_df.columns]
+                    resolved = {col: bool(matching_rows.iloc[0][col]) for col in flag_cols}
+            except Exception:
+                pass
+
+        "Fallback: positional index into generate_utility_settings(sort_by_k=True)."
+        if resolved is None:
+            all_settings_list = generate_utility_settings(
+                utility_settings=_CANONICAL_UTILITY_SETTINGS, sort_by_k=True
+            )
+            if model_idx < 0 or model_idx >= len(all_settings_list):
+                raise ValueError(
+                    f"Model index {model_idx} is out of range 0..{len(all_settings_list) - 1}."
+                )
+            resolved = all_settings_list[model_idx]
+
+        utility_settings = resolved
+
+    elif isinstance(utility_settings, str):
+        input_str = utility_settings.strip()
+
+        "model_key_maker key: 'XXXX-XXXX-XXXX-XXXX~equation' or '0000000000000000~equation'."
+        if "~" in input_str:
+            input_str = input_str.split("~")[0]
+
+        "Strip dashes that may be part of a formatted XXXX-XXXX-XXXX-XXXX bitstring."
+        bits_without_dashes = input_str.replace("-", "")
+
+        "Raw or formatted bitstring: a string composed only of '0' and '1' characters."
+        if all(bit_char in "01" for bit_char in bits_without_dashes) and bits_without_dashes:
+            if len(bits_without_dashes) == 16:
+                utility_settings = tuple(bool(int(bit_char)) for bit_char in bits_without_dashes)
+            else:
+                raise ValueError(
+                    f"Bitstring has {len(bits_without_dashes)} bits after stripping dashes (expected 16). "
+                    "For legacy 14-bit inputs, provide input_settings_format to map old keys "
+                    "onto the current 16-key schema."
+                )
+
+        elif input_str.startswith("(") and input_str.endswith(")"):
+            "JSON tuple-repr: '(True, False, ..., True)' — used as keys in IC JSON files."
+            import ast as _ast
+            try:
+                parsed_tuple = _ast.literal_eval(input_str)
+                if not (isinstance(parsed_tuple, tuple) and all(isinstance(element, (bool, int)) for element in parsed_tuple)):
+                    raise ValueError(f"Parsed value is not a bool/int tuple: {parsed_tuple!r}")
+                utility_settings = tuple(bool(element) for element in parsed_tuple)
+            except Exception as parse_error:
+                raise ValueError(f"Could not parse tuple-repr string {input_str!r}: {parse_error}") from parse_error
+
         else:
-            if into is str:
-                return "".join("1" if bool(value) else "0" for value in utility_settings)
-            return tuple(int(flag) for flag in utility_settings)
+            if file_paths is None:
+                raise ValueError(
+                    "Equation-string input requires file_paths so that equation_to_settings "
+                    "can locate the cached mapping JSON."
+                )
+            import model as _model
+            equation_mapping = equation_to_settings(
+                equation_function=_model.build_utility_equation,
+                utility_settings=_CANONICAL_UTILITY_SETTINGS,
+                file_paths=file_paths,
+            )
+            if input_str not in equation_mapping:
+                raise ValueError(f"Equation string not found in equation_to_settings mapping: {input_str!r}")
+            utility_settings = equation_mapping[input_str]
 
-    if isinstance(utility_settings, dict) and into is tuple:
-        keys = list(utility_settings.keys())
-        try:
-            return tuple(bool(utility_settings[k]) for k in keys)
-        except KeyError as err:
-            raise KeyError(err)
+    "--- At this point utility_settings is a dict or tuple ---"
+    if not isinstance(utility_settings, (dict, tuple)):
+        raise TypeError(
+            f"utility_settings must be a dict, tuple, str, or int; got {type(utility_settings)}."
+        )
 
-    if isinstance(utility_settings, tuple) and into is dict:
-        if template is None:
-            import config as _cfg
-            template = _cfg.utility_settings
-        ordered_keys = list(template.keys())
-        n_keys, n_settings = len(ordered_keys), len(utility_settings)
-        if n_keys != n_settings:
-            raise ValueError(f"N flag keys in template ({n_keys}) ≠ N settings ({n_settings})!")
-        return {key: bool(val) for key, val in zip(ordered_keys, utility_settings)}
+    "Legacy translation: map old-schema input onto the current 16-key canonical schema."
+    if input_settings_format is not None:
+        old_format_keys = list(input_settings_format.keys())
 
-    "Already the requested type"
-    return utility_settings  # type: ignore[return-value]
+        "Extract the input values in old-key order."
+        if isinstance(utility_settings, tuple):
+            if len(utility_settings) != len(old_format_keys):
+                raise ValueError(
+                    f"input_settings_format has {len(old_format_keys)} keys but the input tuple "
+                    f"has {len(utility_settings)} values."
+                )
+            input_values = [bool(flag_value) for flag_value in utility_settings]
+        else:
+            input_values = [bool(utility_settings[old_key]) for old_key in old_format_keys]
+
+        "Start from all-False canonical dict, then fill in mapped values."
+        canonical_dict: Dict[str, bool] = {flag_name: False for flag_name in _CANONICAL_UTILITY_SETTINGS.keys()}
+        for old_key, mapped_value in zip(old_format_keys, input_values):
+            if old_key in canonical_dict:
+                canonical_dict[old_key] = mapped_value
+        utility_settings = canonical_dict
+
+    "--- Output dispatch ---"
+
+    def _ordered_pairs() -> list:
+        """Return [(flag_name, bool_value), ...] in the requested key order."""
+        if isinstance(utility_settings, dict):
+            if sort_alphabetically:
+                return sorted(utility_settings.items())
+            canonical_keys = list(_CANONICAL_UTILITY_SETTINGS.keys())
+            if list(utility_settings.keys()) != canonical_keys:
+                import warnings
+                warnings.warn(
+                    "convert_utility_settings: dict key order deviates from canonical "
+                    "config.utility_settings order. Pass sort_alphabetically=True to "
+                    "suppress this warning, or reorder the dict to match canonical order.",
+                    UserWarning, stacklevel=3,
+                )
+            return list(utility_settings.items())
+        else:
+            tmpl = template if template is not None else _CANONICAL_UTILITY_SETTINGS
+            ordered_keys = list(tmpl.keys())
+            n_template_keys, n_input_values = len(ordered_keys), len(utility_settings)
+            if n_template_keys != n_input_values:
+                raise ValueError(
+                    f"N flag keys in template ({n_template_keys}) ≠ N settings in input ({n_input_values}). "
+                    "Provide input_settings_format to handle legacy tuples with different lengths."
+                )
+            if sort_alphabetically:
+                return sorted(zip(ordered_keys, utility_settings), key=lambda flag_pair: flag_pair[0])
+            return list(zip(ordered_keys, utility_settings))
+
+    if into is dict:
+        if isinstance(utility_settings, dict) and not sort_alphabetically:
+            return utility_settings  # type: ignore[return-value]
+        return {flag_name: bool(flag_value) for flag_name, flag_value in _ordered_pairs()}
+
+    if into is tuple:
+        return tuple(bool(flag_value) for _, flag_value in _ordered_pairs())
+
+    if into is int:
+        return tuple(int(bool(flag_value)) for _, flag_value in _ordered_pairs())
+
+    if into is str or into == 'raw_str':
+        raw_bitstring = "".join("1" if bool(flag_value) else "0" for _, flag_value in _ordered_pairs())
+        if into == 'raw_str':
+            return raw_bitstring
+        return f"{raw_bitstring[0:4]}-{raw_bitstring[4:8]}-{raw_bitstring[8:12]}-{raw_bitstring[12:16]}"
+
+    if into == 'equation':
+        if isinstance(utility_settings, dict):
+            settings_dict = utility_settings
+        else:
+            settings_dict = {flag_name: bool(flag_value) for flag_name, flag_value in _ordered_pairs()}
+        import model as _model
+        return _model.build_utility_equation(utility_settings=settings_dict)
+
+    raise ValueError(f"Unhandled `into` value: {into!r}")
 
 
 def is_valid_utility_settings(candidate: UtilitySettings, provide_explanation: bool = False) -> bool:
@@ -1285,7 +1459,7 @@ def generate_utility_settings(
     Arguments:
         • utility_settings: UtilitySettings
             A canonical utility settings dict used to seed the Boolean flag universe.
-            All 14 Boolean keys must be present; only their key names matter for generation.
+            All 16 Boolean keys must be present; only their key names matter for generation.
         • general_settings: GeneralSettings | None
             Global analysis settings. Passed through to parameter-counting helpers when
             `sort_by_k=True` or `create_new_file=True`.
@@ -1463,7 +1637,7 @@ def all_utility_functions_dataframe(
             IC results will be merged from the IC analysis CSV.
         • utility_settings: UtilitySettings | None
             Required when building from scratch (file missing or create_new_file=True).
-            All 14 Boolean keys must be present; their insertion order defines the canonical
+            All 16 Boolean keys must be present; their insertion order defines the canonical
             bitstring order. May be None when loading an existing file.
         • general_settings: GeneralSettings | None
             Passed to parameter-counting helpers and used to locate AMPD matrix. May be None.
@@ -1618,8 +1792,7 @@ def all_utility_functions_dataframe(
             utility_settings=settings_dict, general_settings=general_settings
         )
         "Bitstring uses the canonical insertion order from convert_utility_settings, then formatted with dashes."
-        raw_utility_bitstring = convert_utility_settings(utility_settings=settings_dict, into=str)
-        formatted_utility_bitstring = _format_utility_bitstring(raw_bitstring=raw_utility_bitstring)
+        formatted_utility_bitstring = convert_utility_settings(utility_settings=settings_dict, into=str)
 
         settings_row_dict: Dict[str, Any] = {"k_params": k_params_value, "utility_bitstring": formatted_utility_bitstring}
         for flag_name in canonical_flag_order:
@@ -1870,7 +2043,7 @@ def _merge_ic_results_into_registry(
             "1" if (flag in ic_row.index and bool(ic_row[flag])) else "0"
             for flag in sorted(canonical_flag_order)
         )
-        return _format_utility_bitstring(raw_bitstring=raw)
+        return convert_utility_settings(utility_settings=raw, into=str)
 
     ic_df["utility_bitstring"] = ic_df.apply(_ic_row_to_bitstring, axis=1)
 
@@ -2033,8 +2206,7 @@ def select_utility_settings_subset(
         if isinstance(model_ref, int):
             return model_ref
         settings_dict = convert_utility_settings(utility_settings=model_ref, into=dict)
-        raw_bit = convert_utility_settings(utility_settings=settings_dict, into=str)
-        fmt_bit = _format_utility_bitstring(raw_bitstring=raw_bit)
+        fmt_bit = convert_utility_settings(utility_settings=settings_dict, into=str)
         match = registry_df[registry_df["utility_bitstring"] == fmt_bit]
         if len(match) == 0:
             raise ValueError(f"UtilitySettings not found in registry: {model_ref}")
@@ -2685,21 +2857,6 @@ def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str
     return utility_settings
 
 
-def _format_utility_bitstring(raw_bitstring: str) -> str:
-    """
-    Formats a 16-character raw bitstring into XXXX-XXXX-XXXX-XXXX for human readability
-    and Excel safety (the dashes prevent Excel from interpreting the value as an integer
-    and silently stripping leading zeros).
-
-    Arguments:
-        • raw_bitstring: str
-            A 16-character string of '0' and '1' characters in canonical flag order.
-
-    Returns:
-        • str — formatted as 'XXXX-XXXX-XXXX-XXXX' (groups of 4-4-4-4, separated by dashes).
-    """
-    return f"{raw_bitstring[0:4]}-{raw_bitstring[4:8]}-{raw_bitstring[8:12]}-{raw_bitstring[12:16]}"
-
 
 def parents_children_of(utility_settings: Union[UtilitySettings, BoolTuple], return_children: bool = True, 
                         return_parents: bool = True, general_settings: Optional[Dict[str, Any]] = None) -> Dict[str, Optional[List[BoolTuple]]]:
@@ -3329,6 +3486,97 @@ def summarize_nesting_relationship_counts(
         print(f"Unique sibling pairs: {out['n_sibling_pairs']}")
 
     return out
+
+
+def migrate_model_keys_in_ic_json(ic_json_path: str) -> None:
+    """
+    One-time migration: updates model keys in an IC JSON from the old raw-bitstring format
+    ('0000000000001011~equation') to the new formatted format ('0000-0000-0000-1011~equation').
+
+    Creates a backup at ic_json_path + '.bak' before writing. Safe to re-run because
+    already-formatted keys (containing '-') are left unchanged.
+
+    Arguments:
+        • ic_json_path: str; path to the IC JSON file to migrate.
+    """
+    import shutil as _shutil
+    import json as _json
+
+    with open(ic_json_path, "r", encoding="utf-8") as fh:
+        data = _json.load(fh)
+
+    def _rekey(obj: dict) -> dict:
+        """Recursively reformat model keys in nested dicts."""
+        out = {}
+        for key, val in obj.items():
+            "Reformat: raw bitstring prefix before '~', no dashes yet."
+            if "~" in key:
+                parts = key.split("~", 1)
+                raw_bit = parts[0].replace("-", "")
+                if raw_bit.isdigit() and len(raw_bit) == 16:
+                    fmt = f"{raw_bit[0:4]}-{raw_bit[4:8]}-{raw_bit[8:12]}-{raw_bit[12:16]}"
+                    new_key = f"{fmt}~{parts[1]}"
+                else:
+                    new_key = key
+            else:
+                new_key = key
+            out[new_key] = _rekey(val) if isinstance(val, dict) else val
+        return out
+
+    migrated = _rekey(data)
+
+    backup_path = ic_json_path + ".bak"
+    _shutil.copy2(ic_json_path, backup_path)
+    print(f"Backup saved to {backup_path}")
+
+    with open(ic_json_path, "w", encoding="utf-8") as fh:
+        _json.dump(migrated, fh, ensure_ascii=False, indent=4)
+    print(f"Migrated model keys in {ic_json_path}")
+
+
+def migrate_file_name_suffix(directory: str, dry_run: bool = True) -> list[str]:
+    """
+    One-time migration: renames cached files whose suffix uses the old single-dash utility
+    section (e.g. '~...-0101010101010101') to the new double-dash formatted format
+    (e.g. '~...--0101-0101-0101-0101').
+
+    Arguments:
+        • directory: str; directory to scan for files with old suffixes.
+        • dry_run: bool (default True); if True, return the list of planned renames without
+            executing them. Set to False to actually rename files on disk.
+
+    Returns:
+        • list[str]; list of '(old_name) -> (new_name)' descriptions.
+    """
+    import re as _re, pathlib as _pathlib
+
+    "Old pattern: ~<general_bits>-<16 raw bits>  (no dashes in the utility section)"
+    old_pattern = _re.compile(r"(~[^-]+-)(0{1}[01]{15})(.*)")
+
+    renames: list[str] = []
+    for path in _pathlib.Path(directory).iterdir():
+        if not path.is_file():
+            continue
+        name = path.name
+        match = old_pattern.search(name)
+        if match:
+            prefix_part = match.group(1)
+            raw_bits = match.group(2)
+            suffix_part = match.group(3)
+            fmt = f"{raw_bits[0:4]}-{raw_bits[4:8]}-{raw_bits[8:12]}-{raw_bits[12:16]}"
+            "Replace single-dash separator with double-dash before formatted utility block."
+            new_name = name[:match.start()] + prefix_part[:-1] + "--" + fmt + suffix_part
+            renames.append(f"{name}  ->  {new_name}")
+            if not dry_run:
+                path.rename(path.parent / new_name)
+
+    if dry_run:
+        print(f"[dry_run] {len(renames)} file(s) would be renamed in {directory}:")
+    else:
+        print(f"Renamed {len(renames)} file(s) in {directory}:")
+    for r in renames:
+        print(f"  {r}")
+    return renames
 
 
 def test_utility_functions(build_utility_equation: Callable, general_settings: GeneralSettings, utility_settings: UtilitySettings, setting_to_flip: str, print_: bool = True) -> None:
