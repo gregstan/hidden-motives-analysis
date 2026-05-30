@@ -333,8 +333,8 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     "=========================================================================================="
     """
     Manuscript context: Section 3.3.6 (simulation validation, parameter recovery).
-    Functions exercised: create_simulated_data, run_simulation_recovery_analysis,
-    compute_recovery_by_prior_bins, plot_param_recovery_by_round.
+    Functions exercised: create_simulated_data, run_parameter_recovery_simulation,
+    tabulate_recovery_correlations_by_prior_bins, plot_param_recovery_correlation_by_round.
     """
 
     if analysis_options['run_simulation']:
@@ -359,7 +359,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             dynamic_predictor=True,
         )
 
-        df_merged = run_simulation_recovery_analysis(
+        df_merged = run_parameter_recovery_simulation(
             general_settings=general_settings,
             file_paths=demo_file_paths,
             figure_layout=figure_layout,
@@ -372,7 +372,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
         )
 
         if df_merged is not None:
-            plot_param_recovery_by_round(
+            plot_param_recovery_correlation_by_round(
                 df_merged=df_merged,
                 general_settings=general_settings,
                 file_paths=demo_file_paths,
@@ -463,7 +463,6 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
                 general_settings=general_settings,
                 file_paths=demo_file_paths,
                 params_of_interest=['Vᵢⱼ'],
-                use_true_params=False,
                 n_dyads=49 if light_mode else None,
             )
 

@@ -5,7 +5,7 @@ import uuid
 "========== Simulation 1) The Optimizer Accurately Recovers Predictor Parameters =========="
 "=========================================================================================="
 
-def stable_bot_id(params: dict, player_role: str, n_games: int) -> str:
+def stable_bot_id(params: dict, player_role: str, n_games: int, paired_with: dict | None = None) -> str:
     """
     Content-addressed hash identifier for a synthetic simulation bot.
 
@@ -17,11 +17,19 @@ def stable_bot_id(params: dict, player_role: str, n_games: int) -> str:
         • params: dict[str, float]; parameter dict that defines this bot's behavior.
         • player_role: str; 'predictor' or 'chooser'.
         • n_games: int; number of games the dyad will play.
+        • paired_with: dict[str, float] | None; when provided, the partner's parameters are
+            mixed into the hash so that each (predictor, chooser) pair gets a unique UUID.
+            This ensures per-dyad fitting: each UUID maps to exactly one dyad, so
+            fit_params_by_player optimizes on one dyad's data rather than pooling across
+            all choosers this predictor was paired with.
 
     Returns:
         • str; e.g. 'synthetic_predictor_a3f9b1d2e5c7'.
     """
-    payload = json.dumps({'params': sorted(params.items()), 'n': n_games}, sort_keys=True)
+    payload_data = {'params': sorted(params.items()), 'n': n_games}
+    if paired_with is not None:
+        payload_data['paired_with'] = sorted(paired_with.items())
+    payload = json.dumps(payload_data, sort_keys=True)
     return f'synthetic_{player_role}_{hashlib.sha256(payload.encode()).hexdigest()[:12]}'
 
 
@@ -697,11 +705,26 @@ def load_simulated_fits_from_json(json_path: str) -> pd.DataFrame:
         - true parameters (either embedded or parsed from the UUID),
         - fitted parameters nested under "parameter_estimates".
 
-    This function produces one row per (dyad_key, round), with columns for:
-        - identifiers: dyad_key, player_uuid_chooser, player_uuid_predictor, round
-        - true parameters for each role: <param>_true_chooser, <param>_true_predictor
-        - fitted predictor parameters: <param>_fitted_predictor
-        - optionally fitted chooser parameters: <param>_fitted_chooser
+    Column semantics — two analyses coexist in the same DataFrame:
+
+    Parameter recovery columns (recover predictor's priors):
+        • <param>_true_predictor  — the prior value ASSIGNED to the predictor (e.g.
+              Vᵢⱼ_true_predictor = 0.667). Same for all 15 dyads of one predictor.
+        • <param>_fitted_predictor — optimizer's estimate of that prior, obtained by
+              fitting the predictor's prediction behaviour POOLED across all their dyads
+              (all 15 choosers × 24 rounds = 360 observations per predictor). Same value
+              for all rows that share a predictor UUID. Use drop_duplicates on
+              player_uuid_predictor before correlating to avoid inflating n.
+
+    Chooser-learning columns (track Bayesian belief convergence):
+        • <param>_true_chooser    — the chooser's actual parameter (constant per dyad).
+        • <param>_belief_predictor — the predictor's Bayesian posterior mean (belief) at each
+              round, starting from the predictor's own Vᵢⱼ as the prior and updating
+              toward the chooser's truth as rounds accumulate. Varies per round per dyad.
+
+    These two analyses are complementary. The violin/box plots use _fitted_predictor
+    (parameter recovery). The 3×3 bin table and corr_by_round plots use _belief_predictor
+    (chooser learning). Do not mix them.
 
     Arguments:
         • json_path: str;
@@ -785,9 +808,9 @@ def load_simulated_fits_from_json(json_path: str) -> pd.DataFrame:
             "Extracting the posteriors originating from the simulated predictor's assigned priors, not from fitted priors."
             sim_pred = param_est.get('sim_pred')
             if sim_pred is not None:
-                sim_pred_predictor_params = sim_pred.get(predictor_str, {}).get('predictor', {}).get('params', {})
-                for param_key, param_val in sim_pred_predictor_params.items():
-                    row[f"{param_key}_sim_pred_predictor"] = param_val
+                belief_predictor_params = sim_pred.get(predictor_str, {}).get('predictor', {}).get('params', {})
+                for param_key, param_val in belief_predictor_params.items():
+                    row[f"{param_key}_belief_predictor"] = param_val
  
             rows.append(row)
 
@@ -944,7 +967,325 @@ def compute_param_recovery_correlations(df: pd.DataFrame, dir_path: str, out_csv
     return corr_df
 
 
-def run_simulation_recovery_analysis(figure_layout: dict, general_settings: GeneralSettings, file_paths: FilePaths, export_fig: bool = True, create_new_file: bool = False, 
+def plot_parameter_recovery_correlation(
+    df: Optional[pd.DataFrame] = None,
+    file_paths: Optional[Dict[str, Any]] = None,
+    round_selection: str = "first",
+    as_scatterplot: bool = True,
+    params: Optional[list] = None,
+    boxplot_param: str = "Vij",
+    include_dropdown: bool = True,
+    figure_layout: Optional[dict] = None,
+    export_fig: bool = True,
+    out_path: Optional[str] = None,
+    fitted_suffix: str = "_fitted_predictor",
+    violin_fitted_suffix: Optional[str] = None,
+) -> Optional[object]:
+    """
+    Visualize true vs fitted parameters for a chosen round.
+
+    Can be called standalone — when df is None, loads simulated_fits.csv from
+    file_paths['simulations'] automatically.
+
+    IMPORTANT — two distinct analyses, two distinct column pairs:
+
+    Parameter recovery (violin/box mode, this function's primary purpose):
+        Asks: can the optimizer recover the PREDICTOR'S OWN PRIOR parameters from
+        their prediction behaviour across all their dyads?
+        • x = <param>_true_predictor  (the prior value that was assigned)
+        • y = <param>_fitted_predictor (what the optimizer recovered, pooled across
+              all dyads of that predictor; same value for every dyad of a predictor)
+        • round_selection='first' picks round-0 rows. Because _fitted_predictor is
+          fitted once per predictor (not per round), round choice does not change
+          the fitted value — 'first' is used by convention.
+        • Deduplication (drop_duplicates on player_uuid_predictor) is applied
+          automatically so that 15 dyads sharing one fitted value appear as one point.
+
+    Chooser learning (NOT the purpose of this function):
+        Asks: does the predictor's Bayesian belief converge to the chooser's true Vᵢⱼ?
+        That is tracked in _belief_predictor (the per-round Bayesian posterior belief) and
+        reported separately in the 3×3 bin table (tabulate_recovery_correlations_by_prior_bins).
+        Do not confuse the two analyses.
+
+    Modes:
+        • Scatter mode (as_scatterplot=True):
+            Plots true_predictor vs fitted/sim-pred for each param in `params`,
+            with a dropdown to toggle parameters, a best-fit line, and correlation
+            and R² annotations.
+        • Violin/box mode (as_scatterplot=False):
+            Parameter recovery plot. Groups by true_predictor value and shows the
+            distribution of fitted_predictor estimates with a correlation annotation.
+            Automatically deduplicates to one point per predictor (63 unique agents).
+
+    Arguments:
+        • df: pd.DataFrame | None;
+            Long-format simulation DataFrame. If None, loads simulated_fits.csv
+            from file_paths['simulations'].
+        • file_paths: dict | None;
+            Project file-path registry. Required when df is None.
+        • round_selection: str;
+            Which round's rows to use: 'first', 'final', or an integer. For
+            parameter recovery (violin mode), 'first' is the standard choice because
+            _fitted_predictor does not vary by round (it is fitted once per predictor).
+        • as_scatterplot: bool;
+            True → scatter with dropdown; False → violin/box for boxplot_param.
+        • params: list[str] | None;
+            Parameters to include in scatter mode (e.g. ['Vij', 'τ']).
+            Defaults to ['Vii', 'Vij', 'Vii_std', 'Vij_std', 'τ'].
+        • boxplot_param: str;
+            Parameter to show in violin/box mode (ignored in scatter mode).
+        • include_dropdown: bool;
+            Whether to add a violin/box toggle in violin mode.
+        • figure_layout: dict | None;
+            Plotly layout configuration.
+        • export_fig: bool;
+            If True, write HTML to out_path. If False, show interactively.
+        • out_path: str | None;
+            Path for the exported HTML. Auto-generated from round_selection and
+            mode when None (requires file_paths['simulations'] to be set).
+        • fitted_suffix: str;
+            Column suffix used in SCATTER mode (e.g. '_fitted_predictor' or
+            '_belief_predictor'). Violin mode always uses _fitted_predictor
+            unless violin_fitted_suffix is explicitly provided.
+        • violin_fitted_suffix: str | None;
+            If provided, overrides the y-axis column in violin mode. Leave None
+            to use the default '_fitted_predictor' (parameter recovery).
+
+    Returns:
+        • plotly Figure, or None if an error occurs.
+    """
+    if figure_layout is None:
+        figure_layout = {}
+    if as_scatterplot and (params is None or len(params) == 0):
+        params = ["Vii", "Vij", "Vii_std", "Vij_std", "τ"]
+
+    "Load simulated_fits.csv from disk when no DataFrame is supplied."
+    if df is None:
+        if file_paths is None:
+            raise ValueError("Either df or file_paths must be provided.")
+        simulated_fits_csv_path = os.path.join(str(file_paths['simulations']), 'simulated_fits.csv')
+        if not os.path.exists(simulated_fits_csv_path):
+            raise FileNotFoundError(
+                f"df is None and simulated_fits.csv not found at {simulated_fits_csv_path}. "
+                f"Run create_simulated_data + run_parameter_recovery_simulation first."
+            )
+        df = pd.read_csv(simulated_fits_csv_path, encoding='utf-8', engine='python')
+        if 'Unnamed: 0' in df.columns:
+            del df['Unnamed: 0']
+        print(f"plot_parameter_recovery_correlation: loaded {len(df)} rows from {simulated_fits_csv_path}")
+
+    "Auto-generate out_path when not supplied."
+    if out_path is None:
+        if file_paths is None:
+            raise ValueError("Either out_path or file_paths must be provided.")
+        sim_dir = str(file_paths['simulations'])
+        if as_scatterplot:
+            out_path = os.path.join(sim_dir, f"corr_scatter_{round_selection}.html")
+        else:
+            out_path = os.path.join(sim_dir, f"corr_violin_{boxplot_param}_{round_selection}.html")
+
+    "Propagate _true_ columns (only at round=0) to all rounds via dyad_key."
+    "Without this, non-zero rounds are missing true-param values and dropna removes everything."
+    if 'dyad_key' in df.columns:
+        _true_cols = [c for c in df.columns if '_true_' in c]
+        if _true_cols:
+            _df0_true = df[df['round'] == 0][['dyad_key'] + _true_cols].copy()
+            df = df.drop(columns=_true_cols)
+            df = df.merge(_df0_true, on='dyad_key', how='left')
+
+    param_titles = {
+        "Vii":     "Mean Self-interest μ(𝑉𝑖𝑖)",
+        "Vij":     "Mean Altruism μ(𝑉𝑖𝑗)",
+        "Vii_std": "Self-interest Standard Deviation σ(𝑉𝑖𝑖)",
+        "Vij_std": "Altruism Standard Deviation σ(𝑉𝑖𝑗)",
+        "τ":       "SoftMax Temperature (τ)"
+    }
+
+    def axis_title(param_name: str, role: str, type_: str) -> str:
+        return f"{type_.capitalize()} {role.capitalize()} Parameter: {param_titles[param_name]}"
+
+    "Subset data to the specified round."
+    if round_selection == "first":
+        idxmin_ = df.groupby("dyad_key")["round"].idxmin()
+        df_sub = df.loc[idxmin_]
+    elif round_selection == "final":
+        idxmax_ = df.groupby("dyad_key")["round"].idxmax()
+        df_sub = df.loc[idxmax_]
+    else:
+        try:
+            round_integer = int(round_selection)
+            df_sub = df[df["round"] == round_integer]
+        except (ValueError, TypeError):
+            df_sub = df
+
+    if as_scatterplot:
+        fig = go.Figure()
+        annotation_base = dict(
+            x=0.02, y=0.95, xref='paper', yref='paper',
+            showarrow=False, align="left", font=dict(size=18)
+        )
+        param_buttons = []
+        i_trace = 0
+        for param_idx, param in enumerate(params):
+            try:
+                xcol = f"{param}_true_predictor"
+                ycol = f"{param}{fitted_suffix}"
+                subp = df_sub.dropna(subset=[xcol, ycol])
+            except KeyError:
+                param = param.replace('Vii', 'Vᵢᵢ').replace('Vij', 'Vᵢⱼ')
+                xcol = f"{param}_true_predictor"
+                ycol = f"{param}{fitted_suffix}"
+                subp = df_sub.dropna(subset=[xcol, ycol])
+            corr = np.nan
+            r_squared = np.nan
+            n_valid_points = len(subp)
+            if n_valid_points >= 2:
+                corr = subp[[xcol, ycol]].corr().iloc[0, 1]
+                r_squared = corr ** 2
+            scatter_trace = go.Scatter(
+                x=subp[xcol], y=subp[ycol], mode='markers', name=f"{param}_scatter",
+                visible=(param_idx == 0),
+                hovertemplate=(f"{param}_true_predictor=%{{x:.3f}}<br>{param}{fitted_suffix}=%{{y:.3f}}<extra></extra>"),
+                marker=dict(size=figure_layout.get("markersize", 12))
+            )
+            fig.add_trace(scatter_trace)
+            i_trace += 1
+            if n_valid_points >= 2:
+                xvals = subp[xcol].values
+                yvals = subp[ycol].values
+                slope, intercept = (0.0, float(yvals.mean())) if xvals.min() == xvals.max() else np.polyfit(xvals, yvals, 1)
+                x_line = np.linspace(xvals.min(), xvals.max(), 50)
+                line_trace = go.Scatter(x=x_line, y=slope * x_line + intercept, mode='lines',
+                                        name=f"Best Fit: {param}", visible=(param_idx == 0),
+                                        line=dict(dash='dot', width=3), hoverinfo='skip')
+            else:
+                line_trace = go.Scatter(x=[], y=[], mode='lines', visible=(param_idx == 0), name=f"Best Fit: {param}")
+            fig.add_trace(line_trace)
+            i_trace += 1
+            if not math.isnan(corr) and not math.isnan(r_squared):
+                cor_txt = f"r = {corr:.3f}, R² = {r_squared:.3f}, n={n_valid_points}"
+            else:
+                cor_txt = f"r = n/a, R²=n/a, n={n_valid_points}"
+            if param_idx == 0:
+                fig.update_layout(annotations=[dict(text=cor_txt, **annotation_base)])
+
+        n_traces = 2 * len(params)
+        for param_idx, param in enumerate(params):
+            try:
+                xcol = f"{param}_true_predictor"
+                ycol = f"{param}{fitted_suffix}"
+                subp = df_sub.dropna(subset=[xcol, ycol])
+            except KeyError:
+                param = param.replace('Vii', 'Vᵢᵢ').replace('Vij', 'Vᵢⱼ')
+                xcol = f"{param}_true_predictor"
+                ycol = f"{param}{fitted_suffix}"
+                subp = df_sub.dropna(subset=[xcol, ycol])
+            n_valid_points = len(subp)
+            if n_valid_points > 1:
+                correlation_value = subp[[xcol, ycol]].corr().iloc[0, 1]
+                r_squared = correlation_value ** 2
+                c_text = f"r={correlation_value:.3f}, R²={r_squared:.3f}, n={n_valid_points}"
+            else:
+                c_text = f"r=n/a, R²=n/a, n={n_valid_points}"
+            vis = [False] * n_traces
+            vis[2 * param_idx] = True
+            vis[2 * param_idx + 1] = True
+            param_buttons.append(dict(
+                label=param, method='update',
+                args=[{'visible': vis}, {'title': f"Scatter round={round_selection}, param={param}",
+                                         'annotations': [dict(text=c_text, **annotation_base)]}]
+            ))
+        fig.update_layout(
+            template=figure_layout.get("template", "plotly_dark"),
+            title=f"Scatter: round={round_selection}, param={params[0]}",
+            xaxis=dict(title="Chooser True Param", **figure_layout.get("xaxis", {}), scaleanchor="y", scaleratio=1),
+            yaxis=dict(title="Predictor Fitted Param", **figure_layout.get("yaxis", {})),
+            updatemenus=[dict(type='dropdown', showactive=True, buttons=param_buttons, x=1.3, y=0.9)],
+            hoverlabel=figure_layout.get("hoverlabel", {}),
+            font=figure_layout.get("font", {})
+        )
+        if export_fig:
+            fig.write_html(out_path)
+            print("Saved scatter figure to", out_path)
+        else:
+            fig.show()
+        return fig
+
+    else:
+        "Violin/box mode. Uses violin_fitted_suffix (MLE recovery) not fitted_suffix (UBM belief)."
+        "Comparing true_predictor vs fitted_predictor measures how well the MLE optimizer"
+        "recovered the predictor's own parameters — the intended parameter recovery figure."
+        _violin_suffix = violin_fitted_suffix if violin_fitted_suffix is not None else "_fitted_predictor"
+        param = boxplot_param
+        xcol_true   = f"{param}_true_predictor"
+        ycol_fitted = f"{param}{_violin_suffix}"
+        try:
+            sub = df_sub.dropna(subset=[xcol_true, ycol_fitted]).copy()
+        except KeyError:
+            param = param.replace('Vii', 'Vᵢᵢ').replace('Vij', 'Vᵢⱼ')
+            xcol_true   = f"{param}_true_predictor"
+            ycol_fitted = f"{param}{_violin_suffix}"
+            sub = df_sub.dropna(subset=[xcol_true, ycol_fitted]).copy()
+        "Each predictor plays multiple choosers; the same fitted prior appears once per dyad."
+        "Deduplicate to one row per predictor so the violin shows one estimate per agent,"
+        "not 15 stacked copies of the same value that would inflate n and skew the display."
+        if 'player_uuid_predictor' in sub.columns:
+            sub = sub.drop_duplicates(subset='player_uuid_predictor')
+        n_data = len(sub)
+        corr = np.nan
+        if n_data >= 2:
+            corr = sub[[xcol_true, ycol_fitted]].corr().iloc[0, 1]
+        try:
+            param_title = param_titles[param]
+        except KeyError:
+            param = param.replace('Vᵢᵢ', 'Vii').replace('Vᵢⱼ', 'Vij')
+            param_title = param_titles[param]
+        fig = go.Figure()
+        fig.add_trace(go.Violin(
+            x=sub[xcol_true], y=sub[ycol_fitted],
+            box=dict(visible=True), meanline=dict(visible=True),
+            line_color='hsla(115, 70%, 40%, 1.0)',
+            points='all', pointpos=-0.7, jitter=0.45,
+            scalemode='count', width=0.3, name=param,
+            hovertemplate=(f"True {param_title} = %{{x}}<br>Fitted {param_title} = %{{y:.3f}}<extra></extra>")
+        ))
+        title_text = (f"True {round_selection.capitalize()} Round Parameter by Fitted "
+                      f"{round_selection.capitalize()} Round Parameter for {param_title}")
+        cor_text = (f"Correlation = {corr:.3f}, n = {n_data}" if not math.isnan(corr) else "") + " (Simulated Data)"
+        fig.update_yaxes(range=[-1.2, 1.2])
+        fig.update_layout(
+            title=title_text,
+            titlefont_size=figure_layout['titlefont_size'] - 2,
+            template=figure_layout.get("template", "plotly_dark"),
+            title_x=figure_layout['title_x'], title_y=figure_layout['title_y'],
+            xaxis=dict(title=axis_title(param, 'predictor', 'true'), **figure_layout.get("xaxis", {})),
+            yaxis=dict(title=axis_title(param, 'predictor', 'fitted'), **figure_layout.get("yaxis", {})),
+            hoverlabel=figure_layout.get("hoverlabel", {}),
+            margin=dict(l=150, r=120, t=120, b=120),
+            font=figure_layout.get("font", {}),
+            annotations=[dict(text=cor_text, x=0.02, y=0.85, xref='paper', yref='paper',
+                              showarrow=False, align="left", font=dict(size=30))]
+        )
+        if boxplot_param == "Vij":
+            tickvals = [-1.000, -0.667, -0.333, 0.000, 0.333, 0.667, 1.000]
+            ticktext = ["-1", "-⅔", "-⅓", "0", "⅓", "⅔", "1"]
+            fig.update_xaxes(tickvals=tickvals, ticktext=ticktext)
+        if include_dropdown:
+            fig.update_layout(updatemenus=[dict(
+                buttons=[dict(args=["type", "violin"], label="Violin", method="restyle"),
+                         dict(args=["type", "box"], label="Boxplot", method="restyle")],
+                direction="down", pad={"r": 10, "t": 10}, showactive=True,
+                x=0.88, xanchor="left", y=0.1, yanchor="top"
+            )])
+        if export_fig:
+            fig.write_html(out_path)
+            print("Saved violin-box figure to", out_path.encode('ascii', 'backslashreplace').decode())
+        else:
+            fig.show()
+        return fig
+
+
+def run_parameter_recovery_simulation(figure_layout: dict, general_settings: GeneralSettings, file_paths: FilePaths, export_fig: bool = True, create_new_file: bool = False,
                                      produce_figures: bool = True, include_dropdown: bool = True, correlation_csv_name: str = "correlation_results.csv", use_dynamic_predictor: bool = False) -> pd.DataFrame:
     """
     End-to-end analysis of simulation-based parameter recovery.
@@ -986,322 +1327,7 @@ def run_simulation_recovery_analysis(figure_layout: dict, general_settings: Gene
         • pd.DataFrame;
             The merged, long-format simulation DataFrame (all dyads × rounds).
     """
-    def plot_correlation(df: pd.DataFrame, file_paths: FilePaths, round_selection: str = "first", as_scatterplot: bool = True, params: list = None, boxplot_param: str = "Vij", 
-                        include_dropdown: bool = True, figure_layout: dict = None, export_fig: bool = True, out_path: str = "corr_plot.html", fitted_suffix: str = "_fitted_predictor"):
-        """
-        Visualize true vs fitted parameters for a chosen round.
-
-        Modes:
-            • Scatter mode (as_scatterplot=True):
-                - Plots true_predictor vs fitted_predictor for each param in `params`.
-                - Adds a dropdown to toggle which parameter is shown.
-                - Overlays a best-fit line and annotates correlation, R², and n.
-
-            • Violin/box mode (as_scatterplot=False):
-                - For a single `boxplot_param`, groups by the true predictor value,
-                  and plots the distribution of fitted predictor estimates.
-                - Annotates the overall correlation between true and fitted values.
-
-        `round_selection` can be "first", "final", or a specific integer round.
-        """
-        if figure_layout is None:
-            figure_layout = {}
-        if as_scatterplot and (params is None or len(params) == 0):
-            params = ["Vii", "Vij", "Vii_std", "Vij_std", "τ"]
-
-        "1) Subset data to the specified round"
-        if round_selection == "first":
-            idxmin_ = df.groupby("dyad_key")["round"].idxmin()
-            df_sub = df.loc[idxmin_]
-        elif round_selection == "final":
-            idxmax_ = df.groupby("dyad_key")["round"].idxmax()
-            df_sub = df.loc[idxmax_]
-        else:
-            try:
-                r_sel = int(round_selection)
-                df_sub = df[df["round"] == r_sel]
-            except:
-                df_sub = df
-
-        param_titles = {
-            "Vii":     "Mean Self-interest μ(𝑉𝑖𝑖)", 
-            "Vij":     "Mean Altruism μ(𝑉𝑖𝑗)", 
-            "Vii_std": "Self-interest Standard Deviation σ(𝑉𝑖𝑖)", 
-            "Vij_std": "Altruism Standard Deviation σ(𝑉𝑖𝑗)", 
-            "τ":       "SoftMax Temperature (τ)"
-        }
-
-        def axis_title(param: str, role: str, type_: str) -> str:
-            return f"{type_.capitalize()} {role.capitalize()} Parameter: {param_titles[param]}"
-
-        "2) If as_scatterplot => multi param dropdown"
-        if as_scatterplot:
-            fig = go.Figure()
-            """
-            One param => 2 traces: (1) scatter, (2) best-fit line but with 
-            multi param dropdown, there are effectively 2*N traces total.
-            """
-
-            "Store an annotation template for correlation"
-            annotation_base = dict(
-                x=0.02, y=0.95, xref='paper', yref='paper',
-                showarrow=False, align="left",
-                font=dict(size=18)
-            )
-
-            """
-            Store all \"visible\" arrays for each param, each param has 2 traces => total = 2 * len(params).
-            Better to have exactly 2 visible for the chosen param, else 2 invisible for others.
-            """
-            param_buttons = []
-            param_traces_startidx = {}  # Param -> first trace index.
-
-            i_trace = 0
-            for param_idx, param in enumerate(params):
-                param_traces_startidx[param] = i_trace
-
-                try:
-                    "Gather data"
-                    xcol = f"{param}_true_predictor"
-                    ycol = f"{param}{fitted_suffix}"
-                    subp = df_sub.dropna(subset=[xcol, ycol])
-                except KeyError:
-                    param = param.replace('Vii', 'Vᵢᵢ')
-                    param = param.replace('Vij', 'Vᵢⱼ')
-                    "Gather data"
-                    xcol = f"{param}_true_predictor"
-                    ycol = f"{param}{fitted_suffix}"
-                    subp = df_sub.dropna(subset=[xcol, ycol])
-                "Correlation"
-                corr = np.nan
-                r_squared = np.nan
-                n_valid_points = len(subp)
-                if n_valid_points >= 2:
-                    corr = subp[[xcol,ycol]].corr().iloc[0,1]
-                    r_squared = corr**2
-
-                "Scatter"
-                scatter_trace = go.Scatter(
-                    x=subp[xcol],
-                    y=subp[ycol],
-                    mode='markers',
-                    name=f"{param}_scatter",
-                    visible=(param_idx==0),  # Show only the first param by default.
-                    hovertemplate=(
-                        f"{param}_true_predictor=%{{x:.3f}}<br>"
-                        f"{param}{fitted_suffix}=%{{y:.3f}}<extra></extra>"
-                    ),
-                    marker=dict(size=figure_layout.get("markersize", 12))
-                )
-                fig.add_trace(scatter_trace)
-                i_trace += 1
-
-                "Best-fit line"
-                line_trace = None
-                if n_valid_points >= 2:
-                    "Do a linear fit"
-                    xvals = subp[xcol].values
-                    yvals = subp[ycol].values
-                    if xvals.min() == xvals.max():
-                        slope, intercept = 0.0, float(yvals.mean())
-                    else:
-                        slope, intercept = np.polyfit(xvals, yvals, 1)
-
-                    "For plotting, covers the range of xvals."
-                    x_min, x_max = xvals.min(), xvals.max()
-                    x_line = np.linspace(x_min, x_max, 50)
-                    y_line = slope*x_line + intercept
-                    line_trace = go.Scatter(
-                        x=x_line,
-                        y=y_line,
-                        mode='lines',
-                        name=f"Best Fit: {param}",
-                        visible=(param_idx==0),
-                        line=dict(dash='dot', width=3),
-                        hoverinfo='skip'
-                    )
-                else:
-                    "No data or not enough"
-                    line_trace = go.Scatter(
-                        x=[],
-                        y=[],
-                        mode='lines',
-                        visible=(param_idx==0),
-                        name=f"Best Fit: {param}"
-                    )
-                fig.add_trace(line_trace)
-                i_trace += 1
-
-                "Annotation text for correlation"
-                if not math.isnan(corr) and not math.isnan(r_squared):
-                    cor_txt = f"r = {corr:.3f}, R² = {r_squared:.3f}, n={n_valid_points}"
-                else:
-                    cor_txt = f"r = n/a, R²=n/a, n={n_valid_points}"
-
-                "Store that text in the layout for param0. Override it via update menus for param>0"
-                if param_idx == 0:
-                    "Put it in layout"
-                    fig.update_layout(
-                        annotations=[dict(
-                            text=cor_txt,
-                            **annotation_base
-                        )]
-                    )
-
-                """
-                Create a param_buttons entry that sets the 2 traces for param visible
-                And sets all others invisible, plus updates the annotation text, plus updates title
-                Fill that after gathering them all.              
-                """
-
-            """
-            Create update menu
-            There are 2 traces per param => total 2*len(params).
-            For param i => indices 2i, 2i+1           
-            """
-            n_traces = 2*len(params)
-            for param_idx, param in enumerate(params):
-                try:
-                    "Figure out correlation for annotation"
-                    xcol = f"{param}_true_predictor"
-                    ycol = f"{param}{fitted_suffix}"
-                    subp = df_sub.dropna(subset=[xcol,ycol])
-                except KeyError:
-                    param = param.replace('Vii', 'Vᵢᵢ')
-                    param = param.replace('Vij', 'Vᵢⱼ')
-                    xcol = f"{param}_true_predictor"
-                    ycol = f"{param}{fitted_suffix}"
-                    subp = df_sub.dropna(subset=[xcol,ycol])
-
-                n_valid_points = len(subp)
-                if n_valid_points > 1:
-                    correlation_value = subp[[xcol,ycol]].corr().iloc[0,1]
-                    r_squared = correlation_value**2
-                    c_text = f"r={correlation_value:.3f}, R²={r_squared:.3f}, n={n_valid_points}"
-                else:
-                    c_text = f"r=n/a, R²=n/a, n={n_valid_points}"
-
-                "Build a \"visible\" array"
-                vis = [False]*n_traces
-                vis[2*param_idx] = True
-                vis[2*param_idx+1] = True
-
-                param_buttons.append(
-                    dict(
-                        label=param,
-                        method='update',
-                        args=[
-                            {'visible': vis},
-                            {
-                            'title': f"Scatter round={round_selection}, param={param}",
-                            'annotations': [dict(text=c_text, **annotation_base)]
-                            }
-                        ]
-                    )
-                )
-
-            fig.update_layout(
-                template=figure_layout.get("template", "plotly_dark"),
-                title=f"Scatter: round={round_selection}, param={params[0]}",
-                xaxis=dict(title="Chooser True Param", **figure_layout.get("xaxis", {}), scaleanchor="y", scaleratio=1),
-                yaxis=dict(title="Predictor Fitted Param", **figure_layout.get("yaxis", {})),
-                updatemenus=[dict(type='dropdown', showactive=True, buttons=param_buttons, x=1.3, y=0.9)],
-                hoverlabel=figure_layout.get("hoverlabel", {}),
-                font=figure_layout.get("font", {})
-            )
-
-            if export_fig:
-                fig.write_html(out_path)
-                print("Saved scatter figure to", out_path)
-            else:
-                fig.show()
-
-            return fig
-
-        else:
-            # As_scatterplot=False => use a violin-boxplot with a single param.
-            param = boxplot_param
-            xcol_true  = f"{param}_true_predictor"
-            ycol_fitted= f"{param}_fitted_predictor"
-
-            try:
-                sub = df_sub.dropna(subset=[xcol_true, ycol_fitted]).copy()
-            except KeyError:
-                param = param.replace('Vii', 'Vᵢᵢ')
-                param = param.replace('Vij', 'Vᵢⱼ')
-                xcol_true  = f"{param}_true_predictor"
-                ycol_fitted= f"{param}_fitted_predictor"
-                sub = df_sub.dropna(subset=[xcol_true, ycol_fitted]).copy()        
-            n_data = len(sub)
-            corr = np.nan
-            if n_data >= 2:
-                corr = sub[[xcol_true,ycol_fitted]].corr().iloc[0,1]
-
-            try: param_title = param_titles[param]
-            except KeyError:
-                param = param.replace('Vᵢᵢ', 'Vii')
-                param = param.replace('Vᵢⱼ', 'Vij')
-                param_title = param_titles[param]
-
-            fig = go.Figure()
-            fig.add_trace(go.Violin(
-                x=sub[xcol_true],
-                y=sub[ycol_fitted],
-                box=dict(visible=True),
-                meanline=dict(visible=True),
-                line_color='hsla(115, 70%, 40%, 1.0)',
-                points='all', pointpos=-0.7, jitter=0.45, 
-                scalemode='count', width=0.3, name=param,
-                hovertemplate=(
-                    f"True {param_title} = %{{x}}<br>Fitted "
-                    f"{param_title} = %{{y:.3f}}<extra></extra>"
-                )
-            ))
-
-            "Title text and correlation annotation"
-            title_text = f"True {round_selection.capitalize()} Round Parameter by Fitted "
-            title_text += f"{round_selection.capitalize()} Round Parameter for {param_title}"
-            cor_text = f"Correlation = {corr:.3f}, n = {n_data}" if not math.isnan(corr) else ""
-            cor_text += " (Simulated Data)" 
-            fig.update_yaxes(range=[-1.2, 1.2])
-            fig.update_layout(
-                title=title_text, 
-                titlefont_size=figure_layout['titlefont_size']-2,
-                template=figure_layout.get("template", "plotly_dark"),
-                title_x=figure_layout['title_x'], title_y=figure_layout['title_y'], 
-                xaxis=dict(title=axis_title(param, 'predictor', 'true'), **figure_layout.get("xaxis", {})),
-                yaxis=dict(title=axis_title(param, 'predictor', 'fitted'), **figure_layout.get("yaxis", {})),
-                hoverlabel=figure_layout.get("hoverlabel", {}),
-                margin=dict(l=150, r=120, t=120, b=120),
-                font=figure_layout.get("font", {}),
-                annotations=[dict(
-                    text=cor_text,
-                    x=0.02, y=0.85, xref='paper', yref='paper',
-                    showarrow=False, align="left",
-                    font=dict(size=30)
-                )]
-            )
-
-            if boxplot_param == "Vij":
-                tickvals = [-1.000, -0.667, -0.333, 0.000, 0.333, 0.667, 1.000]
-                ticktext = ["-1", "-⅔", "-⅓", "0", "⅓", "⅔", "1"]
-                fig.update_xaxes(tickvals=tickvals, ticktext=ticktext)
-
-            if include_dropdown: 
-                """Dropdown menu to switch between violin and boxplot:"""
-                fig.update_layout(updatemenus=[dict(buttons=list([
-                    dict(args=["type", "violin"], label="Violin", method="restyle"),
-                    dict(args=["type", "box"], label="Boxplot", method="restyle")]),
-                    direction="down", pad={"r": 10, "t": 10}, showactive=True, 
-                    x=0.88, xanchor="left", y=0.1, yanchor="top")])
-
-            if export_fig:
-                fig.write_html(out_path)
-                print("Saved violin-box figure to", out_path)
-            else:
-                fig.show()
-
-            return fig
+    "plot_correlation is now a standalone function: plot_parameter_recovery_correlation."
 
     dir_path = ensure_directory_and_join(file_paths['player_fits'], 'experiment_0')
     sim_dir = str(file_paths['simulations'])
@@ -1338,7 +1364,7 @@ def run_simulation_recovery_analysis(figure_layout: dict, general_settings: Gene
     "3) Correlation and plots follow the existing parameter-recovery approach."
     "Example: correlation between \"Vij_true_predictor\" and \"Vij_fitted_predictor\"."
 
-    fitted_suffix = "_sim_pred_predictor" if use_dynamic_predictor else "_fitted_predictor"
+    fitted_suffix = "_belief_predictor" if use_dynamic_predictor else "_fitted_predictor"
 
     "Here's the function that does round-based correlation"
     corr_df_out = compute_param_recovery_correlations(df=df_combined, dir_path=sim_dir, 
@@ -1348,8 +1374,7 @@ def run_simulation_recovery_analysis(figure_layout: dict, general_settings: Gene
     if produce_figures:
         for round_selection in ('first', 'final'):
             for param in ("Vii", "Vij", "Vii_std", "Vij_std", "τ"):
-                "Boxplot/violin"
-                plot_correlation(
+                plot_parameter_recovery_correlation(
                     df=df_combined,
                     round_selection=round_selection,
                     as_scatterplot=False,
@@ -1361,35 +1386,55 @@ def run_simulation_recovery_analysis(figure_layout: dict, general_settings: Gene
                     out_path=os.path.join(sim_dir, f"corr_violin_{param}_{round_selection}.html"),
                     fitted_suffix=fitted_suffix,
                 )
-            "Scatterplot"
-            plot_correlation(
+            plot_parameter_recovery_correlation(
                 df=df_combined,
                 figure_layout=figure_layout,
                 export_fig=export_fig,
                 round_selection=round_selection,
                 as_scatterplot=True,
-                params=["Vii","Vij","Vii_std","Vij_std","τ"],
+                params=["Vii", "Vij", "Vii_std", "Vij_std", "τ"],
                 file_paths=file_paths,
                 out_path=os.path.join(sim_dir, f"corr_scatter_{round_selection}.html"),
                 fitted_suffix=fitted_suffix,
             )
 
         "Correlation by round => line"
-        plot_param_recovery_by_round(
+        plot_param_recovery_correlation_by_round(
             general_settings=general_settings,
             df_merged=df_combined, params=["Vii", "Vij", "Vii_std", "Vij_std", "τ"], figure_layout=figure_layout, 
             export_fig=export_fig, create_new_file=create_new_file, file_paths=file_paths, 
-            file_name=("corr_by_round_sim_pred.html" if use_dynamic_predictor else "corr_by_round.html"),
-            corr_csv_name=("correlation_results_by_round_sim_pred.csv" if use_dynamic_predictor else "correlation_results_by_round.csv"),
+            file_name=("corr_by_round_belief.html" if use_dynamic_predictor else "corr_by_round.html"),
+            corr_csv_name=("correlation_results_by_round_belief.csv" if use_dynamic_predictor else "correlation_results_by_round.csv"),
             fitted_suffix=fitted_suffix, fit_mode='poly', poly_degree=3
         )
 
     return df_combined
 
 
-def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted_predictor", temp_col="τ_fitted_predictor", param_true_chooser="Vᵢⱼ_true_chooser", 
-                                      param_fitted_predictor="Vᵢⱼ_fitted_predictor", player_id_col="player_uuid_predictor", var_edges: list[float] = None, 
-                                      temp_edges: list[float] = None, last_rounds: list[int] = [18,19,20], print_: bool = True) -> dict:
+def make_bin_range_labels(bin_edges: list[float], decimals: int = 2) -> list[str]:
+    """
+    Convert a list of N+1 bin edges into N human-readable range strings.
+
+    Arguments:
+        • bin_edges: list[float];
+            Ordered edge values, e.g. [0.5, 1.0, 2.0, 3.0].
+        • decimals: int;
+            Number of decimal places in the formatted bounds.
+
+    Returns:
+        • list[str];
+            One string per bin, formatted as "[lower_bound, upper_bound]".
+    """
+    return [
+        f"[{bin_edges[bin_idx]:.{decimals}f}, {bin_edges[bin_idx + 1]:.{decimals}f}]"
+        for bin_idx in range(len(bin_edges) - 1)
+    ]
+
+
+def tabulate_recovery_correlations_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted_predictor", temp_col="τ_fitted_predictor", param_true_chooser="Vᵢⱼ_true_chooser",
+                                      param_fitted_predictor="Vᵢⱼ_fitted_predictor", player_id_col="player_uuid_predictor", var_edges: list[float] = None,
+                                      temp_edges: list[float] = None, last_rounds: list[int] = [21, 22, 23], print_: bool = True,
+                                      file_paths: Optional[Dict[str, Any]] = None) -> dict:
     """
     Quantify parameter recovery as a function of prior variance and temperature.
 
@@ -1426,6 +1471,13 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
             Optional bin edges for temperature. If None, computed as tertiles.
         • last_rounds: list[int];
             Rounds over which to compute final recovery correlations.
+        • file_paths: dict | None;
+            Project file-path registry. When provided, saves three CSV files into
+            file_paths['simulations']:
+              - recovery_correlations.csv   — numeric correlations, range-label headers
+              - recovery_counts.csv         — participant counts, range-label headers
+              - recovery_table_pretty.csv   — combined "{corr:.3f}, n={count}" per cell,
+                                             copy-paste ready for Word / Excel
 
     Returns:
         • dict;
@@ -1496,30 +1548,19 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
         print(f"[compute_recovery_by_prior_bins] Skipping: constant data in {', '.join(degenerate)} — no binning possible.")
         return {}
 
-    "Build a small DataFrame: [player_id, prior_var, prior_temp, var_bin, temp_bin]"
-    bin_rows = []
-    for pid, rowsub in df0.groupby(player_id_col):
-        row = rowsub.iloc[0]  # First row if multiple.
-        var_val  = row[var_col]
-        temp_val = row[temp_col]
-        variance_bin_index = bin_index(var_val, var_edges)
-        temperature_bin_index = bin_index(temp_val, temp_edges)
-        bin_rows.append({
-            player_id_col: pid,
-            "prior_var": var_val,
-            "prior_temp": temp_val,
-            "var_bin": variance_bin_index,
-            "temp_bin": temperature_bin_index
-        })
-    df_bininfo = pd.DataFrame(bin_rows)
-
-    "2) Merge bininfo onto all rows => so every row now has (var_bin,temp_bin, prior_var, prior_temp)"
-    df_merged = pd.merge(df_, df_bininfo, on=player_id_col, how="left")
+    "The _true_ columns (var_col, temp_col, param_true_chooser) are only populated at round=0."
+    "Propagate them to all rounds by joining round-0 values onto every row via dyad_key."
+    df0_r0 = df_[df_['round'] == 0][['dyad_key', var_col, temp_col, param_true_chooser]].copy()
+    df0_r0['var_bin']  = df0_r0[var_col].apply(lambda v: bin_index(v, var_edges))
+    df0_r0['temp_bin'] = df0_r0[temp_col].apply(lambda v: bin_index(v, temp_edges))
+    df0_r0 = df0_r0.rename(columns={param_true_chooser: '_true_chooser_dyad'})
+    df0_r0 = df0_r0[['dyad_key', 'var_bin', 'temp_bin', '_true_chooser_dyad']]
+    df_merged = df_.merge(df0_r0, on='dyad_key', how='left')
 
     "3) Filter to last_rounds => gather all rows from these final rounds"
     sub_last = df_merged[df_merged["round"].isin(last_rounds)].copy()
     sub_last = sub_last.dropna(
-        subset=["var_bin","temp_bin", param_true_chooser, param_fitted_predictor]
+        subset=["var_bin", "temp_bin", "_true_chooser_dyad", param_fitted_predictor]
     )
 
     "=========== (A) Build 3x3 correlation table by bins ============="
@@ -1528,13 +1569,13 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
     def group_corr_bin(gdf_sub):
         if len(gdf_sub) < 3:
             return np.nan
-        xvals = gdf_sub[param_true_chooser].values
+        xvals = gdf_sub['_true_chooser_dyad'].values
         yvals = gdf_sub[param_fitted_predictor].values
         return np.corrcoef(xvals,yvals)[0,1]
 
     corr_ser = (
         sub_last
-        .groupby(group_cols, group_keys=False)[[param_true_chooser, param_fitted_predictor]]
+        .groupby(group_cols, group_keys=False)[['_true_chooser_dyad', param_fitted_predictor]]
         .apply(group_corr_bin)
     )
 
@@ -1554,30 +1595,78 @@ def compute_recovery_by_prior_bins(df: pd.DataFrame, var_col="Vᵢⱼ_std_fitted
         if 1 <= variance_bin_index <= 3 and 1 <= temperature_bin_index <= 3:
             cmat[variance_bin_index - 1, temperature_bin_index - 1] = correlation_value
 
-    var_labels = ["LowVar","MedVar","HighVar"]
-    temp_labels= ["LowTemp","MedTemp","HighTemp"]
-    corr_df = pd.DataFrame(cmat, index=var_labels, columns=temp_labels)
-    
-    "Build a 3x3 count table => how many participants are in each bin (round=0)"
-    count_mat = np.zeros((3,3), dtype=float)
-    bin_df = df_bininfo.dropna(subset=["var_bin","temp_bin"])
-    bin_counts = bin_df.groupby(["var_bin","temp_bin"]).size()
+    "Build range-label strings from the actual computed bin edges."
+    "  e.g. var_range_labels  = ['σ(Vᵢⱼ) ∊ [0.50, 1.00]', 'σ(Vᵢⱼ) ∊ [1.00, 1.50]', ...]"
+    "  e.g. temp_range_labels = ['τ ∊ [0.50, 1.33]', 'τ ∊ [1.33, 2.17]', ...]"
+    var_range_strings  = make_bin_range_labels(bin_edges=var_edges, decimals=2)
+    temp_range_strings = make_bin_range_labels(bin_edges=temp_edges, decimals=2)
+    var_range_labels   = [f"σ(Vᵢⱼ) ∊ {range_str}" for range_str in var_range_strings]
+    temp_range_labels  = [f"τ ∊ {range_str}"       for range_str in temp_range_strings]
+
+    corr_df = pd.DataFrame(cmat, index=var_range_labels, columns=temp_range_labels)
+
+    "Build a 3x3 count table: number of (predictor, chooser) dyads in each bin."
+    "df0_r0 already has one row per dyad with correct bin assignments."
+    count_mat = np.zeros((3, 3), dtype=float)
+    df0_for_count = df0_r0.dropna(subset=["var_bin", "temp_bin"])
+    bin_counts = df0_for_count.groupby(["var_bin", "temp_bin"]).size()
     for (variance_bin_index, temperature_bin_index), participant_count in bin_counts.items():
-        if 1 <= variance_bin_index <= 3 and 1 <= temperature_bin_index <= 3:
-            count_mat[variance_bin_index - 1, temperature_bin_index - 1] = participant_count
-    count_df = pd.DataFrame(count_mat, index=var_labels, columns=temp_labels)
+        v_idx = int(variance_bin_index)
+        t_idx = int(temperature_bin_index)
+        if 1 <= v_idx <= 3 and 1 <= t_idx <= 3:
+            count_mat[v_idx - 1, t_idx - 1] = participant_count
+    count_df = pd.DataFrame(count_mat, index=var_range_labels, columns=temp_range_labels)
+
+    "Build the pretty combined table: each cell = '{corr:.3f}, n={count}', for copy-paste into Word."
+    pretty_cells = []
+    for row_idx in range(3):
+        pretty_row = []
+        for col_idx in range(3):
+            correlation_value_for_cell = cmat[row_idx, col_idx]
+            participant_count_for_cell = int(count_mat[row_idx, col_idx])
+            if np.isnan(correlation_value_for_cell):
+                pretty_row.append(f"n/a, n={participant_count_for_cell}")
+            else:
+                pretty_row.append(f"{correlation_value_for_cell:.3f}, n={participant_count_for_cell}")
+        pretty_cells.append(pretty_row)
+    pretty_df = pd.DataFrame(pretty_cells, index=var_range_labels, columns=temp_range_labels)
 
     if print_:
-        print("Correlation table (last rounds):\n", corr_df)
-        print("Count table (# participants in each bin at round=0):\n", count_df)
-        print("Used var edges:", var_edges)
-        print("Used temp edges:", temp_edges)
+        def _safe_print(text: str) -> None:
+            import sys
+            sys.stdout.buffer.write((text + '\n').encode('utf-8', errors='replace'))
+        _safe_print("Correlation table (last rounds):\n" + corr_df.to_string())
+        _safe_print("\nCount table (# participants in each bin at round=0):\n" + count_df.to_string())
+        _safe_print("\nPretty combined table (corr + n):\n" + pretty_df.to_string())
+        _safe_print(f"\nUsed sigma(Vij) bin edges: {var_edges}")
+        _safe_print(f"Used tau bin edges:         {temp_edges}")
+
+    "Save all three CSV files when file_paths is provided."
+    if file_paths is not None:
+        simulations_dir = str(file_paths['simulations'])
+        os.makedirs(simulations_dir, exist_ok=True)
+
+        recovery_correlations_csv_path = os.path.join(simulations_dir, 'recovery_correlations.csv')
+        corr_df.to_csv(recovery_correlations_csv_path, encoding='utf-8-sig')
+        print(f"Saved correlation table to {recovery_correlations_csv_path}")
+
+        recovery_counts_csv_path = os.path.join(simulations_dir, 'recovery_counts.csv')
+        count_df.to_csv(recovery_counts_csv_path, encoding='utf-8-sig')
+        print(f"Saved count table to {recovery_counts_csv_path}")
+
+        recovery_pretty_csv_path = os.path.join(simulations_dir, 'recovery_table_pretty.csv')
+        try:
+            pretty_df.to_csv(recovery_pretty_csv_path, encoding='utf-8-sig')
+            print(f"Saved pretty combined table to {recovery_pretty_csv_path}")
+        except PermissionError:
+            print(f"[Warning] recovery_table_pretty.csv is locked (open in Excel?). Skipping save.")
 
     return {
-        "corr_table": corr_df,     # 3x3 table of correlation by bins
-        "count_table": count_df,   # 3x3 table of bin counts
-        "var_edges": var_edges,
-        "temp_edges": temp_edges,
+        "corr_table":   corr_df,    # 3×3 table of recovery correlations by bins
+        "count_table":  count_df,   # 3×3 table of participant counts per bin
+        "pretty_table": pretty_df,  # 3×3 pretty "{corr:.3f}, n={count}" table
+        "var_edges":    var_edges,
+        "temp_edges":   temp_edges,
     }
 
 
@@ -2763,8 +2852,8 @@ def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_s
 "======= Simulation 2) Predictor Estimates Converge to the Chooser's True Altruism ========"
 "=========================================================================================="
 
-def plot_param_recovery_by_round(
-        df_merged: pd.DataFrame,
+def plot_param_recovery_correlation_by_round(
+        df_merged: Optional[pd.DataFrame],
         general_settings: GeneralSettings,
         file_paths: FilePaths,
         params=None,
@@ -2855,10 +2944,10 @@ def plot_param_recovery_by_round(
     os.makedirs(dir_path, exist_ok=True)
 
     param_titles = {
-        "Vii":     "Mean Self-interest μ(𝑉𝑖𝑖)", 
-        "Vij":     "Mean Altruism μ(𝑉𝑖𝑗)", 
-        "Vii_std": "Self-interest Standard Deviation σ(𝑉𝑖𝑖)", 
-        "Vij_std": "Altruism Standard Deviation σ(𝑉𝑖𝑗)", 
+        "Vii":     "Mean Self-interest μ(𝑉𝑖𝑖)",
+        "Vij":     "Mean Altruism μ(𝑉𝑖𝑗)",
+        "Vii_std": "Self-interest Standard Deviation σ(𝑉𝑖𝑖)",
+        "Vij_std": "Altruism Standard Deviation σ(𝑉𝑖𝑗)",
         "τ":       "SoftMax Temperature (τ)"
     }
 
@@ -2870,7 +2959,41 @@ def plot_param_recovery_by_round(
         "τ":       "(τ)"
     }
 
-    "1) Correlations by round"
+    "Title components: (belief_label, true_label) for use in the figure title."
+    "belief_label describes the predictor's distributional belief (e.g. mean μ(𝑉𝑖𝑗))."
+    "true_label is the scalar ground-truth parameter the belief is compared against."
+    param_title_components = {
+        "Vii":     ("Self-interest μ(𝑉𝑖𝑖)",              "𝑉𝑖𝑖"),
+        "Vij":     ("Altruism μ(𝑉𝑖𝑗)",                   "𝑉𝑖𝑗"),
+        "Vii_std": ("Self-interest Std σ(𝑉𝑖𝑖)",           "σ(𝑉𝑖𝑖)"),
+        "Vij_std": ("Altruism Std σ(𝑉𝑖𝑗)",               "σ(𝑉𝑖𝑗)"),
+        "τ":       ("Temperature τ",                       "τ"),
+    }
+
+    "1) Correlations by round."
+    "   If df_merged is None, load simulated_fits.csv from disk instead of forcing create_new_file=False."
+    "   This lets the caller regenerate the by-round CSV from current data without passing the full DataFrame."
+    if df_merged is None:
+        simulated_fits_csv_path = os.path.join(dir_path, 'simulated_fits.csv')
+        if not os.path.exists(simulated_fits_csv_path):
+            raise FileNotFoundError(
+                f"df_merged is None and simulated_fits.csv not found at {simulated_fits_csv_path}. "
+                f"Run create_simulated_data + run_parameter_recovery_simulation first."
+            )
+        df_merged = pd.read_csv(simulated_fits_csv_path, encoding='utf-8', engine='python')
+        if 'Unnamed: 0' in df_merged.columns:
+            del df_merged['Unnamed: 0']
+        print(f"plot_param_recovery_correlation_by_round: loaded {len(df_merged)} rows from {simulated_fits_csv_path}")
+
+    "Propagate _true_ columns (only populated at round=0) to every round via dyad_key."
+    "Without this, compute_param_recovery_correlations finds no valid rows for rounds > 0"
+    "because true-param and sim-pred are never both non-NaN in the same row."
+    _true_cols = [c for c in df_merged.columns if '_true_' in c]
+    if _true_cols and 'dyad_key' in df_merged.columns:
+        _df0_true = df_merged[df_merged['round'] == 0][['dyad_key'] + _true_cols].copy()
+        df_merged = df_merged.drop(columns=_true_cols)
+        df_merged = df_merged.merge(_df0_true, on='dyad_key', how='left')
+
     corr_df = compute_param_recovery_correlations(
         df=df_merged,
         dir_path=dir_path,
@@ -2984,8 +3107,11 @@ def plot_param_recovery_by_round(
                 {"visible": visible_list},
                 {
                     "title": (
-                        "Correlation Between Fitted Predictor Parameters and "
-                        f"True Chooser Parameters by Round for {param_titles[param_name]}"
+                        "Correlation Between Predictor's Belief About Chooser "
+                        + param_title_components.get(param_name, (param_name, param_name))[0]
+                        + " and True Chooser "
+                        + param_title_components.get(param_name, (param_name, param_name))[1]
+                        + " by Round"
                     ),
                     "annotations": [dict(text=annotation_text, **annotation_base)]
                 }
@@ -3004,7 +3130,13 @@ def plot_param_recovery_by_round(
     max_round = corr_df["round"].max() if not corr_df.empty else 0
 
     fig.update_layout(
-        title="Correlation Between Fitted Predictor Parameters And True Chooser Parameters by Round",
+        title=(
+            "Correlation Between Predictor's Belief About Chooser "
+            + param_title_components.get(first_param, (first_param, first_param))[0]
+            + " and True Chooser "
+            + param_title_components.get(first_param, (first_param, first_param))[1]
+            + " by Round"
+        ),
         title_x=figure_layout['title_x'], title_y=figure_layout['title_y'],
         titlefont_size=figure_layout['titlefont_size'] - 15,
         xaxis=dict(
@@ -3202,31 +3334,51 @@ def compute_prediction_accuracy_by_segment(file_paths: Dict[str, Dict[str, str] 
 "======== Simulation 3) Prior Variance and Temperature Affect Belief Update Speed ========="
 "=========================================================================================="
 
-def compute_belief_update_speed(dyad_games: List[Dict[str, Any]], player_uuid: str, general_settings: Dict[str, Any], 
-                                true_parameters: Optional[Dict[str, float]] = None, params_of_interest: Optional[list[str]] = None, fraction: float = 0.5) -> float:
+def compute_belief_update_speed(dyad_games: List[Dict[str, Any]], player_uuid: str, general_settings: Dict[str, Any],
+                                true_parameters: Optional[Dict[str, float]] = None, params_of_interest: Optional[list[str]] = None,
+                                fraction_between_start_and_finish: float = 0.5,
+                                metric_mode: str = 'halfpoint_to_truth',
+                                update_method: Optional[str] = None) -> float:
     """
-    Quantify how quickly a predictor's fitted parameters move toward their target.
+    Quantify how quickly a predictor's fitted parameters move toward a target.
 
-    This implements the “update speed” measure described in the paper's simulation
-    section (Prior Variance and Temperature Affect Belief Update Speed). It returns
-    a scalar in [0, 1] indicating the earliest round at which the fitted parameters
-    cross a given fraction of the total distance between start and target.
+    Returns a scalar in [0, 1]: the earliest round, normalized by total rounds,
+    at which the predictor's estimate crosses `fraction_between_start_and_finish`
+    of the way from its starting position to the target.
 
-    Two modes:
-        • Absolute mode (model-to-truth):
-            If `true_parameters` is provided, tracks the Euclidean distance between
-            the predictor's fitted vector and the ground-truth vector each round.
-            Computes:
-                d(0)  = initial distance
-                d(F)  = final distance
-                d*    = d(0) + fraction · (d(F) – d(0))
-            and return the earliest round index t where the distance crosses d*,
-            normalized by the total number of intervals (t / T).
+    `metric_mode` selects how the finish-line distance threshold is computed:
 
-        • Relative mode (prior-to-posterior):
-            If `true_parameters` is None, tracks the distance between param(t)
-            and the initial param(0), and find the earliest t where the distance
-            reaches `fraction` of the total prior→final shift.
+        'halfpoint_to_truth' (default, requires true_parameters):
+            Fixed finish line — the predictor must close
+            `fraction_between_start_and_finish` of the original gap to truth,
+            regardless of where the estimate ends up.
+
+                distance_threshold = (1 - fraction_between_start_and_finish)
+                                     × initial_distance_to_truth
+
+            Crossing criterion: distance_to_truth_each_round[t] <= distance_threshold.
+
+            This avoids the normalization artifact present in 'halfpoint_of_improvement':
+            when the UBM receives weak signal (e.g. a highly random chooser), the estimate
+            barely moves toward truth, so with a fixed threshold the speed is correctly
+            measured as slow. The old metric collapsed the threshold toward zero in this
+            case and registered trivially fast speeds.
+
+        'halfpoint_of_improvement' (original, kept for reference):
+            Finish line at the midpoint between the initial and final distance to truth.
+
+                distance_threshold = initial_distance_to_truth
+                                     + fraction_between_start_and_finish
+                                     × (final_distance_to_truth - initial_distance_to_truth)
+
+            Biased when the UBM barely moves: a near-zero total improvement makes the
+            threshold trivially easy to cross early, producing spuriously fast speeds.
+            Use only for comparison with prior results.
+
+        'halfpoint_of_prior_to_posterior' (relative, no true_parameters needed):
+            Tracks how far the estimate has shifted from its starting position, and
+            finds when that shift reaches `fraction_between_start_and_finish` of the
+            total prior→posterior shift over all rounds.
 
     Arguments:
         • dyad_games: list[dict[str, Any]];
@@ -3234,25 +3386,28 @@ def compute_belief_update_speed(dyad_games: List[Dict[str, Any]], player_uuid: s
         • player_uuid: str;
             UUID of the predictor whose update speed is being measured.
         • general_settings: dict[str, Any];
-            Settings that specify the update method (e.g., "grid") and experiment_num.
+            Settings that specify the update method (e.g., “grid”) and experiment_num.
         • true_parameters: dict[str, float] | None;
-            Ground-truth parameter vector to move toward (e.g., chooser parameters
-            in simulations). If None, use the predictor's own final parameters as
-            the “target”.
+            Ground-truth parameter vector (e.g., chooser's true params in simulations).
+            Required for 'halfpoint_to_truth' and 'halfpoint_of_improvement' modes.
+            If None, metric_mode falls back to 'halfpoint_of_prior_to_posterior'.
         • params_of_interest: list[str] | None;
-            Subset of parameter keys to include (e.g., ["Vᵢᵢ","Vᵢⱼ"]). If None,
-            use all non-std / non-cov / non-temp entries in the fitted vector.
-        • fraction: float;
-            Fraction of the total distance toward the target that defines “arrival”.
-            In the paper, 0.5 corresponds to “halfway update speed”.
+            Subset of parameter keys to include (e.g., [“Vᵢⱼ”]). If None, uses all
+            non-std / non-cov / non-temp entries in the fitted vector.
+        • fraction_between_start_and_finish: float;
+            How far along the journey from start to target must the estimate travel
+            before “arrival” is declared. Default 0.5 = must get halfway there.
+        • metric_mode: str;
+            One of 'halfpoint_to_truth' (default), 'halfpoint_of_improvement',
+            'halfpoint_of_prior_to_posterior'.
 
     Returns:
         • float in [0, 1];
             Normalized crossing time:
-                0   → very fast update (threshold crossed immediately),
-                1   → slowest (threshold never crossed before the final round).
+                0   → crossed immediately (very fast update),
+                1   → never crossed before the final round (slowest).
     """
-    update_method = general_settings.get('update_method', 'grid')
+    update_method = update_method or general_settings.get('update_method', 'grid')
     experiment_num= general_settings.get('experiment_num', None)
 
     "1) gather param vectors or scalars per round"
@@ -3301,122 +3456,124 @@ def compute_belief_update_speed(dyad_games: List[Dict[str, Any]], player_uuid: s
     def dist_vec(first_param_vector, second_param_vector):
         return math.sqrt(sum((first_param_value-second_param_value)**2 for (first_param_value, second_param_value) in zip(first_param_vector, second_param_vector)))
 
-    if true_parameters is not None:
-        "\"absolute\" => compare param(t) to the ground truth each round"
-        "Build ground_truth vector, ignoring _std, etc., same dimension"
-        ground_vals = []
-        for pkey in sorted(true_parameters.keys()):
-            if any(excluded_token in pkey for excluded_token in ['_std', '_cov']) or pkey in ('τ', 'temp'):
+    if true_parameters is not None and metric_mode in ('halfpoint_to_truth', 'halfpoint_of_improvement'):
+        "Build the chooser's true parameter vector, excluding _std, _cov, and temperature keys."
+        true_param_values = []
+        for param_key in sorted(true_parameters.keys()):
+            if any(excluded_token in param_key for excluded_token in ['_std', '_cov']) or param_key in ('τ', 'temp'):
                 continue
-            if params_of_interest is not None and pkey not in params_of_interest:
+            if params_of_interest is not None and param_key not in params_of_interest:
                 continue
-            ground_vals.append(true_parameters[pkey])
-        ground_vec = tuple(ground_vals)
-        if len(ground_vec) != len(param_series[0]):
-            raise ValueError("Mismatch in dimension between param_of_interest and ground truth.")
-        
-        "Now param_series[t] => fitted param vector"
-        # Distance(t) => dist_vec(param_series[t], ground_vec).
-        dist_series = [dist_vec(param_vector, ground_vec) for param_vector in param_series]
-        prior_dist = dist_series[0]
-        final_dist = dist_series[-1]
-        "Threshold"
-        threshold = prior_dist + fraction*(final_dist - prior_dist)
-        """
-        Find earliest t crossing
-        If final_dist < prior_dist, look for dist_series[t] <= threshold.
-        If final_dist > prior_dist, look for dist_series[t] >= threshold.
-        Handles reversed direction when final < prior.   
-        """
-        direction = 1 if final_dist > prior_dist else -1
+            true_param_values.append(true_parameters[param_key])
+        true_param_vector = tuple(true_param_values)
+        if len(true_param_vector) != len(param_series[0]):
+            raise ValueError("Mismatch in dimension between params_of_interest and true_parameters.")
 
-        total_time_intervals = len(dist_series)-1  # Total intervals.
-        crossing_round = total_time_intervals  # Default to last => speed=1 if never cross.
-        for idx, distance_at_round in enumerate(dist_series):
-            # Index spans 0..len-1.
-            if direction>0:
-                if distance_at_round >= threshold:
-                    crossing_round = idx
+        "Euclidean distance from each round's fitted estimate to the ground-truth vector."
+        distance_to_truth_each_round = [dist_vec(fitted_param_vector, true_param_vector)
+                                        for fitted_param_vector in param_series]
+        initial_distance_to_truth = distance_to_truth_each_round[0]
+        final_distance_to_truth   = distance_to_truth_each_round[-1]
+
+        "Select threshold based on metric_mode."
+        if metric_mode == 'halfpoint_to_truth':
+            "Fixed finish line: predictor must close fraction_between_start_and_finish of"
+            "the original gap to truth, independent of where the estimate ends up."
+            "Changed 2026-05-29 from halfpoint_of_improvement to fix normalization artifact:"
+            "the old threshold collapsed toward zero when the UBM barely moved (e.g. high"
+            "chooser τ → weak signal), making trivial fluctuations register as fast updates."
+            if initial_distance_to_truth == 0.0:
+                return 0.0
+            distance_threshold = (1.0 - fraction_between_start_and_finish) * initial_distance_to_truth
+            total_time_intervals = len(distance_to_truth_each_round) - 1
+            crossing_round = total_time_intervals
+            for round_idx, distance_at_round in enumerate(distance_to_truth_each_round):
+                if distance_at_round <= distance_threshold:
+                    crossing_round = round_idx
                     break
-            else:
-                if distance_at_round <= threshold:
-                    crossing_round = idx
-                    break
+        else:
+            "halfpoint_of_improvement (original, kept for reference): finish line at the"
+            "midpoint between initial and final distance to truth. Biased when the UBM"
+            "barely moves — a near-zero improvement makes the threshold trivially easy to"
+            "cross. Use metric_mode='halfpoint_to_truth' for paper analyses."
+            distance_threshold = (initial_distance_to_truth
+                                  + fraction_between_start_and_finish
+                                  * (final_distance_to_truth - initial_distance_to_truth))
+            direction_of_change = 1 if final_distance_to_truth > initial_distance_to_truth else -1
+            total_time_intervals = len(distance_to_truth_each_round) - 1
+            crossing_round = total_time_intervals
+            for round_idx, distance_at_round in enumerate(distance_to_truth_each_round):
+                if direction_of_change > 0:
+                    if distance_at_round >= distance_threshold:
+                        crossing_round = round_idx
+                        break
+                else:
+                    if distance_at_round <= distance_threshold:
+                        crossing_round = round_idx
+                        break
+
         if total_time_intervals <= 0:
             return 0.0
-        normalized_crossing_time = crossing_round / float(total_time_intervals)
-        if normalized_crossing_time > 1:
-            normalized_crossing_time = 1
+        normalized_crossing_time = min(crossing_round / float(total_time_intervals), 1.0)
         return normalized_crossing_time
 
     else:
-        "\"relative\" => time to cross half difference from param(0) to param(final)"
-        prior_vec = param_series[0]
-        final_vec = param_series[-1]
-        total_time_intervals = len(param_series)-1
+        "halfpoint_of_prior_to_posterior: time to shift fraction_between_start_and_finish"
+        "of the total prior→posterior parameter movement, without reference to truth."
+        initial_param_vector = param_series[0]
+        final_param_vector   = param_series[-1]
+        total_time_intervals = len(param_series) - 1
 
-        "Define threshold vector = prior_vec + fraction*(final_vec - prior_vec)"
-        thresh_vec = tuple(
-            prior_param_value + fraction*(final_param_value - prior_param_value)
-            for (prior_param_value, final_param_value) in zip(prior_vec, final_vec)
-        )
+        total_shift_from_prior_to_posterior = dist_vec(final_param_vector, initial_param_vector)
+        target_distance_from_prior = fraction_between_start_and_finish * total_shift_from_prior_to_posterior
 
-        "Do Euclidian distance approach:"
-        prior_dist = dist_vec(prior_vec, prior_vec)  # Equals 0.
-        final_dist = dist_vec(final_vec, prior_vec)  # Total shift from prior to final.
-        target_dist = fraction * final_dist
-
-        "Each round => measure dist from prior"
-        dist_from_prior = [dist_vec(param_vector, prior_vec) for param_vector in param_series]
+        distance_from_prior_each_round = [dist_vec(fitted_param_vector, initial_param_vector)
+                                          for fitted_param_vector in param_series]
 
         crossing_round = total_time_intervals
-        for idx, distance_at_round in enumerate(dist_from_prior):
-            "Once distance_at_round >= target_dist => crossed fraction"
-            if distance_at_round >= target_dist:
-                crossing_round = idx
+        for round_idx, distance_from_prior in enumerate(distance_from_prior_each_round):
+            if distance_from_prior >= target_distance_from_prior:
+                crossing_round = round_idx
                 break
 
         if total_time_intervals <= 0:
             return 0.0
-        normalized_crossing_time = crossing_round / float(total_time_intervals)
-        if normalized_crossing_time > 1:
-            normalized_crossing_time = 1
+        normalized_crossing_time = min(crossing_round / float(total_time_intervals), 1.0)
         return normalized_crossing_time
 
 
-def run_update_speed_simulation_regression(general_settings: GeneralSettings, file_paths: FilePaths, 
-                                           params_of_interest: Optional[list[str]] = ['Vᵢⱼ'], 
-                                           use_true_params: bool = False, n_dyads: int | None = 729) -> None:
+def run_update_speed_simulation_regression(general_settings: GeneralSettings, file_paths: FilePaths,
+                                           params_of_interest: Optional[list[str]] = ['Vᵢⱼ'],
+                                           n_dyads: int | None = None) -> None:
     """
-    Estimate how simulated belief update speed depends on prior variance and temperature.
+    Regress belief update speed on chooser temperature and predictor prior variance.
 
     This function:
         1) Loads simulated dyads from JSON (created by the bot–bot simulation).
         2) For each dyad, computes an update speed for the predictor via
-           `compute_belief_update_speed`.
-        3) Extracts each predictor's initial fitted variance and temperature.
+           `compute_belief_update_speed` using metric_mode='halfpoint_to_truth' —
+           the predictor must close half the original gap between their initial belief
+           and the chooser's true parameters.
+        3) Extracts each predictor's initial true variance and the chooser's true
+           temperature as regressors.
         4) Runs a linear regression:
-               update_speed ~ τ_fitted_predictor + Vᵢⱼ_std_fitted_predictor
-           mirroring the regression in the paper's simulation section.
+               update_speed ~ τ_true_chooser + Vᵢⱼ_std_true_predictor
+        5) Saves the per-dyad DataFrame to simulations/update_speed_data.csv so
+           results can be reviewed without re-running the simulation.
 
     Arguments:
         • general_settings: GeneralSettings;
             Should match the settings used when fitting the simulated dyads
-            (e.g., update_method = "grid").
+            (e.g., update_method = “grid”).
         • params_of_interest: list[str] | None;
             Parameters used when constructing the belief vector for speed measurement
-            (e.g., ["Vᵢⱼ"] or ["Vᵢᵢ","Vᵢⱼ"]).
-        • json_path: str;
-            Directory containing the per-dyad simulation fit JSON files.
-        • use_true_params: bool;
-            If True, compute “absolute” speed toward the chooser's true parameters.
-            If False, compute “relative” speed from prior to final fitted values.
+            (e.g., [“Vᵢⱼ”] or [“Vᵢᵢ”,”Vᵢⱼ”]).
         • n_dyads: int | None;
-            Number of dyad files to process. If None, use all JSON files in `json_path`.
+            Number of dyad files to process. If None, use all JSON files found.
 
     Returns:
         • None;
-            Prints statsmodels OLS summary for the speed ~ variance + temperature regression.
+            Prints statsmodels OLS summary and saves per-dyad data to CSV.
     """
     def run_regression_on_speed(df_speed: pd.DataFrame, speed_col: str = "speed_value", predictors: list[str] = ["τ", "var"], add_constant: bool = True):
         """
@@ -3451,12 +3608,16 @@ def run_update_speed_simulation_regression(general_settings: GeneralSettings, fi
             predictor_matrix = sm.add_constant(predictor_matrix, prepend=True)
         model = sm.OLS(response_variable, predictor_matrix)
         results = model.fit()
-        print(results.summary())
+        import sys
+        sys.stdout.buffer.write((str(results.summary()) + '\n').encode('utf-8'))
         return results
 
     json_path = ensure_directory_and_join(base_dir=file_paths['player_fits'], file_name="experiment_0")
 
-    update_method = 'grid'
+    "Use the Bayesian belief trajectory (sim_pred) so update speed measures how fast the"
+    "UBM's actual posterior beliefs converge — consistent with the _belief_predictor columns"
+    "used everywhere else in the simulation analysis."
+    update_method = 'sim_pred'
     param_key_map = {
         'Vii':  'Vᵢᵢ', 'Vii_std': 'Vᵢᵢ_std', 
         'Vij':  'Vᵢⱼ', 'Vij_std': 'Vᵢⱼ_std',
@@ -3466,64 +3627,114 @@ def run_update_speed_simulation_regression(general_settings: GeneralSettings, fi
         param_key_map.get(param, param) for param in params_of_interest
     ]
 
-    if not isinstance(n_dyads, int):
-        files = prep.get_files_in_directory(directory_path=json_path)
-        n_dyads = len(files)
+    "Build a JSON-only file list so .gitkeep and other non-data files are never indexed."
+    json_files = sorted([f for f in os.listdir(json_path) if f.endswith('.json')])
+    if isinstance(n_dyads, int):
+        json_files = json_files[:n_dyads]
 
+    "Each JSON file holds all 15 dyads for one predictor (pooled across choosers). Iterating"
+    "over all dyad keys within each file yields one row per predictor-chooser pair (945 total),"
+    "so τ_true_chooser varies correctly across rows — necessary for the regression."
     params_to_us = {}
-    for dyad_idx in range(n_dyads):
-        simulated_dyad = get_simulated_dyad(file_paths=file_paths, dyad_idx=dyad_idx, n_games=21)
+    for file_idx, json_file_name in enumerate(json_files):
+        full_path = os.path.join(json_path, json_file_name)
+        with open(full_path, 'r', encoding='utf-8') as _fh:
+            simulated_dyad = json.load(_fh)
 
-        dyad_key = list(simulated_dyad.keys())[0]
-        dyad_games = simulated_dyad[dyad_key]
-        first_game: dict = dyad_games[0]
-        chooser_uuid, predictor_uuid = first_game['chooser'], first_game['predictor']
-        param_est = first_game.get('parameter_estimates', {}).get(update_method, {}
-                        ).get(predictor_uuid, {}).get('predictor', {}).get('params', {})
-        fitted_params_predictor = {
-            param_key_map.get(param_key, param_key): param_val 
-            for param_key, param_val in param_est.items() 
-        }
-        true_params_chooser = first_game.get("true_params_chooser") or parse_robot_string(robot_str=chooser_uuid)
-        true_params_chooser = {
-            param_key_map.get(param_key, param_key): param_val
-            for param_key, param_val in true_params_chooser.items()
-        }
-        true_params_predictor = first_game.get("true_params_predictor") or parse_robot_string(robot_str=predictor_uuid)
-        true_params_predictor = {
-            param_key_map.get(param_key, param_key): param_val
-            for param_key, param_val in true_params_predictor.items()
-        }
+        if not simulated_dyad:
+            continue
 
-        update_speed = compute_belief_update_speed(dyad_games=dyad_games, player_uuid=predictor_uuid, fraction=0.5, 
-                                        general_settings=general_settings, params_of_interest=params_of_interest, 
-                                        true_parameters={
-                                            param_key: param_val for param_key, param_val in true_params_chooser.items() 
-                                            if param_key in params_of_interest
-                                        } if use_true_params else None)
+        for dyad_key, dyad_games in simulated_dyad.items():
+            first_game: dict = dyad_games[0]
+            chooser_uuid, predictor_uuid = first_game['chooser'], first_game['predictor']
+            param_est = first_game.get('parameter_estimates', {}).get(update_method, {}
+                            ).get(predictor_uuid, {}).get('predictor', {}).get('params', {})
+            fitted_params_predictor = {
+                param_key_map.get(param_key, param_key): param_val
+                for param_key, param_val in param_est.items()
+            }
+            true_params_chooser = first_game.get("true_params_chooser") or parse_robot_string(robot_str=chooser_uuid)
+            true_params_chooser = {
+                param_key_map.get(param_key, param_key): param_val
+                for param_key, param_val in true_params_chooser.items()
+            }
+            true_params_predictor = first_game.get("true_params_predictor") or parse_robot_string(robot_str=predictor_uuid)
+            true_params_predictor = {
+                param_key_map.get(param_key, param_key): param_val
+                for param_key, param_val in true_params_predictor.items()
+            }
 
-        params_to_us[dyad_key] = {
-            'dyad_idx': dyad_idx,
-            'dyad_key': dyad_key,
-            'predictor_uuid': predictor_uuid,
-            'chooser_uuid': chooser_uuid,
-            **{f'{param_key}_true_predictor': param_val for param_key, param_val in true_params_predictor.items()},
-            **{f'{param_key}_fitted_predictor': param_val for param_key, param_val in fitted_params_predictor.items()},
-            **{f'{param_key}_true_chooser': param_val for param_key, param_val in true_params_chooser.items()},
-            'update_speed': update_speed
-        }
+            "Fixed finish line: predictor must close half the original gap to the chooser's true"
+            "parameter. Uses metric_mode='halfpoint_to_truth' so the threshold is independent of"
+            "where the estimate ends up — avoids the artifact where high chooser τ (weak signal)"
+            "gives a near-zero total improvement and thus a trivially easy threshold."
+            true_params_for_speed = {
+                param_key: param_val for param_key, param_val in true_params_chooser.items()
+                if param_key in params_of_interest
+            }
+            update_speed = compute_belief_update_speed(
+                dyad_games=dyad_games,
+                player_uuid=predictor_uuid,
+                fraction_between_start_and_finish=0.5,
+                general_settings=general_settings,
+                params_of_interest=params_of_interest,
+                true_parameters=true_params_for_speed,
+                metric_mode='halfpoint_to_truth',
+                update_method=update_method,
+            )
 
-        if dyad_idx % 40 == 0: print(dyad_idx)
+            params_to_us[dyad_key] = {
+                'dyad_key': dyad_key,
+                'predictor_uuid': predictor_uuid,
+                'chooser_uuid': chooser_uuid,
+                **{f'{param_key}_true_predictor': param_val for param_key, param_val in true_params_predictor.items()},
+                **{f'{param_key}_fitted_predictor': param_val for param_key, param_val in fitted_params_predictor.items()},
+                **{f'{param_key}_true_chooser': param_val for param_key, param_val in true_params_chooser.items()},
+                'update_speed': update_speed
+            }
+
+        if file_idx % 10 == 0:
+            print(f"  update speed: processed {file_idx+1}/{len(json_files)} predictor files ({len(params_to_us)} dyads so far)")
 
     update_speed_df = pd.DataFrame.from_dict(params_to_us, orient='index')
+
+    "Save per-dyad data so results can be reviewed without re-running the full simulation."
+    update_speed_csv_path = os.path.join(str(file_paths['simulations']), 'update_speed_data.csv')
+    update_speed_df.to_csv(update_speed_csv_path, index=False, encoding='utf-8-sig')
+    print(f"Saved per-dyad update speed data ({len(update_speed_df)} rows) to {update_speed_csv_path}")
+
+    "Regress update speed on chooser temperature and predictor prior variance."
+    "Chooser τ is the correct temperature predictor: it governs how noisy the choice signal"
+    "is, which directly controls how fast the predictor can update beliefs."
     res = run_regression_on_speed(
         df_speed=update_speed_df,
         speed_col="update_speed",
-        predictors=["τ_fitted_predictor","Vᵢⱼ_std_fitted_predictor"]
+        predictors=["τ_true_chooser", "Vᵢⱼ_std_true_predictor"],
     )
 
+    "Save regression table to CSV so results are preserved without re-running."
+    if res is not None:
+        reg_table_path = os.path.join(str(file_paths['simulations']), 'update_speed_regression.csv')
+        reg_df = pd.DataFrame({
+            'variable':  list(res.params.index),
+            'coef':      list(res.params.values),
+            'std_err':   list(res.bse.values),
+            't_stat':    list(res.tvalues.values),
+            'p_value':   list(res.pvalues.values),
+            'ci_lower':  list(res.conf_int()[0].values),
+            'ci_upper':  list(res.conf_int()[1].values),
+        })
+        reg_df.to_csv(reg_table_path, index=False, encoding='utf-8-sig')
+        reg_stats_path = os.path.join(str(file_paths['simulations']), 'update_speed_regression_stats.csv')
+        pd.DataFrame({
+            'stat':  ['n_obs', 'r_squared', 'adj_r_squared', 'f_stat', 'f_pvalue', 'df_model', 'df_resid'],
+            'value': [res.nobs, res.rsquared, res.rsquared_adj, res.fvalue, res.f_pvalue,
+                      res.df_model, res.df_resid],
+        }).to_csv(reg_stats_path, index=False, encoding='utf-8-sig')
+        print(f"Saved regression table to {reg_table_path}")
 
-def analyze_update_speed_in_human_bot(file_paths: Dict[str, Dict[str, str] | str], general_settings: Dict[str, Any]) -> None:
+
+def analyze_update_speed_in_human_on_bot_study(file_paths: Dict[str, Dict[str, str] | str], general_settings: Dict[str, Any]) -> None:
     """
     Summarize belief update speed in the human–bot experiment for each participant and avatar type.
 

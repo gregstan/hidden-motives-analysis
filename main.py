@@ -8,7 +8,7 @@ from analysis import *
 "=========================================================================================="
 
 run_code_settings: RunCodeSettings = {
-    'run_simulation_analyses':              False,
+    'run_simulation_analyses':              True,
     'run_illustrate_belief_updates':        False,
     'run_alternative_model_contest':        False,
     'run_typological_bayesian_models':      False,
@@ -23,36 +23,52 @@ run_code_settings: RunCodeSettings = {
 def main():
     """Execute main code."""
 
-    # verify_same_inputs_same_outputs_for_children_and_parents(
-    #     general_settings=general_settings,
-    #     file_paths=file_paths,
-    #     param_bds=param_bds,
-    #     utility_settings=utility_settings,
-    #     player_role_to_fit="chooser",
-    #     fit_for_n_players=1,
-    #     random_seed=None,
-    #     numeric_tolerance=1e-3,
-    #     verbose=True,
-    # )
+    if True:
+        "Quick-run block: load existing simulated_fits.csv, regenerate all plots and tables."
+        "63 JSON files must already exist in player_fits/experiment_0/."
+        "Re-disable (if False) before a fresh full rerun that starts from create_simulated_data."
+        use_dynamic_predictor = True
+        df_merged = run_parameter_recovery_simulation(
+            general_settings=general_settings, file_paths=file_paths,
+            figure_layout=figure_layout, export_fig=True, create_new_file=False, produce_figures=True,
+            correlation_csv_name="correlation_results.csv", include_dropdown=False,
+            use_dynamic_predictor=use_dynamic_predictor,
+        )
+        if not df_merged.empty:
+            "Table A: predictor τ bins."
+            tabulate_recovery_correlations_by_prior_bins(
+                df=df_merged,
+                var_col="Vᵢⱼ_std_true_predictor",
+                temp_col="τ_true_predictor",
+                param_true_chooser="Vᵢⱼ_true_chooser",
+                param_fitted_predictor="Vᵢⱼ_belief_predictor",
+                player_id_col="player_uuid_predictor",
+                last_rounds=[21, 22, 23],
+                var_edges=None, temp_edges=None,
+                print_=True, file_paths=None,
+            )
+            "Table B: chooser τ bins — face-valid version."
+            tabulate_recovery_correlations_by_prior_bins(
+                df=df_merged,
+                file_paths=file_paths,
+                var_col="Vᵢⱼ_std_true_predictor",
+                temp_col="τ_true_chooser",
+                param_true_chooser="Vᵢⱼ_true_chooser",
+                param_fitted_predictor="Vᵢⱼ_belief_predictor",
+                player_id_col="player_uuid_predictor",
+                last_rounds=[21, 22, 23],
+                var_edges=None, temp_edges=None,
+                print_=True,
+            )
+            plot_param_recovery_correlation_by_round(
+                df_merged=df_merged, figure_layout=figure_layout,
+                general_settings=general_settings, file_paths=file_paths,
+            )
+            run_update_speed_simulation_regression(
+                general_settings=general_settings, file_paths=file_paths,
+            )
+        exit()
 
-    run_child_parent_probability_equivalence_smoketest(
-        utility_settings=utility_settings,
-        file_paths=file_paths,
-        param_bds=param_bds,
-        rand_payoff_idx=True,
-        n_trials=12,
-        random_seed=None,
-        tolerance=1e-12,
-        verbose=True,
-    )
-
-    verify_utility_vs_string_equation(
-        utility_function=utility, utility_function_str=build_utility_equation,
-        utility_settings=utility_settings, param_bds=param_bds, n_games=625,
-        random_seed=None, exhaustive_if_large=True, option="A", file_paths=file_paths,
-        comparison_tol=1e-6, decimals=6, verbose=True,
-    )
-    exit()
     "Apply master random seed when reproducibility mode is enabled."
     _master_seed = general_settings.get('random_seeds', {}).get('seed', None)
     if _master_seed is not None:
@@ -77,24 +93,59 @@ def main():
                               params_predictor_range={'Vᵢᵢ': (1, 1, 1), 'Vᵢⱼ': (-1, 1, 7), 'std': (0.5, 1.5, 3), 'τ': (0.5, 3, 3)},
                               utility_settings=utility_settings, dynamic_predictor=use_dynamic_predictor)
 
-        df_merged = run_simulation_recovery_analysis(
+        df_merged = run_parameter_recovery_simulation(
             general_settings=general_settings, file_paths=file_paths,
-            figure_layout=figure_layout, export_fig=True, create_new_file=True, produce_figures=True,
-            correlation_csv_name="correlation_results.csv", include_dropdown=False,
-            use_dynamic_predictor=use_dynamic_predictor,
+            figure_layout=figure_layout, export_fig=True, create_new_file=True, 
+            produce_figures=True, correlation_csv_name="correlation_results.csv", 
+            include_dropdown=False, use_dynamic_predictor=use_dynamic_predictor,
         )
 
-        compute_recovery_by_prior_bins(
+        "Table A: predictor τ bins — kept for reference (was the original call)."
+        tabulate_recovery_correlations_by_prior_bins(
             df=df_merged,
-            var_col="Vᵢⱼ_std_true_predictor",
             temp_col="τ_true_predictor",
+            var_col="Vᵢⱼ_std_true_predictor",
             param_true_chooser="Vᵢⱼ_true_chooser",
-            param_fitted_predictor="Vᵢⱼ_sim_pred_predictor",
+            param_fitted_predictor="Vᵢⱼ_belief_predictor",
             player_id_col="player_uuid_predictor",
-            last_rounds=[18, 19, 20],
+            last_rounds=[21, 22, 23],
             var_edges=None,
             temp_edges=None,
+            file_paths=None,
             print_=True,
+        )
+
+        "Table B: chooser τ bins — face-valid version: higher chooser randomness → slower recovery."
+        bins_chooser_tau = tabulate_recovery_correlations_by_prior_bins(
+            df=df_merged,
+            file_paths=file_paths,
+            temp_col="τ_true_chooser",
+            var_col="Vᵢⱼ_std_true_predictor",
+            param_true_chooser="Vᵢⱼ_true_chooser",
+            param_fitted_predictor="Vᵢⱼ_belief_predictor",
+            player_id_col="player_uuid_predictor",
+            last_rounds=[21, 22, 23],
+            temp_edges=None,
+            var_edges=None,
+            print_=True,
+        )
+
+        plot_parameter_recovery_correlation(
+            df=None, file_paths=file_paths, round_selection='first',
+            as_scatterplot=False, boxplot_param="Vij",
+            include_dropdown=False, figure_layout=figure_layout, 
+            export_fig=True, fitted_suffix="_belief_predictor",
+        )
+
+        plot_param_recovery_correlation_by_round(df_merged=df_merged, figure_layout=figure_layout, general_settings=general_settings, file_paths=file_paths)
+        run_update_speed_simulation_regression(general_settings=general_settings, file_paths=file_paths)
+
+        update_speeds = analyze_update_speed_in_human_on_bot_study(
+            file_paths=file_paths, general_settings=general_settings, utility_settings=utility_settings,
+        )
+        plot_update_speed_by_counterpart(
+            update_speeds_per_counterpart=update_speeds['update_speeds_per_counterpart'],
+            figure_layout=figure_layout, export_fig=export_fig, file_name="visuals/update_speeds_per_avatar.html",
         )
 
         run_param_recovery_by_k(
@@ -102,17 +153,6 @@ def main():
             file_paths=file_paths,
             figure_layout=figure_layout,
             param_bds=param_bds,
-        )
-
-        plot_param_recovery_by_round(df_merged=df_merged, figure_layout=figure_layout)
-        run_update_speed_simulation_regression(general_settings=general_settings)
-
-        update_speeds = analyze_update_speed_in_human_bot(
-            file_paths=file_paths, general_settings=general_settings, utility_settings=utility_settings,
-        )
-        plot_update_speed_by_counterpart(
-            update_speeds_per_counterpart=update_speeds['update_speeds_per_counterpart'],
-            figure_layout=figure_layout, export_fig=export_fig, file_name="visuals/update_speeds_per_avatar.html",
         )
 
     if run_code_settings['run_illustrate_belief_updates']:

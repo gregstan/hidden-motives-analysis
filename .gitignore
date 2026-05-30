@@ -215,6 +215,13 @@ param_data/*
 player_fits/*
 processed/*
 visuals/*
+# Per-experiment simulation subdirectories contain hundreds of heavy JSON files.
+# Summary CSVs and HTML plots at simulations/ root are tracked (small, shareable).
+simulations/experiment_*/
+simulations/param_recovery_by_k/
+simulations/processed/
+simulations/param_data/
+simulations/loss_reports/
 
 # Private / personal files — not for the shared repo
 private/

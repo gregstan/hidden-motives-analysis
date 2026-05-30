@@ -102,7 +102,7 @@ dyad_data/         ← per-dyad data files
 bic_aic/           ← IC analysis output CSVs
 visuals/           ← exported Plotly HTML figures
 demo_files/        ← all demo outputs (safe to delete)
-plans/             ← saved implementation plans (markdown); see Section 9
+designs/             ← saved implementation plans (markdown); see Section 9
 ```
 
 **Import flow (no circular dependencies):**
@@ -364,9 +364,9 @@ The codebase has been split from the original monolithic `main.py` into focused 
 
 ---
 
-## 9. Plans folder
+## 9. designs folder
 
-Detailed implementation plans are stored in [`plans/`](plans/) at the project root.
+Detailed implementation designs are stored in [`designs/`](designs/) at the project root.
 
 **When to save a plan**: Any plan with more than ~3 stages or with stage-level
 implementation specs (function signatures, column names, mathematical formulas,
@@ -374,18 +374,18 @@ multi-step algorithms) should be saved here so it can be recovered after context
 compression.
 
 **How to save a plan**: Copy the plan document wholesale — do not rewrite or
-summarize it. The Claude internal plans directory (`~/.claude/plans/`) is the
+summarize it. The Claude internal designs directory (`~/.claude/plans/`) is the
 authoritative source during a session; when that plan has been approved and is about
-to be executed, copy the file byte-for-byte to `plans/<descriptive_name>.md`. The
+to be executed, copy the file byte-for-byte to `designs/<descriptive_name>.md`. The
 project copy serves as the permanent record; the Claude copy is ephemeral.
 
 **Naming convention**: Use `snake_case` with a short descriptive label, e.g.,
 `participant_fit_extraction_and_realistic_ampd.md`. Match what the plan actually
 describes, not the internal Claude task slug.
 
-Current plans:
+Current designs:
 
 | File | Contents |
 |------|----------|
-| [`participant_fit_extraction_and_realistic_ampd.md`](plans/participant_fit_extraction_and_realistic_ampd.md) | Stage 6 extraction of per-participant × per-model fits from IC JSON; `participant_sampled` AMPD mode |
-| [`population_architecture_compression_curve.md`](plans/population_architecture_compression_curve.md) | Stage 9 compression curve: scoring basis, candidate filtering, exhaustive + greedy-swap search, stopping criteria, AMPD diagnostics, output files |
+| [`participant_fit_extraction_and_realistic_ampd.md`](designs/participant_fit_extraction_and_realistic_ampd.md) | Stage 6 extraction of per-participant × per-model fits from IC JSON; `participant_sampled` AMPD mode |
+| [`population_architecture_compression_curve.md`](designs/population_architecture_compression_curve.md) | Stage 9 compression curve: scoring basis, candidate filtering, exhaustive + greedy-swap search, stopping criteria, AMPD diagnostics, output files |

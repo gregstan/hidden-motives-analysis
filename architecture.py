@@ -1573,6 +1573,9 @@ def compute_model_recovery_simulation(
         col: bool(gen_registry_row.iloc[0][col])
         for col in flag_columns if col in gen_registry_row.columns
     }
+    print(f"Generating model: utility_idx={generating_utility_idx}  "
+          f"k_params={gen_registry_row.iloc[0].get('k_params', '?')}")
+    print(f"  {build_utility_equation(utility_settings=generating_utility_settings)}")
 
     "Check for cached final result."
     _stem = _recovery_simulation_stem(
@@ -1753,28 +1756,67 @@ def compute_model_recovery_simulation(
     ic_results = ic_data.get('ic_results', {})
 
     """
-    Find generating model entry by settings tuple — not by utility_idx.
-    The IC JSON was built from a different model registry (different total model count),
-    so integer indices may differ. The settings tuple is the stable cross-version identity.
+    Load the IC CSV header to get the exact set and ORDER of flag columns at IC-run time.
+    This is the definitive source because:
+      - The IC CSV and IC JSON were produced by the same code run and use the same flag-column
+        ordering (config.py::utility_settings insertion order at IC time).
+      - New flags added since the IC run may have been INSERTED (not appended), so a simple
+        'first N keys' truncation of the current utility_settings would produce the wrong order.
+      - Using the IC CSV column list directly is order-safe regardless of where new flags landed.
     """
-    _gen_settings_tuple     = tuple(
-        bool(generating_utility_settings.get(col, False)) for col in flag_columns
+    _ic_csv_non_flag_cols = {
+        'idx', 'n_data', 'k_params', 'pvar', 'param_norm_sd', 'loss',
+        'AIC', 'BIC', 'ΔAIC', 'ΔBIC', 'AIC_rank', 'BIC_rank', 'equation',
+        'utility_bitstring', 'minvec', 'nesting_violations', 'U',
+    }
+    _ic_csv_name = os.path.basename(ic_json_path).replace('.json', '.csv')
+    _ic_csv_path = os.path.join(os.path.dirname(ic_json_path), _ic_csv_name)
+    if os.path.exists(_ic_csv_path):
+        _ic_csv_header = pd.read_csv(_ic_csv_path, nrows=0, encoding='utf-8-sig')
+        _ic_csv_flag_cols: list = [c for c in _ic_csv_header.columns if c not in _ic_csv_non_flag_cols]
+    else:
+        _ic_csv_flag_cols = None
+
+    """
+    Find generating model entry in the IC JSON — without relying on integer indices.
+    Three strategies tried in order; the first match wins:
+
+    1. IC-CSV-guided tuple lookup (fast O(1)):  Build the lookup tuple using ONLY the flag
+       columns that existed at IC time (from the IC CSV header) in their original order.
+       New flags (e.g., include_welfare_efficiency_term, include_relative_income_penalty)
+       are absent from that list and default to False, which is correct — old models do not
+       use those flags.
+
+    2. Equation-string scan (fallback):  If the IC CSV is absent or the tuple still misses,
+       scan IC JSON entries for one whose 'U' field equals build_utility_equation() for the
+       generating model.  Index-and-order-agnostic.
+
+    3. Uniform sampling (last resort):  Model genuinely absent from IC JSON (added after the
+       IC run and uses a new flag that makes it distinct from all IC-era models).  Warn and
+       sample from param_bds.  Recovery validity is unaffected — we test form recovery.
+    """
+    "Strategy 1: IC-CSV-guided settings tuple."
+    _ic_flag_keys_for_lookup = (
+        _ic_csv_flag_cols if _ic_csv_flag_cols is not None else list(utility_settings.keys())
     )
-    _gen_settings_tuple_str = str(_gen_settings_tuple)
-    generating_model_entry  = ic_results.get(_gen_settings_tuple_str)
+    _gen_tuple_v1 = tuple(
+        bool(generating_utility_settings.get(col, False)) for col in _ic_flag_keys_for_lookup
+    )
+    generating_model_entry = ic_results.get(str(_gen_tuple_v1))
+
+    "Strategy 2: equation-string scan."
     if generating_model_entry is None:
-        raise ValueError(
-            f"Generating model (new registry idx={generating_utility_idx}) not found in "
-            f"IC JSON by settings tuple.\n"
-            f"  Settings tuple: {_gen_settings_tuple_str}\n"
-            f"  IC JSON path:   {pretty_path(ic_json_path)}\n"
-            f"  IC JSON contains {len(ic_results)} models. The settings tuple above was "
-            f"built from flag_columns in all_utility_functions.csv — verify that the "
-            f"flag column order matches the IC JSON's key format."
-        )
-    _ic_json_idx = generating_model_entry.get('idx', 'unknown')
-    print(f"  Generating model matched: new registry idx={generating_utility_idx} "
-          f"→ IC JSON idx={_ic_json_idx} (via settings tuple)")
+        _gen_equation = build_utility_equation(utility_settings=generating_utility_settings)
+        for _ic_entry in ic_results.values():
+            if _ic_entry.get('U') == _gen_equation:
+                generating_model_entry = _ic_entry
+                break
+
+    if generating_model_entry is not None:
+        _ic_json_idx = generating_model_entry.get('idx', 'unknown')
+        _match_method = 'IC-CSV-tuple' if ic_results.get(str(_gen_tuple_v1)) is not None else 'equation-string'
+        print(f"  Generating model matched: new registry idx={generating_utility_idx} "
+              f"→ IC JSON idx={_ic_json_idx} (via {_match_method})")
 
     "Mean param keys for the generating model: no _std, no tau (tau is fixed during generation)."
     general_settings_for_fitting = {
@@ -1786,38 +1828,47 @@ def compute_model_recovery_simulation(
     )
 
     param_pool: List[dict] = []
-    for _player_uuid, player_entry in generating_model_entry.get('minvec', {}).items():
-        raw_chooser_params = player_entry.get('params', {}).get('chooser', None)
-        if raw_chooser_params is None:
-            continue
-        clean_params = {
-            param_key: float(param_val)
-            for param_key, param_val in raw_chooser_params.items()
-            if param_key in generating_param_keys
-            and not param_key.endswith('_std')
-            and param_key != 'τ'
-        }
-        if len(clean_params) == len(generating_param_keys):
-            param_pool.append(clean_params)
+    if generating_model_entry is not None:
+        for _player_uuid, player_entry in generating_model_entry.get('minvec', {}).items():
+            raw_chooser_params = player_entry.get('params', {}).get('chooser', None)
+            if raw_chooser_params is None:
+                continue
+            clean_params = {
+                param_key: float(param_val)
+                for param_key, param_val in raw_chooser_params.items()
+                if param_key in generating_param_keys
+                and not param_key.endswith('_std')
+                and param_key != 'τ'
+            }
+            if len(clean_params) == len(generating_param_keys):
+                param_pool.append(clean_params)
 
     if not param_pool:
-        # IC JSON param keys don't match current parameter names. This is expected when using
-        # the TEMPORARY BRIDGE to an older IC JSON (see comment above). The old JSON was
-        # generated before parameter names were updated in this codebase. Fall back to uniform
-        # sampling within param_bds so the simulation can still run; update this once the IC
-        # JSON is regenerated inside this repo with current parameter names.
-        _sample_minvec = generating_model_entry.get('minvec', {})
-        _first_player_entry = next(iter(_sample_minvec.values()), {}) if _sample_minvec else {}
-        _ic_json_keys = list(_first_player_entry.get('params', {}).get('chooser', {}).keys())
-        print(
-            f"\n  Warning: IC JSON chooser params for model {generating_utility_idx} use "
-            f"parameter names that do not match the current codebase.\n"
-            f"    IC JSON keys found:  {_ic_json_keys}\n"
-            f"    Current keys needed: {generating_param_keys}\n"
-            f"  Falling back to uniform sampling from param_bds for the generating "
-            f"parameter pool. Re-run after regenerating the IC JSON in this repo to use "
-            f"real participant parameters."
-        )
+        # Two reasons we reach here:
+        # (a) generating_model_entry is None — the model was added after the last IC run
+        #     and genuinely has no entry in the IC JSON.
+        # (b) IC JSON param keys don't match current parameter names (older JSON).
+        # In both cases fall back to uniform sampling from param_bds.
+        # Recovery validity is unaffected: we are testing form recovery, not param fidelity.
+        if generating_model_entry is None:
+            print(
+                f"\n  Warning: generating model (registry idx={generating_utility_idx}) not "
+                f"found in IC JSON by truncated-tuple or equation-string search.\n"
+                f"  This model was probably added after the last IC analysis run.\n"
+                f"  Falling back to uniform sampling from param_bds. Re-run "
+                f"information_criterion_analysis() to populate IC JSON with this model."
+            )
+        else:
+            _sample_minvec = generating_model_entry.get('minvec', {})
+            _first_player_entry = next(iter(_sample_minvec.values()), {}) if _sample_minvec else {}
+            _ic_json_keys = list(_first_player_entry.get('params', {}).get('chooser', {}).keys())
+            print(
+                f"\n  Warning: IC JSON chooser params for model {generating_utility_idx} use "
+                f"parameter names that do not match the current codebase.\n"
+                f"    IC JSON keys found:  {_ic_json_keys}\n"
+                f"    Current keys needed: {generating_param_keys}\n"
+                f"  Falling back to uniform sampling from param_bds."
+            )
         _rng_for_pool = np.random.RandomState(random_seed)
         for _ in range(200):
             _sample = {
@@ -1863,8 +1914,10 @@ def compute_model_recovery_simulation(
         generating_params = dict(param_pool[pool_sample_index])
         generating_params['τ'] = softmax_temperature
 
-        random.seed(random_seed + agent_idx * 1000)
-        np.random.seed(random_seed + agent_idx * 1000)
+        "Seed per-agent RNG only when a master seed is set; None means unseeded."
+        if random_seed is not None:
+            random.seed(random_seed + agent_idx * 1000)
+            np.random.seed(random_seed + agent_idx * 1000)
 
         dyad_data = create_simulated_dyad(
             n_games=n_games_max,
