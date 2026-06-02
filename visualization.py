@@ -2568,6 +2568,221 @@ def plot_param_recovery_by_k(
     return figure
 
 
+def plot_population_recovery_bootstrap(
+    metrics_df: pd.DataFrame,
+    figure_layout: FigLay,
+    base_hue: int | None = None,
+    out_fig_path: str | None = None,
+    player_role: str = 'chooser',
+) -> go.Figure:
+    """
+    Two-panel Plotly figure summarising population-level parameter recovery from the bootstrap.
+
+    Panel 1 (scatter): population mean of recovered parameters vs population mean of empirical
+    parameters, one trace per parameter_key, with a dashed grey identity line.
+
+    Panel 2 (bar chart): normalized bias per parameter_key, with a bold black zero line and
+    SE error bars when multiple bootstrap iterations are present.
+
+    Arguments:
+        • metrics_df: DataFrame produced by run_population_recovery_bootstrap; expected columns:
+            iteration_index, parameter_key, mean_empirical, mean_recovered, bias_normalized.
+        • figure_layout: FigLay; layout settings dict (base_hue, markersize, template, etc.).
+        • base_hue: int | None; HSL hue origin; defaults to figure_layout.get('base_hue', 200).
+        • out_fig_path: str | None; if provided, saves the figure as HTML.
+        • player_role: str; 'chooser', 'predictor', or other. Sets the bar-chart x-axis title.
+
+    Returns:
+        • go.Figure; the Plotly figure (also saved if out_fig_path is set).
+    """
+    if metrics_df.empty:
+        return go.Figure()
+
+    def _fmt_param(key: str) -> str:
+        "Format a param key for display: superscript digits on γ."
+        for d in ('1', '2', '3'):
+            key = key.replace(f'γ{d}', f'γ<sup>{d}</sup>')
+        return key
+
+    if player_role == 'chooser':
+        bar_xaxis_title = "Chooser Parameter"
+    elif player_role == 'predictor':
+        bar_xaxis_title = "Predictor Parameter"
+    else:
+        bar_xaxis_title = "Parameter"
+
+    base_hue_value    = base_hue if base_hue is not None else figure_layout.get('base_hue', 200)
+    marker_size_value = figure_layout.get("markersize", 16)
+    template_value    = figure_layout.get("template", "plotly_dark")
+    n_iterations      = int(metrics_df['iteration_index'].nunique())
+
+    param_keys_ordered = list(dict.fromkeys(metrics_df['parameter_key']))
+    n_params           = len(param_keys_ordered)
+
+    figure = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=("Empirical vs Recovered (population means)", "Normalized Bias per Parameter"),
+        horizontal_spacing=0.12,
+    )
+
+    "--- Aggregate across iterations for the primary scatter/bar positions ---"
+    agg_df = metrics_df.groupby('parameter_key').agg(
+        mean_empirical=('mean_empirical', 'mean'),
+        mean_recovered=('mean_recovered', 'mean'),
+        bias_norm_mean=('bias_normalized', 'mean'),
+        bias_norm_std=('bias_normalized', 'std'),
+        n_iters=('iteration_index', 'nunique'),
+    ).reset_index()
+
+    "--- Panel 1: scatter traces (one per parameter_key) ---"
+    all_empirical_vals = []
+    all_recovered_vals = []
+    for series_index, param_key in enumerate(param_keys_ordered):
+        series_color = _hsla(
+            hue=base_hue_value + 20 * series_index,
+            saturation_percent=60,
+            lightness_percent=50,
+            alpha=1.0,
+        )
+        series_color_faded = _hsla(
+            hue=base_hue_value + 20 * series_index,
+            saturation_percent=60,
+            lightness_percent=50,
+            alpha=0.35,
+        )
+        param_agg_row  = agg_df[agg_df['parameter_key'] == param_key]
+        mean_empirical = float(param_agg_row['mean_empirical'].iloc[0]) if not param_agg_row.empty else float('nan')
+        mean_recovered = float(param_agg_row['mean_recovered'].iloc[0]) if not param_agg_row.empty else float('nan')
+
+        all_empirical_vals.append(mean_empirical)
+        all_recovered_vals.append(mean_recovered)
+
+        "Per-iteration scatter points (faded) when multiple iterations exist."
+        if n_iterations > 1:
+            param_iter_df    = metrics_df[metrics_df['parameter_key'] == param_key]
+            iter_empirical   = param_iter_df['mean_empirical'].tolist()
+            iter_recovered   = param_iter_df['mean_recovered'].tolist()
+            figure.add_trace(go.Scatter(
+                x=iter_empirical,
+                y=iter_recovered,
+                mode='markers',
+                marker=dict(
+                    color=series_color_faded,
+                    size=marker_size_value - 4,
+                    symbol='circle-open',
+                    line=dict(width=2.5),
+                ),
+                name=f"{_fmt_param(param_key)} (iter)",
+                showlegend=False,
+                hovertemplate=(
+                    f"<b>{_fmt_param(param_key)}</b> (per-iteration)<br>"
+                    "Empirical mean: %{x:.4f}<br>"
+                    "Recovered mean: %{y:.4f}<extra></extra>"
+                ),
+            ), row=1, col=1)
+
+        "Mean scatter point (solid)."
+        figure.add_trace(go.Scatter(
+            x=[mean_empirical],
+            y=[mean_recovered],
+            mode='markers',
+            marker=dict(
+                color=series_color,
+                size=marker_size_value,
+                symbol='circle',
+                line=dict(color=series_color, width=2),
+            ),
+            name=_fmt_param(param_key),
+            hovertemplate=(
+                f"<b>{_fmt_param(param_key)}</b><br>"
+                "Empirical mean: %{x:.4f}<br>"
+                "Recovered mean: %{y:.4f}<extra></extra>"
+            ),
+        ), row=1, col=1)
+
+    "Identity line (y = x) across the data range."
+    valid_vals = [v for v in all_empirical_vals + all_recovered_vals if not math.isnan(v)]
+    if valid_vals:
+        identity_min = min(valid_vals) - 0.05 * abs(min(valid_vals))
+        identity_max = max(valid_vals) + 0.05 * abs(max(valid_vals))
+        identity_color = _hsla(hue=0, saturation_percent=0, lightness_percent=65, alpha=0.6)
+        figure.add_trace(go.Scatter(
+            x=[identity_min, identity_max],
+            y=[identity_min, identity_max],
+            mode='lines',
+            line=dict(color=identity_color, dash='dash', width=2),
+            name='Identity<br>(y=x)',
+            showlegend=True,
+            hoverinfo='skip',
+        ), row=1, col=1)
+
+    "--- Panel 2: bar chart of normalized bias ---"
+    for series_index, param_key in enumerate(param_keys_ordered):
+        series_color   = _hsla(
+            hue=base_hue_value + 20 * series_index,
+            saturation_percent=60,
+            lightness_percent=50,
+            alpha=1.0,
+        )
+        param_agg_row  = agg_df[agg_df['parameter_key'] == param_key]
+        bias_norm_mean = float(param_agg_row['bias_norm_mean'].iloc[0]) if not param_agg_row.empty else float('nan')
+        bias_norm_std  = float(param_agg_row['bias_norm_std'].iloc[0]) if not param_agg_row.empty else float('nan')
+        se_val         = (bias_norm_std / (n_iterations ** 0.5)) if n_iterations > 1 and not math.isnan(bias_norm_std) else None
+
+        error_y_config = dict(
+            type='data',
+            array=[se_val],
+            arrayminus=[se_val],
+            visible=True,
+            color=series_color,
+        ) if se_val is not None else {}
+
+        figure.add_trace(go.Bar(
+            x=[_fmt_param(param_key)],
+            y=[bias_norm_mean],
+            marker_color=series_color,
+            name=_fmt_param(param_key),
+            showlegend=False,
+            error_y=error_y_config if error_y_config else None,
+            hovertemplate=(
+                f"<b>{_fmt_param(param_key)}</b><br>"
+                "Normalized bias: %{y:.4f}<extra></extra>"
+            ),
+        ), row=1, col=2)
+
+    "Bold black zero line for the bias panel."
+    zero_line_color = _hsla(hue=0, saturation_percent=0, lightness_percent=85, alpha=1.0)
+    figure.add_hline(y=0, line=dict(color=zero_line_color, width=2), row=1, col=2)
+
+    "Apply layout."
+    figure.update_layout(
+        template=template_value,
+        title=dict(
+            text="Population-Level Parameter Recovery (Bootstrap)",
+            font=dict(size=40),
+            x=0.5,
+            xanchor='center',
+        ),
+        legend=dict(
+            orientation='v', x=1.02, xanchor='left', y=0.5, yanchor='middle',
+            font=dict(size=24),
+        ),
+        hoverlabel=dict(font=dict(size=20)),
+    )
+    figure.update_annotations(font_size=28)
+    figure.update_xaxes(title_font=dict(size=24), tickfont=dict(size=20))
+    figure.update_yaxes(title_font=dict(size=24), tickfont=dict(size=20))
+    figure.update_xaxes(title_text="Empirical Mean", row=1, col=1)
+    figure.update_yaxes(title_text="Recovered Mean", row=1, col=1)
+    figure.update_xaxes(title_text=bar_xaxis_title, row=1, col=2)
+    figure.update_yaxes(title_text="Normalized Bias (σ)", row=1, col=2, range=[-1, 1])
+
+    if out_fig_path is not None:
+        figure.write_html(out_fig_path)
+
+    return figure
+
+
 def main():
     import sys
     from config import general_settings, file_paths, figure_layout

@@ -1766,11 +1766,12 @@ def create_simulated_experiment(
     general_settings: GeneralSettings,
     param_bds: ParamBounds,
     random_gen: np.random.Generator,
-    altruism_key: str,
-    altruism_targets: list[float],
     file_paths: FilePaths,
+    altruism_key: str | None = None,
+    altruism_targets: list[float] | None = None,
     create_new_file: bool | None = None,
     enforce_memory_limit: bool = False,
+    empirical_chooser_parameters: dict[str, dict[str, float]] | None = None,
 ) -> tuple[dict, dict[str, dict]]:
     """
     Generate (or retrieve) a full synthetic experiment in the same JSON format as the real raw data.
@@ -1802,12 +1803,20 @@ def create_simulated_experiment(
         • general_settings: GeneralSettings; passed through to agent() and make_param_info().
         • param_bds: ParamBounds; passed through to make_param_info().
         • random_gen: np.random.Generator; stateful generator (shared across all batches).
-        • altruism_key: str; parameter key for the altruism dimension (e.g. 'Vᵢⱼ').
-        • altruism_targets: list[float]; target altruism values to assign across players.
         • file_paths: FilePaths; routing dict — must have 'processed' and 'file_names' set.
+        • altruism_key: str | None; parameter key for the altruism dimension (e.g. 'Vᵢⱼ').
+            Required when empirical_chooser_parameters is None.
+        • altruism_targets: list[float] | None; target altruism values to assign across players.
+            Required when empirical_chooser_parameters is None.
         • create_new_file: bool | None; if False, loads from disk when the output file
-          exists; if True, always regenerates and overwrites; if None (default), defers to
-          general_settings.get('create_new_file', False).
+            exists; if True, always regenerates and overwrites; if None (default), defers to
+            general_settings.get('create_new_file', False).
+        • empirical_chooser_parameters: dict[str, dict[str, float]] | None; when provided,
+            each key is an arbitrary agent identifier and each value is a dict of param_key→float
+            representing the ground-truth parameters for that agent. n_players is overridden to
+            len(empirical_chooser_parameters). Agents beyond the last multiple of 4 are padded
+            with uniform random draws and excluded from true_params_by_uuid. When None (default),
+            parameters are sampled uniformly from bounds with altruism override.
 
     Returns:
         • (histories_dict, true_params_by_uuid) where:
@@ -1819,6 +1828,11 @@ def create_simulated_experiment(
     "Defer to general_settings when create_new_file not explicitly specified by caller."
     if create_new_file is None:
         create_new_file = general_settings.get('create_new_file', False)
+
+    if empirical_chooser_parameters is None and (altruism_key is None or altruism_targets is None):
+        raise ValueError(
+            "Either empirical_chooser_parameters or both altruism_key and altruism_targets must be provided."
+        )
 
     "Retrieve cached result if available and permitted."
     histories_file_path = os.path.join(
@@ -1835,6 +1849,9 @@ def create_simulated_experiment(
         print(f"[create_simulated_experiment k={k_params}] Loaded existing file "
               f"({len(true_params_by_uuid)} players): {pretty_path(histories_file_path)}")
         return histories_dict, true_params_by_uuid
+
+    if empirical_chooser_parameters is not None:
+        n_players = len(empirical_chooser_parameters)
 
     n_players_padded = n_players + (4 - n_players % 4) % 4
 
@@ -1874,25 +1891,40 @@ def create_simulated_experiment(
 
         "Assign ground-truth parameters to each of the 4 players in this batch."
         batch_params: dict[int, dict] = {}
+        empirical_uuid_list = list(empirical_chooser_parameters.keys()) if empirical_chooser_parameters else []
+        n_empirical_players = len(empirical_uuid_list)
         for local_idx in range(4):
             global_idx  = batch_start + local_idx
             player_uuid = f"synthetic_{k_params}_{global_idx:04d}"
 
-            "Sample params uniformly from bounds; keep std away from zero."
-            params: dict[str, float] = {}
-            for param_idx, param_key in enumerate(list(param_info_for_ubm['keys'])):
-                lower_bound, upper_bound = param_info_for_ubm['bounds'][param_idx]
-                if param_key.endswith("_std"):
-                    lower_bound = max(float(lower_bound), 1e-3)
-                params[param_key] = float(random_gen.uniform(float(lower_bound), float(upper_bound)))
-            if "τ" not in params:
-                params["τ"] = float(general_settings.get('softmax_temperature', 1.0))
+            if empirical_chooser_parameters is not None and global_idx < n_empirical_players:
+                "Inject empirical parameter vector; back-fill any UBM structural params (_std, τ) not stored in the IC JSON."
+                params = dict(empirical_chooser_parameters[empirical_uuid_list[global_idx]])
+                for param_idx, param_key in enumerate(list(param_info_for_ubm['keys'])):
+                    if param_key not in params:
+                        lower_bound, upper_bound = param_info_for_ubm['bounds'][param_idx]
+                        if param_key.endswith("_std"):
+                            lower_bound = max(float(lower_bound), 1e-3)
+                        params[param_key] = float(random_gen.uniform(float(lower_bound), float(upper_bound)))
+                if "τ" not in params:
+                    params["τ"] = float(general_settings.get('softmax_temperature', 1.0))
+            else:
+                "Sample params uniformly from bounds; keep std away from zero."
+                params = {}
+                for param_idx, param_key in enumerate(list(param_info_for_ubm['keys'])):
+                    lower_bound, upper_bound = param_info_for_ubm['bounds'][param_idx]
+                    if param_key.endswith("_std"):
+                        lower_bound = max(float(lower_bound), 1e-3)
+                    params[param_key] = float(random_gen.uniform(float(lower_bound), float(upper_bound)))
+                if "τ" not in params:
+                    params["τ"] = float(general_settings.get('softmax_temperature', 1.0))
+                if altruism_key is not None and altruism_targets is not None:
+                    "Override the altruism dimension with a target value so coverage spans the full range."
+                    params[altruism_key] = float(altruism_targets[global_idx % len(altruism_targets)])
 
-            "Override the altruism dimension with a target value so coverage spans the full range."
-            params[altruism_key] = float(altruism_targets[global_idx % len(altruism_targets)])
-
-            batch_params[local_idx]          = params
-            true_params_by_uuid[player_uuid] = dict(params)
+            batch_params[local_idx] = params
+            if empirical_chooser_parameters is None or global_idx < n_empirical_players:
+                true_params_by_uuid[player_uuid] = dict(params)
 
         "Sample game counts for all 6 pairs in this batch."
         pair_game_counts = _sample_batch_game_counts(random_gen=random_gen, n_games=n_games)
@@ -2502,8 +2534,689 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
     return corr_by_k_df, simulated_param_recovery_by_k
 
 
-def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_settings: UtilitySettings, 
-                                    param_info: ParamInfo, file_paths: FilePaths, figure_layout: FigLay, sample_ratios: int | list[float] = 5, 
+def run_population_recovery_bootstrap(
+    general_settings: GeneralSettings,
+    file_paths: FilePaths,
+    param_bds: ParamBounds,
+    figure_layout: FigLay,
+    utility_settings: UtilitySettings | None = None,
+    player_role: str = 'chooser',
+    dynamic_predictor: bool = False,
+    parameters_of_interest: list[str] | None = None,
+    n_bootstrap_iterations: int = 1,
+    n_games: int | None = None,
+    random_seed: int | None = None,
+    enforce_memory_limit: bool = False,
+    create_new_file: bool | None = None,
+    base_hue: int | None = None,
+) -> tuple[pd.DataFrame, dict]:
+    """
+    Parametric bootstrap from the empirical fitted distribution to assess population-level
+    parameter recovery for a target utility function.
+
+    Uses the IC-fitted parameter vectors from the real experiment as 'true' parameters
+    for synthetic agents, generates synthetic choice data via create_simulated_experiment,
+    refits via run_analysis_bayes, and computes bias, variance ratio, regression slope,
+    and Pearson correlation per parameter.
+
+    Motivation: individual-level recovery correlations (r ≈ 0.39 for γ2, γ3) are consistent
+    with either (a) noise around the right population mean — which leaves population-level
+    claims valid — or (b) systematic bias toward an attractor like the L2 penalty. This
+    bootstrap distinguishes the two cases by computing bias alongside correlation.
+
+    All output is routed to processed/population_param_bootstrap/ via scoped file_paths
+    copies so that synthetic data never touches real participant data or k-by-k recovery data.
+
+    Arguments:
+        • general_settings: GeneralSettings; standard settings dict.
+        • file_paths: FilePaths; standard file-path dict.
+        • param_bds: ParamBounds; parameter bounds forwarded to make_param_info and create_simulated_experiment.
+        • figure_layout: FigLay; passed to plot_population_recovery_bootstrap.
+        • utility_settings: UtilitySettings | None; if None, resolved dynamically to the BIC winner
+            for general_settings['experiment_num']. Never hard-coded to k=7.
+        • player_role: str; 'chooser' (default) or 'predictor'. Selects which role's fitted
+            parameters are extracted from the IC JSON and which role's fits are collected.
+        • dynamic_predictor: bool; if True, the simulation and fitting engage the full UBM
+            belief-updating loop for the predictor. Default False matches the static chooser fit.
+        • parameters_of_interest: list[str] | None; specific parameter keys to report.
+            Defaults to all non-std/non-cov keys in the resolved model.
+        • n_bootstrap_iterations: int; number of bootstrap runs. Default 1 (each run is expensive).
+        • n_games: int | None; game budget per synthetic player. Cascades from
+            general_settings['parameter_recovery_settings']['n_games'], then defaults to 60.
+        • random_seed: int | None; seed for reproducibility. Cascades from
+            general_settings['parameter_recovery_settings']['random_seed'].
+        • enforce_memory_limit: bool; passed through to create_simulated_experiment.
+        • create_new_file: bool | None; if False and metrics CSV exists, returns cached results.
+            Cascades from general_settings['create_new_file'].
+        • base_hue: int | None; HSL hue origin for the figure; defaults to figure_layout base_hue.
+
+    Returns:
+        • (metrics_df, detailed_results_dict) where:
+            - metrics_df: DataFrame with one row per (iteration, parameter), columns:
+                iteration_index, parameter_key, n_synthetic_agents, mean_empirical, std_empirical,
+                mean_recovered, std_recovered, correlation_pearson, bias, bias_normalized,
+                variance_ratio, regression_slope, regression_intercept, regression_r2.
+            - detailed_results_dict: {iteration_index: paired_fits_dict} for downstream inspection.
+    """
+    from scipy.stats import pearsonr as _pearsonr
+    from scipy import stats as _scipy_stats
+
+    "Cascade create_new_file from general_settings when not explicitly provided."
+    if create_new_file is None:
+        create_new_file = general_settings.get('create_new_file', False)
+
+    "Cascade n_games from general_settings parameter_recovery_settings, then fall back to 60."
+    if n_games is None:
+        n_games = general_settings.get('parameter_recovery_settings', {}).get('n_games', 60)
+
+    "Cascade random_seed from general_settings parameter_recovery_settings."
+    if random_seed is None:
+        random_seed = general_settings.get('parameter_recovery_settings', {}).get('random_seed', None)
+
+    "--- Step 1b: migrate IC data to 16-key (idempotent) ---"
+    gnrl.migrate_ic_data_to_16_key(file_paths=file_paths, general_settings=general_settings)
+
+    "--- Inner helpers ---"
+
+    def _resolve_bic_winner_utility_settings() -> UtilitySettings:
+        """
+        Read the IC comparison CSV and return the 16-key utility settings for the BIC winner.
+        Prints the resolved bitstring and equation as a mandatory settings stamp.
+        """
+        experiment_num_inner   = general_settings.get('experiment_num', 3)
+        ic_csv_path_inner = os.path.join(
+            file_paths["bic_aic"],
+            f"All_Utility_Forms_IC_Analysis_Experiment{experiment_num_inner}.csv"
+        )
+        if not os.path.exists(ic_csv_path_inner):
+            raise FileNotFoundError(
+                f"IC comparison CSV not found: {pretty_path(ic_csv_path_inner)}"
+            )
+        ic_comparison_df = pd.read_csv(ic_csv_path_inner, encoding='utf-8', engine='python')
+        if "BIC_rank" in ic_comparison_df.columns and (ic_comparison_df["BIC_rank"] == 0).any():
+            best_row = ic_comparison_df.loc[ic_comparison_df["BIC_rank"] == 0].iloc[0]
+        else:
+            best_row = ic_comparison_df.iloc[ic_comparison_df["BIC"].argmin()]
+
+        "Build the 16-key settings dict: read all setting columns present in the CSV."
+        "gnrl._CANONICAL_UTILITY_SETTINGS avoids shadowing by the utility_settings parameter."
+        all_16_keys = list(gnrl._CANONICAL_UTILITY_SETTINGS.keys())
+        resolved_settings: UtilitySettings = {
+            setting_key: bool(best_row[setting_key])
+            for setting_key in all_16_keys
+            if setting_key in ic_comparison_df.columns
+        }
+        for setting_key in all_16_keys:
+            if setting_key not in resolved_settings:
+                resolved_settings[setting_key] = False
+
+        bitstring_str = gnrl.convert_utility_settings(utility_settings=resolved_settings, into=str)
+        equation_str  = gnrl.convert_utility_settings(
+            utility_settings=resolved_settings, into='equation',
+            file_paths=file_paths, general_settings=general_settings,
+        )
+        import sys as _sys
+        _sys.stdout.buffer.write(
+            f"[run_population_recovery_bootstrap] Resolved BIC winner:\n"
+            f"  Bitstring : {bitstring_str}\n"
+            f"  Equation  : {equation_str}\n".encode('utf-8')
+        )
+        _sys.stdout.buffer.flush()
+        return resolved_settings
+
+    def _load_empirical_fitted_parameters(resolved_utility_settings: UtilitySettings) -> dict[str, dict[str, float]]:
+        """
+        Load per-player fitted parameter vectors for the target utility function.
+
+        Strategy (tries each path in order, returns on first success):
+          1. Combined IC JSON (file_paths['bic_aic']/All_Utility_Forms_IC_Analysis_Experiment{N}.json) —
+             fast and authoritative when enough RAM is available. Falls back on MemoryError.
+          2. Per-player fit files in file_paths['player_fits']/experiment_{N}/ — each file is small;
+             loaded individually to avoid the 590 MB combined-JSON memory requirement.
+          3. Old-repo fallback at a hardcoded author path — used when the current repo's
+             player_fits are empty because the IC analysis was run in a different repo.
+
+        Returns dict[player_uuid, dict[param_key, float]].
+        """
+        experiment_num_inner = general_settings.get('experiment_num', 3)
+        target_tuple = gnrl.convert_utility_settings(utility_settings=resolved_utility_settings, into=tuple)
+        target_bits  = gnrl.convert_utility_settings(utility_settings=resolved_utility_settings, into=str)
+
+        "Rename legacy IC-era param keys to current names."
+        "αᵢⱼ/βᵢⱼ (U+03B1/U+03B2) replaced Ƹᵢⱼ/Ʒᵢⱼ (U+01B8/U+01B7) in an older refactor."
+        _sub_ij = 'ᵢⱼ'  # subscript ij (ᵢⱼ)
+        _LEGACY_KEY_ALIASES: dict[str, str] = {
+            'Ƹ' + _sub_ij:          'α' + _sub_ij,         # Ƹᵢⱼ → αᵢⱼ
+            'Ʒ' + _sub_ij:          'β' + _sub_ij,         # Ʒᵢⱼ → βᵢⱼ
+            'Ƹ' + _sub_ij + '_std': 'α' + _sub_ij + '_std',
+            'Ʒ' + _sub_ij + '_std': 'β' + _sub_ij + '_std',
+        }
+
+        def _normalize_params(raw: dict) -> dict[str, float]:
+            return {_LEGACY_KEY_ALIASES.get(pk, pk): float(pv) for pk, pv in raw.items()}
+
+        "--- Path 1: combined IC JSON (falls back on MemoryError) ---"
+        _ic_json_path = os.path.join(
+            str(file_paths["bic_aic"]),
+            f"All_Utility_Forms_IC_Analysis_Experiment{experiment_num_inner}.json",
+        )
+        if os.path.exists(_ic_json_path):
+            try:
+                print(f"[_load_empirical_fitted_parameters] Loading combined IC JSON "
+                      f"({os.path.getsize(_ic_json_path) // 1_048_576} MB) …")
+                with open(_ic_json_path, 'r', encoding='utf-8') as _ic_file:
+                    _ic_data = json.load(_ic_file)
+                _empirical_params: dict[str, dict[str, float]] = {}
+                for _model_entry in _ic_data.get("ic_results", {}).values():
+                    _entry_settings = _model_entry.get("utility_settings", {})
+                    _entry_tuple    = gnrl.convert_utility_settings(utility_settings=_entry_settings, into=tuple)
+                    if _entry_tuple != target_tuple:
+                        continue
+                    for _player_uuid, _player_data in _model_entry.get("minvec", {}).items():
+                        _params = _player_data.get("params", {}).get(player_role, {})
+                        if not _params or any(v is None for v in _params.values()):
+                            continue
+                        _empirical_params[_player_uuid] = _normalize_params(_params)
+                    break
+                if _empirical_params:
+                    print(f"  Loaded {len(_empirical_params)} players from combined IC JSON.")
+                    return _empirical_params
+            except MemoryError:
+                print(f"  MemoryError loading combined IC JSON; falling back to per-player files.")
+
+        "--- Paths 2 & 3: per-player fit files ---"
+        "Build the 14-key sorted bitstring (legacy filenames sort keys alphabetically, 14 keys only)."
+        _legacy_new_keys = frozenset(('include_welfare_efficiency_term', 'include_relative_income_penalty'))
+        _bitstring_14 = ''.join(
+            str(int(val))
+            for _, val in sorted(
+                (key, val) for key, val in resolved_utility_settings.items()
+                if key not in _legacy_new_keys
+            )
+        )
+
+        _pf_dir_current  = os.path.join(str(file_paths['player_fits']), f'experiment_{experiment_num_inner}')
+        _pf_dir_fallback = os.path.join(
+            r"C:\Users\Gregory Stanley\Desktop\U of M\Research Archive\Multiplayer"
+            r"\ABM_Simulation\Judgment_Game\Inputs\Iter_Binary_Dictator",
+            "player_fits", f"experiment_{experiment_num_inner}",
+        )
+
+        for _search_dir in (_pf_dir_current, _pf_dir_fallback):
+            if not os.path.isdir(_search_dir):
+                continue
+            _matching_files = [
+                f for f in os.listdir(_search_dir)
+                if _bitstring_14 in f and f.endswith('.json')
+            ]
+            if not _matching_files:
+                continue
+
+            print(f"[_load_empirical_fitted_parameters] Reading {len(_matching_files)} per-player "
+                  f"fit files (bitstring={_bitstring_14}) from {pretty_path(_search_dir)}")
+
+            _empirical_params = {}
+            for _fname in sorted(_matching_files):
+                try:
+                    with open(os.path.join(_search_dir, _fname), 'r', encoding='utf-8') as _pf_file:
+                        _pf_data = json.load(_pf_file)
+                except Exception as _pf_err:
+                    print(f"  Warning: skipping {_fname}: {_pf_err}")
+                    continue
+
+                _dyad_keys = list(_pf_data.keys())
+                if not _dyad_keys:
+                    continue
+                _pe = _pf_data[_dyad_keys[0]][0].get('parameter_estimates', {})
+                _method_data = next(
+                    (_pe[m] for m in ('grid', 'particle', 'naive', 'update', 'globloc', 'bayes', 'general')
+                     if m in _pe),
+                    None,
+                )
+                if _method_data is None:
+                    continue
+
+                for _player_uuid, _role_data in _method_data.items():
+                    _params = _role_data.get(player_role, {}).get('params', {})
+                    if not _params or any(v is None for v in _params.values()):
+                        continue
+                    _empirical_params[_player_uuid] = _normalize_params(_params)
+
+            if _empirical_params:
+                print(f"  Loaded empirical parameters for {len(_empirical_params)} players.")
+                return _empirical_params
+
+        raise RuntimeError(
+            f"[_load_empirical_fitted_parameters] Could not load empirical parameters for "
+            f"utility_settings bitstring {target_bits!r} (14-key sorted: {_bitstring_14!r}).\n"
+            f"  Combined IC JSON: {_ic_json_path}\n"
+            f"  Per-player fits searched: {_pf_dir_current}, {_pf_dir_fallback}\n"
+            f"  To resolve: run information_criterion_analysis() to populate "
+            f"player_fits/experiment_{experiment_num_inner}/."
+        )
+
+    def _bootstrap_run_label(iteration_index: int) -> str:
+        """Return a filename-safe label encoding the utility settings, role, n_games, and iteration index."""
+        bitstring_raw = gnrl.convert_utility_settings(
+            utility_settings=resolved_utility_settings,
+            into='raw_str',
+        )
+        return f"{bitstring_raw}_{player_role}_g{n_games}_iter{iteration_index:04d}"
+
+    def _outer_label() -> str:
+        """Return a filename-safe label for the aggregated outputs (metrics CSV, figure, summary)."""
+        bitstring_raw = gnrl.convert_utility_settings(
+            utility_settings=resolved_utility_settings,
+            into='raw_str',
+        )
+        return f"{bitstring_raw}_{player_role}_g{n_games}_n{n_bootstrap_iterations}iters"
+
+    def _collect_iteration_fits(
+        fit_dir: str,
+        k_params: int,
+        true_params_by_uuid: dict[str, dict],
+    ) -> dict[str, dict]:
+        """
+        Load per-player fit JSONs for one bootstrap iteration and pair true vs fitted params.
+
+        Returns {synthetic_uuid: {"true": {...}, "fitted": {...}}} for all empirical players
+        (those in true_params_by_uuid). Padding players and players with no fit file are excluded.
+        """
+        uuid_prefix   = f"synthetic_{k_params}_"
+        json_file_names = [
+            file_name for file_name in os.listdir(fit_dir)
+            if file_name.endswith(".json") and uuid_prefix in file_name
+        ]
+        if not json_file_names:
+            print(f"[_collect_iteration_fits] Warning: no fit files found for prefix "
+                  f"'{uuid_prefix}' in {pretty_path(fit_dir)}.")
+
+        paired_fits: dict[str, dict] = {}
+        for file_name in json_file_names:
+            "Extract the player UUID from the filename — the UUID begins at uuid_prefix and runs to .json."
+            "This avoids reading the opponent's UUID out of game data, which causes predictor fit files"
+            "to masquerade as chooser fits and corrupt the count."
+            uuid_start  = file_name.index(uuid_prefix)
+            target_uuid = file_name[uuid_start : file_name.rindex(".json")]
+            if target_uuid not in true_params_by_uuid:
+                continue
+            if target_uuid in paired_fits:
+                continue
+
+            fit_file_path = os.path.join(fit_dir, file_name)
+            with open(fit_file_path, 'r', encoding='utf-8') as fit_file:
+                dyad_data = json.load(fit_file)
+
+            "Search all dyads for a game where this player appears in the target role."
+            fitted_params: dict[str, float] = {}
+            for dyad_games in dyad_data.values():
+                for game in dyad_games:
+                    if game.get(player_role) != target_uuid:
+                        continue
+                    estimates_by_method = game.get('parameter_estimates', {})
+                    for method_name in ("grid", "particle", "naive", "update", "globloc", "bayes", "general"):
+                        if method_name in estimates_by_method and target_uuid in estimates_by_method[method_name]:
+                            fitted_params = (
+                                estimates_by_method[method_name][target_uuid]
+                                .get(player_role, {})
+                                .get("params", {})
+                            )
+                            break
+                    if fitted_params:
+                        break
+                if fitted_params:
+                    break
+
+            paired_fits[target_uuid] = {
+                "true":   dict(true_params_by_uuid[target_uuid]),
+                "fitted": fitted_params,
+            }
+
+        return paired_fits
+
+    "--- Resolve utility_settings and validate ---"
+    if utility_settings is None:
+        resolved_utility_settings = _resolve_bic_winner_utility_settings()
+    else:
+        resolved_utility_settings = utility_settings
+        bitstring_str = gnrl.convert_utility_settings(utility_settings=resolved_utility_settings, into=str)
+        print(f"[run_population_recovery_bootstrap] Using supplied utility_settings: {bitstring_str}")
+
+    if not gnrl.is_valid_utility_settings(resolved_utility_settings):
+        raise ValueError(
+            f"[run_population_recovery_bootstrap] is_valid_utility_settings failed for "
+            f"{gnrl.convert_utility_settings(utility_settings=resolved_utility_settings, into=str)!r}."
+        )
+
+    k_params = gnrl.count_free_parameters(utility_settings=resolved_utility_settings)
+    param_info_for_bootstrap = make_param_info(
+        param_bds=param_bds,
+        utility_settings=resolved_utility_settings,
+        general_settings=general_settings,
+        guess_seed=None,
+        random_guesses_are_unique=True,
+    )
+
+    "--- Load empirical fitted parameters ---"
+    empirical_params      = _load_empirical_fitted_parameters(resolved_utility_settings)
+    n_synthetic_players   = len(empirical_params)
+
+    "--- Resolve parameters_to_report ---"
+    temperature_keys_set = {'τ', 'temp'}
+    if parameters_of_interest is not None:
+        parameters_to_report = list(parameters_of_interest)
+    else:
+        parameters_to_report = [
+            param_key for param_key in param_info_for_bootstrap['keys']
+            if '_std' not in param_key
+            and '_cov' not in param_key
+            and param_key not in temperature_keys_set
+        ]
+
+    "--- Set up output subdirectory ---"
+    bootstrap_subdir = os.path.join(file_paths['processed'], 'population_param_bootstrap')
+    os.makedirs(bootstrap_subdir, exist_ok=True)
+
+    "--- Check cache for an existing metrics CSV (create_new_file=False guard) ---"
+    bootstrap_label  = _outer_label()
+    metrics_csv_path = os.path.join(bootstrap_subdir, f"population_recovery_metrics_{bootstrap_label}.csv")
+    if not create_new_file and os.path.exists(metrics_csv_path):
+        metrics_df = pd.read_csv(metrics_csv_path, encoding='utf-8', engine='python')
+        print(f"[run_population_recovery_bootstrap] Loaded cached metrics: {pretty_path(metrics_csv_path)}")
+        out_fig_path = os.path.join(bootstrap_subdir, f"population_recovery_figure_{bootstrap_label}.html")
+        if not metrics_df.empty:
+            from visualization import plot_population_recovery_bootstrap as _plot_bootstrap
+            _plot_bootstrap(
+                metrics_df=metrics_df,
+                figure_layout=figure_layout,
+                base_hue=base_hue,
+                out_fig_path=out_fig_path,
+                player_role=player_role,
+            )
+            print(f"[run_population_recovery_bootstrap] Figure regenerated: {pretty_path(out_fig_path)}")
+        return metrics_df, {}
+
+    "--- Print startup banner ---"
+    print(f"\n{'='*70}")
+    print(f"[run_population_recovery_bootstrap] Starting.")
+    print(f"  Utility settings : {gnrl.convert_utility_settings(utility_settings=resolved_utility_settings, into=str)}")
+    print(f"  k_params         : {k_params}")
+    print(f"  Player role      : {player_role}")
+    print(f"  Synthetic agents : {n_synthetic_players}")
+    print(f"  n_games          : {n_games}")
+    print(f"  Iterations       : {n_bootstrap_iterations}")
+    print(f"  Random seed      : {random_seed}")
+    print(f"  Output dir       : {pretty_path(bootstrap_subdir)}")
+    print(f"{'='*70}\n")
+
+    random_gen = np.random.default_rng(random_seed)
+
+    "--- Build general_settings for the bootstrap fit run ---"
+    general_settings_for_bootstrap                                                    = copy.deepcopy(general_settings)
+    general_settings_for_bootstrap['experiment_num']                                  = 3
+    general_settings_for_bootstrap['fit_predictor_role']                              = (player_role == 'predictor')
+    general_settings_for_bootstrap['dynamic_predictor']                               = dynamic_predictor
+    general_settings_for_bootstrap['create_new_file']                                 = True
+    general_settings_for_bootstrap['write_mode']                                      = 'overwrite'
+    general_settings_for_bootstrap['fit_roles_together']                              = False
+    general_settings_for_bootstrap.get('optimization_policy', {})['warmstart_policy'] = 'none'
+
+    "--- Bootstrap loop ---"
+    iteration_records:         list[dict]         = []
+    detailed_results_dict:     dict[int, dict]    = {}
+    iteration_elapsed_times:   list[float]        = []
+
+    for iteration_index in range(n_bootstrap_iterations):
+        time_iteration_start = time.time()
+        print(f"\n[Iteration {iteration_index + 1}/{n_bootstrap_iterations}] Starting...")
+
+        "Build file_paths for this iteration — all output routed to bootstrap_subdir."
+        file_paths_for_iter                                              = copy.deepcopy(file_paths)
+        iter_label                                                       = _bootstrap_run_label(iteration_index)
+        file_paths_for_iter['processed']                                 = bootstrap_subdir
+        file_paths_for_iter['player_fits']                               = os.path.join(bootstrap_subdir, 'player_fits', f"g{n_games}")
+        file_paths_for_iter['param_data']                                = os.path.join(bootstrap_subdir, 'param_data')
+        file_paths_for_iter['file_names']['player_pairs_exper3']         = f"synthetic_histories_{iter_label}.json"
+        file_paths_for_iter['file_names']['players_to_dyads_exper3']     = f"players_to_dyads_{iter_label}.json"
+
+        "Phase 1: generate synthetic data using empirical parameter vectors."
+        print(f"[Iteration {iteration_index + 1}] Phase 1: generating {n_synthetic_players} synthetic agents...")
+        histories_dict, true_params_by_uuid = create_simulated_experiment(
+            n_players=n_synthetic_players,
+            n_games=n_games,
+            k_params=k_params,
+            utility_settings_k=resolved_utility_settings,
+            general_settings=general_settings_for_bootstrap,
+            param_bds=param_bds,
+            random_gen=random_gen,
+            empirical_chooser_parameters=empirical_params,
+            file_paths=file_paths_for_iter,
+            create_new_file=True,
+            enforce_memory_limit=enforce_memory_limit,
+        )
+        histories_file_path = os.path.join(
+            file_paths_for_iter['processed'],
+            file_paths_for_iter['file_names']['player_pairs_exper3'],
+        )
+
+        "Pre-build players_to_dyads before spawning parallel workers."
+        "create_simulated_experiment deleted any stale copy; rebuild from the new histories so all"
+        "workers see a fully-written file instead of racing to write it themselves."
+        import preprocessing as _prep
+        _prep.players_to_dyads(
+            experiment_num=int(general_settings_for_bootstrap.get('experiment_num', 3)),
+            file_paths=file_paths_for_iter,
+            create_new_file=True,
+        )
+
+        "Phase 2: fit synthetic data with the standard production fitter."
+        print(f"[Iteration {iteration_index + 1}] Phase 2: fitting {len(true_params_by_uuid)} synthetic players...")
+        with open(histories_file_path, 'r', encoding='utf-8') as histories_file:
+            histories_loaded = json.load(histories_file)
+        run_analysis_bayes(
+            histories_data=histories_loaded,
+            file_paths=file_paths_for_iter,
+            param_info=param_info_for_bootstrap,
+            utility_settings=resolved_utility_settings,
+            general_settings=general_settings_for_bootstrap,
+            print_=True,
+        )
+
+        "Phase 3: collect fits and compute per-parameter recovery metrics."
+        print(f"[Iteration {iteration_index + 1}] Phase 3: collecting fits and computing metrics...")
+        fit_dir      = os.path.join(file_paths_for_iter['player_fits'], 'experiment_3')
+        paired_fits  = _collect_iteration_fits(
+            fit_dir=fit_dir,
+            k_params=k_params,
+            true_params_by_uuid=true_params_by_uuid,
+        )
+        detailed_results_dict[iteration_index] = paired_fits
+        n_players_fitted = len(paired_fits)
+
+        for param_key in parameters_to_report:
+            empirical_vals = np.array([
+                player_pair["true"].get(param_key, np.nan) for player_pair in paired_fits.values()
+            ])
+            recovered_vals = np.array([
+                player_pair["fitted"].get(param_key, np.nan) for player_pair in paired_fits.values()
+            ])
+            valid_mask      = ~(np.isnan(empirical_vals) | np.isnan(recovered_vals))
+            n_valid_players = int(valid_mask.sum())
+            if n_valid_players < 2:
+                print(f"  [param={param_key}] Skipped — fewer than 2 valid paired fits ({n_valid_players}).")
+                continue
+
+            empirical_valid = empirical_vals[valid_mask]
+            recovered_valid = recovered_vals[valid_mask]
+
+            correlation_pearson, _ = _pearsonr(empirical_valid, recovered_valid)
+            bias                   = float(np.mean(recovered_valid) - np.mean(empirical_valid))
+            empirical_std          = float(np.std(empirical_valid))
+            bias_normalized        = bias / empirical_std if empirical_std > 0 else float('nan')
+            variance_ratio         = float(np.std(recovered_valid) / empirical_std) if empirical_std > 0 else float('nan')
+            regression_slope, regression_intercept, regression_r, _, _ = _scipy_stats.linregress(
+                empirical_valid, recovered_valid
+            )
+            iteration_records.append({
+                'iteration_index':    iteration_index,
+                'parameter_key':      param_key,
+                'n_synthetic_agents': n_valid_players,
+                'mean_empirical':     float(np.mean(empirical_valid)),
+                'std_empirical':      empirical_std,
+                'mean_recovered':     float(np.mean(recovered_valid)),
+                'std_recovered':      float(np.std(recovered_valid)),
+                'correlation_pearson': float(correlation_pearson),
+                'bias':               bias,
+                'bias_normalized':    bias_normalized,
+                'variance_ratio':     variance_ratio,
+                'regression_slope':   float(regression_slope),
+                'regression_intercept': float(regression_intercept),
+                'regression_r2':      float(regression_r ** 2),
+            })
+
+        iteration_elapsed = time.time() - time_iteration_start
+        iteration_elapsed_times.append(iteration_elapsed)
+        iterations_remaining  = n_bootstrap_iterations - (iteration_index + 1)
+        mean_elapsed          = sum(iteration_elapsed_times) / len(iteration_elapsed_times)
+        eta_str               = f"  ETA: {_fmt_duration(mean_elapsed * iterations_remaining)}" if iterations_remaining > 0 else ""
+        print(f"[Iteration {iteration_index + 1}/{n_bootstrap_iterations}] Done in "
+              f"{_fmt_duration(iteration_elapsed)}.{eta_str}  "
+              f"({n_players_fitted} players fitted, {len(parameters_to_report)} params reported)")
+
+    "--- Output phase ---"
+    metrics_df = pd.DataFrame(iteration_records)
+
+    "Save metrics CSV."
+    try:
+        metrics_df.to_csv(metrics_csv_path, index=False, encoding='utf-8-sig')
+        print(f"[run_population_recovery_bootstrap] Metrics CSV: {pretty_path(metrics_csv_path)}")
+    except (PermissionError, OSError):
+        pass
+
+    "Save figure."
+    out_fig_path = os.path.join(bootstrap_subdir, f"population_recovery_figure_{bootstrap_label}.html")
+    if not metrics_df.empty:
+        from visualization import plot_population_recovery_bootstrap as _plot_bootstrap
+        _plot_bootstrap(
+            metrics_df=metrics_df,
+            figure_layout=figure_layout,
+            base_hue=base_hue,
+            out_fig_path=out_fig_path,
+            player_role=player_role,
+        )
+        print(f"[run_population_recovery_bootstrap] Figure: {pretty_path(out_fig_path)}")
+
+    "Write summary markdown with decision-logic verdicts."
+    summary_path = os.path.join(bootstrap_subdir, f"population_recovery_summary_{bootstrap_label}.md")
+    _write_bootstrap_summary(
+        metrics_df=metrics_df,
+        summary_path=summary_path,
+        resolved_utility_settings=resolved_utility_settings,
+        n_bootstrap_iterations=n_bootstrap_iterations,
+        n_synthetic_players=n_synthetic_players,
+        n_games=n_games,
+        player_role=player_role,
+        random_seed=random_seed,
+    )
+    print(f"[run_population_recovery_bootstrap] Summary: {pretty_path(summary_path)}")
+
+    import sys as _sys
+    _sys.stdout.buffer.write((
+        f"\n{'='*70}\n"
+        f"[run_population_recovery_bootstrap] Complete.\n"
+        f"  CSV     -> {pretty_path(metrics_csv_path)}\n"
+        f"  Figure  -> {pretty_path(out_fig_path)}\n"
+        f"  Summary -> {pretty_path(summary_path)}\n"
+        f"{'='*70}\n\n"
+    ).encode('utf-8'))
+    _sys.stdout.buffer.flush()
+
+    return metrics_df, detailed_results_dict
+
+
+def _write_bootstrap_summary(
+    metrics_df: pd.DataFrame,
+    summary_path: str,
+    resolved_utility_settings: UtilitySettings,
+    n_bootstrap_iterations: int,
+    n_synthetic_players: int,
+    n_games: int,
+    player_role: str,
+    random_seed: int | None,
+) -> None:
+    """
+    Write a markdown summary with per-parameter verdicts based on the decision-logic thresholds
+    from the bootstrap population recovery design document.
+
+    Threshold logic (per parameter):
+        Population means recover:  abs(bias_normalized) < 0.2 AND regression_slope > 0.7
+        Biased but directional:    abs(bias_normalized) > 0.3 OR regression_slope < 0.5
+        Severe bias:               abs(bias_normalized) > 0.5 OR regression_slope < 0.3
+    """
+    if metrics_df.empty:
+        return
+
+    bitstring_str = gnrl.convert_utility_settings(utility_settings=resolved_utility_settings, into=str)
+    agg           = metrics_df.groupby('parameter_key').agg({
+        'bias_normalized':    'mean',
+        'regression_slope':   'mean',
+        'correlation_pearson': 'mean',
+        'variance_ratio':     'mean',
+        'mean_empirical':     'mean',
+        'mean_recovered':     'mean',
+    }).reset_index()
+
+    lines = [
+        f"# Population Recovery Bootstrap Summary",
+        f"",
+        f"**Utility settings:** `{bitstring_str}`",
+        f"**Player role:** {player_role}",
+        f"**Synthetic agents:** {n_synthetic_players}",
+        f"**n_games per player:** {n_games}",
+        f"**Bootstrap iterations:** {n_bootstrap_iterations}",
+        f"**Random seed:** {random_seed}",
+        f"",
+        f"## Per-Parameter Verdicts",
+        f"",
+        f"| Parameter | Bias (norm.) | Slope | r | Var. ratio | Verdict |",
+        f"|-----------|-------------|-------|---|------------|---------|",
+    ]
+
+    for _, param_row in agg.iterrows():
+        param_key       = param_row['parameter_key']
+        bias_norm       = float(param_row['bias_normalized'])
+        slope           = float(param_row['regression_slope'])
+        corr            = float(param_row['correlation_pearson'])
+        var_ratio       = float(param_row['variance_ratio'])
+
+        if abs(bias_norm) > 0.5 or slope < 0.3:
+            verdict = "⚠️ Severe bias"
+        elif abs(bias_norm) > 0.3 or slope < 0.5:
+            verdict = "⚡ Biased but directional"
+        elif abs(bias_norm) < 0.2 and slope > 0.7:
+            verdict = "✅ Population means recover"
+        else:
+            verdict = "🔍 Marginal — inspect manually"
+
+        lines.append(
+            f"| {param_key} | {bias_norm:+.3f} | {slope:.3f} | {corr:.3f} | {var_ratio:.3f} | {verdict} |"
+        )
+
+    lines += [
+        f"",
+        f"## Notes",
+        f"",
+        f"- **L2 penalty follow-up:** if γ parameters show bias, re-run with exponent penalty disabled (λ=0) to test whether the bias disappears.",
+        f"- **Bias-normalized thresholds:** < 0.2 → recover, 0.2–0.3 → grey zone, > 0.3 → biased, > 0.5 → severe.",
+        f"- **Regression slope thresholds:** > 0.7 → recover, 0.5–0.7 → grey, < 0.5 → biased, < 0.3 → severe.",
+    ]
+
+    with open(summary_path, 'w', encoding='utf-8') as summary_file:
+        summary_file.write("\n".join(lines))
+
+
+def verify_particle_filter_fidelity(general_settings: GeneralSettings, utility_settings: UtilitySettings,
+                                    param_info: ParamInfo, file_paths: FilePaths, figure_layout: FigLay, sample_ratios: int | list[float] = 5,
                                     random_seed: int | None = None, n_predictors: int = 10, n_games_per_dyad: int = 10) -> pd.DataFrame:
     """
     Verifies that the particle filter (PF) reproduces the full grid-based posterior update (which occurs when the sample_ratio = 1.0).

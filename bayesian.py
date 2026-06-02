@@ -2729,9 +2729,22 @@ def run_analysis_bayes(histories_data: Histories, file_paths: FilePaths, param_i
             return histories_data_fitted
 
     if analysis_unit == 'player':
+        if not isinstance(histories_data, dict):
+            raise TypeError(
+                f"run_analysis_bayes expected histories_data to be a Histories dict "
+                f"(from Social_Preference_Prediction_Pairs_Exper{experiment_num}.json) "
+                f"but received {type(histories_data).__name__}. "
+                f"Check that main.py is loading the JSON pairs file, not the processed CSV."
+            )
         player_info: PlayerInfo = histories_data.get('player_info', None)
         if not player_info:
-            raise Exception("No 'player_info' found in histories_data.")
+            raise KeyError(
+                f"No 'player_info' key found in histories_data. "
+                f"Expected the Histories dict from "
+                f"Social_Preference_Prediction_Pairs_Exper{experiment_num}.json "
+                f"(found at {file_paths.get('processed', '?')}). "
+                f"Top-level keys present: {list(histories_data.keys())[:10]}"
+            )
 
         if not (isinstance(player_uuids, list) and all(isinstance(player_uuid, str) for player_uuid in player_uuids)):
             player_uuids = sorted([player_uuid for player_uuid, info in player_info.items()

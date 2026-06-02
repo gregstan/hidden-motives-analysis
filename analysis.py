@@ -4,8 +4,6 @@ from visualization import *
 from visualization import _hsla
 from utilities import compute_conditional_hamming_distance_matrix
 
-_UNSET = object()   # sentinel: "caller did not provide — read from general_settings"
-
 "=========================================================================================="
 "========= Model Validation: Comparing Bayesian and Alternative Cognitive Models =========="
 "=========================================================================================="
@@ -4904,7 +4902,7 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
     child_utility_settings = [model_nesting_data['settings'][child_idx] for child_idx in child_indices]
 
     if child_utility_settings:
-        assert len(list(child_utility_settings[0].keys())) == len(config.utility_settings)
+        assert len(list(child_utility_settings[0].keys())) == len(utility_settings)
 
     "Build a list of best fitting child parameters."
     best_fitting_child_params = []
@@ -5046,8 +5044,6 @@ def best_fitting_child_parameters_for_parent(player_uuid: str | None, player_rol
                 "guesses": ordered,
                 **parent_params
             }
-
-
 
     return {
         "metadata": {

@@ -45,7 +45,7 @@ Required arguments and defaults:
 - `dynamic_predictor: bool = False`. Forwarded to the simulation and fitting pipeline. False by default to match the static fits that produced the population statistics in Section 8 of the paper.
 - `parameters_of_interest: list[str] | None = None`. Subset of parameter keys to report metrics for. When `None`, report metrics for every parameter in the utility function (this is the default and the right one for the γ defense; the argument exists so future callers can focus on a subset).
 - `n_bootstrap_iterations: int = 1`. Set higher when you want standard errors on the bias. Default 1 because each iteration is expensive.
-- `random_seed: int | None = None`. Threaded through to the simulation generator. Use `_SENTINEL` if you want to follow the pattern in `run_param_recovery_by_k`.
+- `random_seed: int | None = None`. Threaded through to the simulation generator. 
 - `enforce_memory_limit: bool = False`. Forwarded to `create_simulated_experiment`.
 - `create_new_file: bool | None = None`. Standard cache pattern. Resolve from `general_settings` when `None`.
 - `base_hue: int | None = None`. For figure colors per the HSLA rule.

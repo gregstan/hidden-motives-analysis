@@ -9,66 +9,30 @@ from analysis import *
 
 run_code_settings: RunCodeSettings = {
     'run_simulation_analyses':              True,
-    'run_illustrate_belief_updates':        False,
-    'run_alternative_model_contest':        False,
-    'run_typological_bayesian_models':      False,
-    'run_information_criterion_analysis':   False,
-    'run_model_nesting_violation_analysis': False,
-    'run_individual_architecture_analysis': False,
-    'run_model_recovery_simulation':        False,
-    'run_parameter_distribution_results':   False,
-    'run_inequality_aversion_analysis':     False,
+    'run_illustrate_belief_updates':        True,
+    'run_alternative_model_contest':        True,
+    'run_typological_bayesian_models':      True,
+    'run_information_criterion_analysis':   True,
+    'run_model_nesting_violation_analysis': True,
+    'run_individual_architecture_analysis': True,
+    'run_model_recovery_simulation':        True,
+    'run_parameter_distribution_results':   True,
+    'run_inequality_aversion_analysis':     True,
 }
 
 def main():
     """Execute main code."""
 
-    if True:
-        "Quick-run block: load existing simulated_fits.csv, regenerate all plots and tables."
-        "63 JSON files must already exist in player_fits/experiment_0/."
-        "Re-disable (if False) before a fresh full rerun that starts from create_simulated_data."
-        use_dynamic_predictor = True
-        df_merged = run_parameter_recovery_simulation(
-            general_settings=general_settings, file_paths=file_paths,
-            figure_layout=figure_layout, export_fig=True, create_new_file=False, produce_figures=True,
-            correlation_csv_name="correlation_results.csv", include_dropdown=False,
-            use_dynamic_predictor=use_dynamic_predictor,
-        )
-        if not df_merged.empty:
-            "Table A: predictor τ bins."
-            tabulate_recovery_correlations_by_prior_bins(
-                df=df_merged,
-                var_col="Vᵢⱼ_std_true_predictor",
-                temp_col="τ_true_predictor",
-                param_true_chooser="Vᵢⱼ_true_chooser",
-                param_fitted_predictor="Vᵢⱼ_belief_predictor",
-                player_id_col="player_uuid_predictor",
-                last_rounds=[21, 22, 23],
-                var_edges=None, temp_edges=None,
-                print_=True, file_paths=None,
-            )
-            "Table B: chooser τ bins — face-valid version."
-            tabulate_recovery_correlations_by_prior_bins(
-                df=df_merged,
-                file_paths=file_paths,
-                var_col="Vᵢⱼ_std_true_predictor",
-                temp_col="τ_true_chooser",
-                param_true_chooser="Vᵢⱼ_true_chooser",
-                param_fitted_predictor="Vᵢⱼ_belief_predictor",
-                player_id_col="player_uuid_predictor",
-                last_rounds=[21, 22, 23],
-                var_edges=None, temp_edges=None,
-                print_=True,
-            )
-            plot_param_recovery_correlation_by_round(
-                df_merged=df_merged, figure_layout=figure_layout,
-                general_settings=general_settings, file_paths=file_paths,
-            )
-            run_update_speed_simulation_regression(
-                general_settings=general_settings, file_paths=file_paths,
-            )
-        exit()
-
+    run_population_recovery_bootstrap(
+        general_settings=general_settings,
+        figure_layout=figure_layout,
+        file_paths=file_paths,
+        param_bds=param_bds,
+        n_bootstrap_iterations=10,
+        create_new_file=True,
+        n_games=60,
+    )
+    exit()
     "Apply master random seed when reproducibility mode is enabled."
     _master_seed = general_settings.get('random_seeds', {}).get('seed', None)
     if _master_seed is not None:
@@ -381,15 +345,18 @@ def main():
             run_analysis = run_analysis_mle
 
         print(f"Using Equation:\n{build_utility_equation(utility_settings=utility_settings)}")
-        histories = prep.all_histories(file_paths=file_paths, experiment_numbers=[1, 2, 3])
-        histories_fitted = [
-            (exper, run_analysis(
-                histories_data=histories[exper - 1], file_paths=file_paths,
-                param_info=param_info, utility_settings=utility_settings,
-                general_settings=general_settings,
-            ))
-            for exper in [general_settings.get('experiment_num')]
-        ]
+        experiment_num = general_settings.get('experiment_num')
+        player_pairs_path = os.path.join(
+            file_paths["processed"],
+            file_paths["file_names"][f"player_pairs_exper{experiment_num}"]
+        )
+        with open(player_pairs_path, "r", encoding='utf-8') as histories_file:
+            histories_and_info = json.load(histories_file)
+        histories_fitted = [(experiment_num, run_analysis(
+            histories_data=histories_and_info, file_paths=file_paths,
+            param_info=param_info, utility_settings=utility_settings,
+            general_settings=general_settings,
+        ))]
 
         for player_role in ('chooser', 'predictor'):
             population_parameter_distribution_histograms(

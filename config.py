@@ -136,6 +136,7 @@ class UtilitySettings(TypedDict):
     reference_dependent_utility: bool
     use_negativity_parameters: bool
     negativity_social_comparison: bool
+    tie_self_interest_and_altruism: bool
     fix_self_interest_parameter: bool
     include_social_comparison: bool
     include_altruism_term: bool
@@ -332,9 +333,10 @@ def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, gener
                 param_keys.append('λᵢᵢ')
 
             if utility_settings['include_altruism_term']:
-                param_keys.append('Vᵢⱼ')
-                if utility_settings['use_negativity_parameters']:
-                    param_keys.append('λᵢⱼ')
+                if not utility_settings.get('tie_self_interest_and_altruism', False):
+                    param_keys.append('Vᵢⱼ')
+                    if utility_settings['use_negativity_parameters']:
+                        param_keys.append('λᵢⱼ')
 
             if utility_settings['include_social_comparison']:
                 param_keys.append('αᵢⱼ')
@@ -515,7 +517,7 @@ def create_file_name_suffix(general_settings: dict[str, Any], utility_settings: 
         file_name_suffix += abreviated_val
 
     raw_utility_bits = "".join(str(int(val)) for _, val in sorted(utility_settings.items()))
-    fmt_utility_bits = f"{raw_utility_bits[0:4]}-{raw_utility_bits[4:8]}-{raw_utility_bits[8:12]}-{raw_utility_bits[12:16]}"
+    fmt_utility_bits = f"{raw_utility_bits[0:4]}-{raw_utility_bits[4:8]}-{raw_utility_bits[8:12]}-{raw_utility_bits[12:17]}"
     file_name_suffix += "--" + fmt_utility_bits
 
     return file_name_suffix
@@ -634,7 +636,7 @@ def ensure_directory_and_join(base_dir: str, file_name: str, max_total_path_len:
 experiment_num = 3
 run_in_parallel = True
 track_evolution = False
-create_new_file = True
+create_new_file = False
 update_method = 'grid'
 analysis_mode = 'bayesian'
 analysis_unit = 'player'
@@ -649,8 +651,8 @@ use_particle_filter = True
 fit_roles_together = False
 use_initial_params = True
 loss_funct_type = 'log'
-penalty_weight = 0.05
-write_mode = 'overwrite'
+penalty_weight = 0.005
+write_mode = 'resume'
 learning_rate = 0.8
 sample_ratio = 0.05
 export_fig = True
@@ -683,11 +685,11 @@ general_settings: GeneralSettings = {
     'write_mode': write_mode,
     'dark_mode': dark_mode,
     'optimization_policy': {
-        'n_random_starts'    : 1,
-        'maxiter_global'     : 60,
-        'maxiter_local'      : 60,
-        'maxfun_global'      : 60,
-        'maxfun_local'       : 60,
+        'n_random_starts'    : 10,
+        'maxiter_global'     : 1000,
+        'maxiter_local'      : 1000,
+        'maxfun_global'      : 1000,
+        'maxfun_local'       : 1000,
         'run_trust_constr'   : False,
         'dual_annealing_seed': None,
         'trust_maxiter'      : 600,
@@ -777,6 +779,7 @@ utility_settings: UtilitySettings = {
     'reference_dependent_utility':     False,
     'use_negativity_parameters':       False,
     'negativity_social_comparison':    True,
+    'tie_self_interest_and_altruism':  False,
     'fix_self_interest_parameter':     False,
     'include_social_comparison':       True,
     'include_altruism_term':           True,

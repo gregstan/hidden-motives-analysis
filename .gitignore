@@ -230,3 +230,9 @@ rick_ssh_setup.md
 # Deprecated / dead code — kept locally for safety but not part of the shared codebase
 deprecated.py
 deprecated/
+
+# Bootstrap population recovery — large synthetic JSON files; metrics CSV and figure HTML are tracked
+processed/population_param_bootstrap/synthetic_histories_*.json
+processed/population_param_bootstrap/players_to_dyads_*.json
+processed/population_param_bootstrap/player_fits/
+processed/population_param_bootstrap/param_data/

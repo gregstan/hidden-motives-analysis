@@ -1062,19 +1062,19 @@ def convert_utility_settings(
     All input types are auto-detected; `into` selects the desired output format.
 
     Accepted input types:
-        • dict[str, bool]     — 16-key UtilitySettings dict (canonical current schema)
+        • dict[str, bool]     — 17-key UtilitySettings dict (canonical current schema)
         • tuple[bool|int, ...]— boolean or 0/1-int tuple
         • str                 — any of:
-            - Raw 16-char bitstring:            "0101010101010101"
-            - Formatted XXXX-XXXX-XXXX-XXXX:   "0101-0101-0101-0101"
+            - Raw 17-char bitstring:            "01010101010101010"
+            - Formatted XXXX-XXXX-XXXX-XXXXX:  "0101-0101-0101-01010"
             - JSON tuple-repr:                  "(True, False, ..., True)"
             - model_key_maker key:              "0101-0101-0101-0101~equation"
             - Equation string (requires file_paths): "Uᵢ(A)=Vᵢᵢ(...)"
         • int                 — utility_idx model index in all_utility_functions.csv
 
     Accepted `into` values:
-        • str       — formatted bitstring XXXX-XXXX-XXXX-XXXX (default)
-        • 'raw_str' — raw 16-char bitstring without dashes (backward-compat)
+        • str       — formatted bitstring XXXX-XXXX-XXXX-XXXXX (default)
+        • 'raw_str' — raw 17-char bitstring without dashes (backward-compat)
         • 'equation'— utility equation string (calls model.build_utility_equation)
         • tuple     — tuple[bool, ...]
         • dict      — UtilitySettings dict[str, bool]
@@ -1086,7 +1086,7 @@ def convert_utility_settings(
         • template: dict[str, bool] | None; canonical key order for tuple→dict conversion.
             Defaults to config.utility_settings when None.
         • input_settings_format: dict[str, bool] | None; legacy schema map for old inputs.
-            When provided, maps the input's keys onto the current 16-key schema;
+            When provided, maps the input's keys onto the current 17-key schema;
             any keys absent from the current schema are silently ignored, and any
             current-schema keys not in the old format default to False.
             Enables transparent 14→16 key translation for legacy IC JSON entries.
@@ -1156,13 +1156,13 @@ def convert_utility_settings(
 
         "Raw or formatted bitstring: a string composed only of '0' and '1' characters."
         if all(bit_char in "01" for bit_char in bits_without_dashes) and bits_without_dashes:
-            if len(bits_without_dashes) == 16:
+            if len(bits_without_dashes) == 17:
                 utility_settings = tuple(bool(int(bit_char)) for bit_char in bits_without_dashes)
             else:
                 raise ValueError(
-                    f"Bitstring has {len(bits_without_dashes)} bits after stripping dashes (expected 16). "
-                    "For legacy 14-bit inputs, provide input_settings_format to map old keys "
-                    "onto the current 16-key schema."
+                    f"Bitstring has {len(bits_without_dashes)} bits after stripping dashes (expected 17). "
+                    "For legacy 14- or 16-bit inputs, provide input_settings_format to map old keys "
+                    "onto the current 17-key schema."
                 )
 
         elif input_str.startswith("(") and input_str.endswith(")"):
@@ -1265,7 +1265,7 @@ def convert_utility_settings(
         raw_bitstring = "".join("1" if bool(flag_value) else "0" for _, flag_value in _ordered_pairs())
         if into == 'raw_str':
             return raw_bitstring
-        return f"{raw_bitstring[0:4]}-{raw_bitstring[4:8]}-{raw_bitstring[8:12]}-{raw_bitstring[12:16]}"
+        return f"{raw_bitstring[0:4]}-{raw_bitstring[4:8]}-{raw_bitstring[8:12]}-{raw_bitstring[12:17]}"
 
     if into == 'equation':
         if isinstance(utility_settings, dict):
@@ -1432,6 +1432,51 @@ def is_valid_utility_settings(candidate: UtilitySettings, provide_explanation: b
         if candidate['apply_exponents_to_payoffs']:
             explanation += "apply_exponents_to_payoffs is not supported."
             return explanation if provide_explanation else False
+
+    if candidate.get('tie_self_interest_and_altruism', False):
+        explanation = "If tying self-interest and altruism weights, then "
+        if not candidate['include_altruism_term']:
+            explanation += "an altruism term must be present to tie."
+            return explanation if provide_explanation else False
+        if candidate['fix_self_interest_parameter']:
+            explanation += (
+                "the self-interest parameter Vᵢᵢ must be free "
+                "(altruism would collapse to 0 if Vᵢᵢ is fixed at 1)."
+            )
+            return explanation if provide_explanation else False
+        if candidate['conditional_welfare_mode']:
+            explanation += "conditional welfare mode already defines its own complement structure."
+            return explanation if provide_explanation else False
+        "NOTE: The min-max/Rawlsian/Leontief prohibition below is a scope limitation, not a theoretical"
+        "one. min(Vᵢᵢ·base_self, (1-Vᵢᵢ)·base_alt) is a coherent tied-weight Leontief form — excluded"
+        "only to limit combinatorial explosion and avoid adding tied-weight code paths to the min-max"
+        "branch of utility() and build_utility_equation(). Revisit if desired in the future."
+        if candidate['min_max_rawlsian_leontief']:
+            explanation += (
+                "the tied-weight form is currently excluded from the min-max/Rawlsian/Leontief branch "
+                "(scope limitation, not a theoretical prohibition — revisit in the future if desired)."
+            )
+            return explanation if provide_explanation else False
+        "NOTE: include_welfare_efficiency_term=True is implicitly prohibited through prior rules —"
+        "welfare efficiency already forces include_altruism_term=False (existing rule above),"
+        "which conflicts with the tie requirement for include_altruism_term=True."
+        "No explicit check needed here; this comment documents why."
+
+        artificially_limit_combinations = True
+        if artificially_limit_combinations:
+            "Option A: restrict tie to single-payoff forms only. Theoretical motivation: the A&M CES"
+            "aggregator [α·πᵢ^ρ + (1-α)·πⱼ^ρ]^(1/ρ) is defined over individual payoffs, not differences."
+            "The complement constraint α+(1-α)=1 has its economic interpretation as a CES aggregator"
+            "precisely in that context. Toggle artificially_limit_combinations=False to allow the tied"
+            "weight form across all payoff representations (utility() and build_utility_equation() both"
+            "support this correctly — the restriction lives only here)."
+            if not candidate['single_payoffs_not_differences']:
+                explanation += (
+                    "the tied-weight form is currently restricted to single-payoff models "
+                    "(artificially_limit_combinations=True). Set that flag False in "
+                    "is_valid_utility_settings to allow tied weights with difference and ratio forms."
+                )
+                return explanation if provide_explanation else False
 
     return "Success!" if provide_explanation else True
 
@@ -2838,6 +2883,11 @@ def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str
         utility_settings['include_social_comparison']         = False
         utility_settings['apply_exponents_to_payoffs']        = False
 
+    if pivot == 'tie_self_interest_and_altruism' and utility_settings.get('tie_self_interest_and_altruism', False):
+        "Altruism must be present to tie; Vᵢᵢ must be free or the altruism weight collapses to zero."
+        utility_settings['include_altruism_term']       = True
+        utility_settings['fix_self_interest_parameter'] = False
+
     "Enforce trailing implications that might be triggered indirectly:"
     "(No extra pivots beyond the minimal implications above.)"
     if not utility_settings['include_social_comparison']:
@@ -2855,7 +2905,6 @@ def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str
         utility_settings['negativity_social_comparison'] = True
 
     return utility_settings
-
 
 
 def parents_children_of(utility_settings: Union[UtilitySettings, BoolTuple], return_children: bool = True, 
@@ -2991,6 +3040,7 @@ def classify_pair_relation(model_1: Union[UtilitySettings, BoolTuple], model_2: 
         'fix_self_interest_parameter',
         'include_social_comparison',
         'include_altruism_term',
+        'tie_self_interest_and_altruism',
     )
 
     different_settings = 0
@@ -3375,6 +3425,18 @@ def map_child_to_parent_special_param_info(
         if 'γ2' in parent_keys:
             gamma1 = float(child_fitted_parameters.get('γ1', 1.0))
             embedded_parent_values['γ2'] = gamma1
+
+    "--- SPECIAL: tied-altruism child (Vᵢⱼ = 1−Vᵢᵢ) → free-altruism parent ---"
+    if (not parent_utility_settings.get('tie_self_interest_and_altruism', False)
+            and child_utility_settings.get('tie_self_interest_and_altruism', False)):
+
+        "Seed parent's free Vᵢⱼ at the value implied by child's Vᵢᵢ."
+        Vii = float(child_fitted_parameters.get('Vᵢᵢ', 1.0))
+        Lai = float(child_fitted_parameters.get('λᵢᵢ', 0.0))
+        if 'Vᵢⱼ' in parent_keys:
+            embedded_parent_values['Vᵢⱼ'] = 1.0 - Vii
+        if 'λᵢⱼ' in parent_keys:
+            embedded_parent_values['λᵢⱼ'] = 1.0 - Lai
 
     "Finally, override guesses with the deterministic embedded vector, ordered by parent_keys."
     parent_param_info["guesses"] = [float(embedded_parent_values[k]) for k in parent_keys]
@@ -3926,6 +3988,113 @@ def normalize_pretty_rhs_for_eval(rhs_text: str, sc_mode: str = "twoterm") -> st
     out = _re_eval.sub(r"(\d)(?=(pow_signed)\()", r"\1*", out)
     out = _re_eval.sub(r"\)(?=(pow_signed)\()", r")*", out)
     return out
+
+
+def migrate_ic_data_to_16_key(file_paths: FilePaths, general_settings: GeneralSettings) -> None:
+    """
+    One-time migration: expands all IC analysis artifacts from 14-key to 16-key utility settings
+    format, then regenerates the two derived JSON files. Idempotent — each block skips silently
+    if the artifact is already 16-key.
+
+    Adds `include_welfare_efficiency_term` and `include_relative_income_penalty` (both False)
+    to every utility settings entry in the IC JSON, updates the two IC CSVs, and regenerates
+    processed/equation_to_settings.json and processed/model_nesting_data.json.
+
+    Arguments:
+        • file_paths: FilePaths; standard project file-path dict.
+        • general_settings: GeneralSettings; forwarded to model_nesting_adjacency_matrices.
+    """
+    experiment_num     = general_settings.get('experiment_num', 3)
+    new_two_keys       = ('include_welfare_efficiency_term', 'include_relative_income_penalty')
+    legacy_14_key_template = {
+        setting_key: False for setting_key in _CANONICAL_UTILITY_SETTINGS
+        if setting_key not in new_two_keys
+    }
+
+    "--- Fast idempotency guard: read only the CSV header line (tiny) to check migration status ---"
+    sentinel_csv_path = os.path.join(
+        file_paths["bic_aic"],
+        f"All_Utility_Forms_IC_Analysis_Experiment{experiment_num}.csv"
+    )
+    if os.path.exists(sentinel_csv_path):
+        with open(sentinel_csv_path, 'r', encoding='utf-8') as sentinel_file:
+            csv_header_line = sentinel_file.readline()
+        if 'include_welfare_efficiency_term' in csv_header_line:
+            return
+
+    migrated_anything = False
+
+    "--- JSON migration: translate 14-key utility_settings dicts and tuple-string keys to 16-key ---"
+    ic_json_path = os.path.join(
+        file_paths["bic_aic"],
+        f"All_Utility_Forms_IC_Analysis_Experiment{experiment_num}.json"
+    )
+    with open(ic_json_path, 'r', encoding='utf-8') as ic_json_file:
+        ic_data = json.load(ic_json_file)
+
+    first_model_entry = next(iter(ic_data["ic_results"].values()))
+    first_model_us    = first_model_entry.get("utility_settings", {})
+    if len(first_model_us) < 16:
+        migrated_ic_results = {}
+        for old_tuple_key, model_entry in ic_data["ic_results"].items():
+            old_utility_settings = model_entry.get("utility_settings", {})
+            new_utility_settings = convert_utility_settings(
+                utility_settings=old_utility_settings,
+                into=dict,
+                input_settings_format=legacy_14_key_template,
+            )
+            model_entry["utility_settings"] = new_utility_settings
+            new_tuple_key = str(convert_utility_settings(utility_settings=new_utility_settings, into=tuple))
+            migrated_ic_results[new_tuple_key] = model_entry
+        ic_data["ic_results"] = migrated_ic_results
+        with open(ic_json_path, 'w', encoding='utf-8') as ic_json_file:
+            json.dump(ic_data, ic_json_file, ensure_ascii=False, indent=4)
+        print(f"[migrate_ic_data_to_16_key] JSON migrated: {pretty_path(ic_json_path)}")
+        migrated_anything = True
+
+    "--- CSV migration: insert two new setting columns after min_max_rawlsian_leontief ---"
+    new_setting_cols = ['include_welfare_efficiency_term', 'include_relative_income_penalty']
+    insert_after_col = 'min_max_rawlsian_leontief'
+    csv_file_names   = [
+        f"All_Utility_Forms_IC_Analysis_Experiment{experiment_num}.csv",
+        "IC_Analysis_Comparison_Table_Experiment3.csv",
+    ]
+    for csv_file_name in csv_file_names:
+        csv_path = os.path.join(file_paths["bic_aic"], csv_file_name)
+        if not os.path.exists(csv_path):
+            continue
+        ic_csv = pd.read_csv(csv_path, encoding='utf-8', engine='python')
+        if new_setting_cols[0] in ic_csv.columns:
+            continue
+        if insert_after_col not in ic_csv.columns:
+            print(f"[migrate_ic_data_to_16_key] Warning: '{insert_after_col}' not found in "
+                  f"{pretty_path(csv_path)}, skipping.")
+            continue
+        insert_position = ic_csv.columns.tolist().index(insert_after_col) + 1
+        for col_offset, new_col in enumerate(new_setting_cols):
+            ic_csv.insert(loc=insert_position + col_offset, column=new_col, value=False)
+        ic_csv.to_csv(csv_path, index=False, encoding='utf-8-sig')
+        print(f"[migrate_ic_data_to_16_key] CSV migrated: {pretty_path(csv_path)}")
+        migrated_anything = True
+
+    "--- Regenerate derived files only when something was actually migrated ---"
+    if migrated_anything:
+        import model as _model
+        equation_to_settings(
+            equation_function=_model.build_utility_equation,
+            utility_settings=_CANONICAL_UTILITY_SETTINGS,
+            file_paths=file_paths,
+            create_new_file=True,
+        )
+        from analysis import model_nesting_adjacency_matrices as _model_nesting_adjacency_matrices
+        _model_nesting_adjacency_matrices(
+            general_settings=general_settings,
+            utility_settings=_CANONICAL_UTILITY_SETTINGS,
+            file_paths=file_paths,
+            create_new_file=True,
+            print_=True,
+        )
+        print("[migrate_ic_data_to_16_key] Migration complete.")
 
 
 def eval_pretty_equation_rhs(

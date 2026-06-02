@@ -308,8 +308,26 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
 
     "Altruism term"
     if utility_settings['include_altruism_term']:
-        altruism = utility_term(payoff_1=pay1al, payoff_2=pay2al, weight_1=Vᵢⱼ, exponent=exp2,
-                                weight_2=λᵢⱼ if utility_settings['use_negativity_parameters'] else 0.0,
+        tie_weights = utility_settings.get('tie_self_interest_and_altruism', False)
+        if tie_weights:
+            "Mirror the conditional-welfare normalization pattern: Vᵢᵢ maps [-1,1] → [0,1] so"
+            "(1 - Vᵢᵢ_norm) stays in [0,1]. Skipped when normalize_conditional_welfare_params=False,"
+            "which is how all verification call sites invoke utility(), keeping string and numeric"
+            "evaluations consistent without embedding the normalization in the equation string."
+            if normalize_conditional_welfare_params:
+                Vᵢᵢ_norm = (Vᵢᵢ + 1) / 2
+                λᵢᵢ_norm = (λᵢᵢ + 1) / 2
+            else:
+                Vᵢᵢ_norm = Vᵢᵢ
+                λᵢᵢ_norm = λᵢᵢ
+            weight_1_al = 1.0 - Vᵢᵢ_norm
+            weight_2_al = (1.0 - λᵢᵢ_norm) if utility_settings['use_negativity_parameters'] else 0.0
+        else:
+            weight_1_al = Vᵢⱼ
+            weight_2_al = λᵢⱼ if utility_settings['use_negativity_parameters'] else 0.0
+        altruism = utility_term(payoff_1=pay1al, payoff_2=pay2al,
+                                weight_1=weight_1_al, exponent=exp2,
+                                weight_2=weight_2_al,
                                 use_negativity_parameters=utility_settings['use_negativity_parameters'],
                                 use_exponential_parameters=utility_settings['use_exponential_parameters'],
                                 single_payoffs_not_differences=utility_settings['single_payoffs_not_differences'],
@@ -557,6 +575,7 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A",
     fix_self = utility_settings.get('fix_self_interest_parameter', False)
     soc_comp = utility_settings.get('include_social_comparison', False)
     alt_term = utility_settings.get('include_altruism_term', False)
+    tie_wts  = utility_settings.get('tie_self_interest_and_altruism', False)
     
     def _simplify_nonnegatives(pretty: str) -> str:
         """
@@ -673,7 +692,8 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A",
         elif term_type == "altruism":
             if not alt_term:
                 return ""
-            weight1, weight2 = "Vᵢⱼ", "λᵢⱼ"
+            weight1 = "(1 - Vᵢᵢ)" if tie_wts else "Vᵢⱼ"
+            weight2 = "(1 - λᵢᵢ)" if tie_wts else "λᵢⱼ"
             operator1, operator2 = " + ", " - "
             base1 = f"{payAj} - {payBj}" if not one_pay or ref_dep else payAj
             base2 = f"{payBj} - {payAj}" if not one_pay or ref_dep else payAj  
