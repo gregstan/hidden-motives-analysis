@@ -110,6 +110,22 @@ All outputs from these sections go to `demo_files/` to protect any precomputed r
 main output directories. This includes IC results in `demo_files/bic_aic/`, fitted parameters
 in `demo_files/player_fits/`, and visualizations in `demo_files/visuals/`.
 
+### Static figure previews (in `images/`)
+
+Static PNG snapshots of the key figures, useful when you only want to glance at the paper's
+results without running anything.
+
+- **Bayesian belief updates (3D)** → [`images/bayesian_updates_3d.png`](images/bayesian_updates_3d.png) → snapshot of the Section 7 belief-update surfaces (paper Figure 4 family)
+- **Belief accuracy by round** → [`images/belief_accuracy_by_round.png`](images/belief_accuracy_by_round.png) → correlation between predicted and true preferences as evidence accumulates across rounds
+- **Parameter recovery at k = 2** → [`images/param_recovery_correlation_k=2.png`](images/param_recovery_correlation_k=2.png) → violin of recovery correlations for the k = 2 utility model
+- **Parameter recovery across k** → [`images/param_recovery_correlation_by_k.png`](images/param_recovery_correlation_by_k.png) → recovery accuracy as model complexity (k) grows
+- **Parameter-fitting bootstrap** → [`images/param_fitting_bootstrap_analysis.png`](images/param_fitting_bootstrap_analysis.png) → bootstrap bias and variance of the IC winner's fitted population parameters
+- **IC rankings scatter** → [`images/information_criterion_rankings_scatter.png`](images/information_criterion_rankings_scatter.png) → BIC and AIC rankings across the candidate utility forms
+- **Population compression curve** → [`images/population_utility_function_compression_curve.png`](images/population_utility_function_compression_curve.png) → A(K) curve from the individual architecture analysis
+- **Social comparison simulation** → [`images/social_comparison_simulation.png`](images/social_comparison_simulation.png) → simulation result for the social-comparison utility term
+
+> Interactive HTML versions of these figures live in [`visuals/`](visuals/) and [`demo_files/`](demo_files/). Double-click any `.html` file to open it in a browser.
+
 ---
 
 ## 5) Codebase structure
