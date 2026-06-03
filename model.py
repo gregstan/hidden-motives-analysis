@@ -115,7 +115,7 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
                 'use_exponential_parameters', 'fix_self_interest_parameter',
                 'single_payoffs_not_differences', 'payoff_ratios_not_differences',
                 'reference_dependent_utility', 'conditional_welfare_mode',
-                'min_max_rawlsian_leontief', 'single_exponential_parameter'.
+                'min_max_rawlsian_leontief', 'uniform_exponential_parameter'.
         • separate_terms: bool
             If True, returns a dict {'self_interest': float, 'altruism': float, 'social_comp': float}
             instead of the scalar sum. Useful for inspecting the contribution of each term.
@@ -139,7 +139,7 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
     exp3 = params.get('γ3', exp1)
 
     "Enforce a single exponent when requested (even if γ2/γ3 are present in params)"
-    if utility_settings.get('single_exponential_parameter', False):
+    if utility_settings.get('uniform_exponential_parameter', False):
         exp2 = exp1
         exp3 = exp1
 
@@ -187,7 +187,7 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
         altruism = utility_term(payoff_1=pay1al, payoff_2=pay2al, 
                                 weight_1=weight_1_al, weight_2=0, 
                                 # exponent=exp2 if utility_settings['include_altruism_term'] else exp1, 
-                                exponent=exp2 if utility_settings['single_exponential_parameter'] else exp1, 
+                                exponent=exp2 if utility_settings['uniform_exponential_parameter'] else exp1, 
                                 use_exponential_parameters=utility_settings['use_exponential_parameters'], 
                                 single_payoffs_not_differences=utility_settings['single_payoffs_not_differences'], 
                                 payoff_ratios_not_differences=utility_settings['payoff_ratios_not_differences'],
@@ -205,7 +205,7 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
             basei = payAi
             basej = payAj
             exp_i = exp1
-            exp_j = (exp1 if utility_settings['single_exponential_parameter'] else exp2)
+            exp_j = (exp1 if utility_settings['uniform_exponential_parameter'] else exp2)
 
         elif utility_settings['payoff_ratios_not_differences']:
             "Ratios, centered at 1/2. If apply γ into payoffs, do it here."
@@ -213,8 +213,8 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
                 "Apply γ into the two payoff arguments that form each ratio"
                 ai = (payAi ** exp1)
                 bi = (payBi ** exp1)
-                aj = (payAj ** (exp1 if utility_settings['single_exponential_parameter'] else exp2))
-                bj = (payBj ** (exp1 if utility_settings['single_exponential_parameter'] else exp2))
+                aj = (payAj ** (exp1 if utility_settings['uniform_exponential_parameter'] else exp2))
+                bj = (payBj ** (exp1 if utility_settings['uniform_exponential_parameter'] else exp2))
                 basei = ai / (ai + bi) - 0.5
                 basej = aj / (aj + bj) - 0.5
                 exp_i = exp_j = 1.0  
@@ -222,7 +222,7 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
                 basei = payAi / (payAi + payBi) - 0.5
                 basej = payAj / (payAj + payBj) - 0.5
                 exp_i = exp1
-                exp_j = (exp1 if utility_settings['single_exponential_parameter'] else exp2)
+                exp_j = (exp1 if utility_settings['uniform_exponential_parameter'] else exp2)
 
         else:
             "Payoff differences"
@@ -230,8 +230,8 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
                 "Apply γ into the two payoff arguments before subtracting"
                 ai = (payAi ** exp1)
                 bi = (payBi ** exp1)
-                aj = (payAj ** (exp1 if utility_settings['single_exponential_parameter'] else exp2))
-                bj = (payBj ** (exp1 if utility_settings['single_exponential_parameter'] else exp2))
+                aj = (payAj ** (exp1 if utility_settings['uniform_exponential_parameter'] else exp2))
+                bj = (payBj ** (exp1 if utility_settings['uniform_exponential_parameter'] else exp2))
                 basei = ai - bi
                 basej = aj - bj
                 exp_i = exp_j = 1.0  
@@ -239,7 +239,7 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
                 basei = payAi - payBi
                 basej = payAj - payBj
                 exp_i = exp1
-                exp_j = (exp1 if utility_settings['single_exponential_parameter'] else exp2)
+                exp_j = (exp1 if utility_settings['uniform_exponential_parameter'] else exp2)
 
         "Apply exponents to the bases only if they haven't already been applied"
         if utility_settings['use_exponential_parameters']:
@@ -284,7 +284,7 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
         Vᵢᵢ_used    = (Vᵢᵢ + 1) / 2 if normalize_conditional_welfare_params else Vᵢᵢ
         _has_maximin = utility_settings['include_social_comparison']
         si_coeff     = (1 - Vᵢᵢ_used - Vᵢⱼ) if _has_maximin else (1 - Vᵢᵢ_used)
-        _exp_j       = exp1 if utility_settings['single_exponential_parameter'] else exp2
+        _exp_j       = exp1 if utility_settings['uniform_exponential_parameter'] else exp2
         if utility_settings['use_exponential_parameters']:
             si_part   = si_coeff  * (payAi ** exp1)
             welf_part = Vᵢᵢ_used * ((payAi + payAj) / 2) ** exp1
@@ -374,7 +374,7 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
         _sigma  = payAi / _denom if _denom > 0 else 0.5
         _dev    = _sigma - 0.5
         if utility_settings['use_exponential_parameters']:
-            _exp_rip = (params.get('γ1', 1) if utility_settings.get('single_exponential_parameter')
+            _exp_rip = (params.get('γ1', 1) if utility_settings.get('uniform_exponential_parameter')
                         else params.get('γ3', params.get('γ1', 1)))
             # CHANGED (2026-05-27): was (max(_dev,0)**_exp_rip - max(-_dev,0)**_exp_rip),
             # a signed form that adds to utility when behind. Now abs(_dev)**_exp_rip so
@@ -570,7 +570,7 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A",
     ref_alt  = utility_settings.get('reference_dependent_altruism', False)
     one_pay  = utility_settings.get('single_payoffs_not_differences', False)
     pay_rats = utility_settings.get('payoff_ratios_not_differences', False)
-    one_exp  = utility_settings.get('single_exponential_parameter', False)
+    one_exp  = utility_settings.get('uniform_exponential_parameter', False)
     la_socc  = utility_settings.get('negativity_social_comparison', False)
     fix_self = utility_settings.get('fix_self_interest_parameter', False)
     soc_comp = utility_settings.get('include_social_comparison', False)

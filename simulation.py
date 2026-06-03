@@ -273,7 +273,7 @@ def create_simulated_dyad(
         'min_max_rawlsian_leontief':      False,
         'use_exponential_parameters':     False,
         'apply_exponents_to_payoffs':     False,
-        'single_exponential_parameter':   False,
+        'uniform_exponential_parameter':  False,
         'single_payoffs_not_differences': False,
         'payoff_ratios_not_differences':  False,
         'reference_dependent_utility':    False,
@@ -2003,15 +2003,13 @@ def create_simulated_experiment(
     return histories_dict, true_params_by_uuid
 
 
-_SENTINEL = object()  # used as a sentinel for random_seed to distinguish "not provided" from None (unseeded)
-
 
 def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FilePaths, figure_layout: FigLay, param_bds: ParamBounds,
                             n_players: int | None = None, fit_predictor_role: bool = False, n_games: int | None = None,
                             k_params_range: tuple[int, int] | None = None, n_altruism_steps: int | None = None,
                             evenly_space_altruism: bool | None = None, utility_settings_by_k: dict[int, dict[str, bool]] | None = None,
                             correlate_all_params: bool | None = None,
-                            random_seed=_SENTINEL, use_existing_fits: bool = False,
+                            random_seed=None, use_existing_fits: bool = False,
                             base_hue: int | None = None,
                             temperature_is_param: bool | None = None,
                             softmax_temperature: float | None = None,
@@ -2032,7 +2030,7 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         6. Store the detailed dyad list and summary under `simulated_param_recovery_by_k[k]`.
         7. Save a tidy CSV and a Plotly figure (correlation vs. k).
 
-    All keyword arguments that are `None` (or `_SENTINEL` for `random_seed`) cascade from
+    All keyword arguments that are `None` cascade from
     `general_settings['parameter_recovery_settings']`, then fall back to the listed defaults.
 
     Arguments:
@@ -2067,9 +2065,8 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         • correlate_all_params: bool | None
             True → correlate every free mean parameter; False → Vᵢⱼ only.
             None → cascade, then False.
-        • random_seed: int | None | _SENTINEL
-            RNG seed. _SENTINEL (default) → cascade from settings, then None (unseeded).
-            Pass None explicitly for an explicit unseeded run.
+        • random_seed: int | None
+            RNG seed. None → cascade from settings, then None (unseeded).
         • use_existing_fits: bool
             If True, skip re-running the analysis and load pre-existing fit JSONs.
 
@@ -2105,7 +2102,7 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         temperature_is_param = bool(general_settings.get('temperature_is_param', False))
     if softmax_temperature is None:
         softmax_temperature = float(general_settings.get('softmax_temperature', 1.0))
-    if random_seed is _SENTINEL:
+    if random_seed is None:
         random_seed = prs.get('random_seed', None)
 
     if n_players == 0:
@@ -2172,7 +2169,7 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         "Keep the same feature list used by the IC analysis."
         setting_cols = [
             'conditional_welfare_mode','reference_dependent_altruism','min_max_rawlsian_leontief',
-            'use_exponential_parameters','apply_exponents_to_payoffs','single_exponential_parameter',
+            'use_exponential_parameters','apply_exponents_to_payoffs','uniform_exponential_parameter',
             'single_payoffs_not_differences','payoff_ratios_not_differences','reference_dependent_utility',
             'use_negativity_parameters','negativity_social_comparison','fix_self_interest_parameter',
             'include_social_comparison','include_altruism_term'
@@ -2217,7 +2214,7 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
             raise RuntimeError("The comparison CSV lacks 'include_altruism_term' column.")
         setting_cols = [
             'conditional_welfare_mode','reference_dependent_altruism','min_max_rawlsian_leontief',
-            'use_exponential_parameters','apply_exponents_to_payoffs','single_exponential_parameter',
+            'use_exponential_parameters','apply_exponents_to_payoffs','uniform_exponential_parameter',
             'single_payoffs_not_differences','payoff_ratios_not_differences','reference_dependent_utility',
             'use_negativity_parameters','negativity_social_comparison','fix_self_interest_parameter',
             'include_social_comparison','include_altruism_term'

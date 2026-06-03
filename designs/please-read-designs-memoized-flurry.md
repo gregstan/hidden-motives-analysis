@@ -329,7 +329,7 @@ Reads `bic_aic/All_Utility_Forms_IC_Analysis_Experiment{experiment_num}.csv`, fi
 ```python
 setting_cols_14 = [
     'conditional_welfare_mode', 'reference_dependent_altruism', 'min_max_rawlsian_leontief',
-    'use_exponential_parameters', 'apply_exponents_to_payoffs', 'single_exponential_parameter',
+    'use_exponential_parameters', 'apply_exponents_to_payoffs', 'uniform_exponential_parameter',
     'single_payoffs_not_differences', 'payoff_ratios_not_differences', 'reference_dependent_utility',
     'use_negativity_parameters', 'negativity_social_comparison', 'fix_self_interest_parameter',
     'include_social_comparison', 'include_altruism_term',

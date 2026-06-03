@@ -1368,7 +1368,7 @@ def plot_model_space_mds(
         "min_max_rawlsian_leontief":      "Min-Max (Rawls/Leontief)",
         "use_exponential_parameters":     "Exponential Params",
         "apply_exponents_to_payoffs":     "Exponents to Payoffs",
-        "single_exponential_parameter":   "Single Exponent",
+        "uniform_exponential_parameter":  "Uniform Exponent",
         "single_payoffs_not_differences": "Single Payoffs (not Diffs)",
         "payoff_ratios_not_differences":  "Payoff Ratios (not Diffs)",
         "reference_dependent_utility":    "Ref-Dep Utility",

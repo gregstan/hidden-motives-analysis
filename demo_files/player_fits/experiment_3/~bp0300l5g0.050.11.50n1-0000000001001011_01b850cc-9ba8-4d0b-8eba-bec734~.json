@@ -199,7 +199,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true
@@ -342,7 +342,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true
@@ -955,7 +955,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true
@@ -1098,7 +1098,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true
@@ -1447,7 +1447,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true
@@ -1590,7 +1590,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true
@@ -2423,7 +2423,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true
@@ -2566,7 +2566,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true
@@ -3255,7 +3255,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true
@@ -3398,7 +3398,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true
@@ -4171,7 +4171,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true
@@ -4314,7 +4314,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true
@@ -5015,7 +5015,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true
@@ -5158,7 +5158,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true
@@ -5419,7 +5419,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true
@@ -5562,7 +5562,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true
@@ -5947,7 +5947,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true
@@ -6090,7 +6090,7 @@
                             "payoff_ratios_not_differences": true,
                             "reference_dependent_altruism": false,
                             "reference_dependent_utility": false,
-                            "single_exponential_parameter": true,
+                            "uniform_exponential_parameter": true,
                             "single_payoffs_not_differences": false,
                             "use_exponential_parameters": true,
                             "use_negativity_parameters": true

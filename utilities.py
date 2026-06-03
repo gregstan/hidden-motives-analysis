@@ -1298,13 +1298,13 @@ def is_valid_utility_settings(candidate: UtilitySettings, provide_explanation: b
         if candidate['use_negativity_parameters'] or candidate['negativity_social_comparison']:
             explanation += "parameters are irrelevant."
             return explanation if provide_explanation else False
-        if not candidate['single_exponential_parameter']:
+        if not candidate['uniform_exponential_parameter']:
             explanation += "there can only be at most one exponent."
             return explanation if provide_explanation else False
         
     elif n_social_preference_params == 1:
         explanation = "If only one term exists"
-        if not candidate['single_exponential_parameter']:
+        if not candidate['uniform_exponential_parameter']:
             "Exception: RIP + free Vᵢᵢ (no altruism) — the penalty provides independent curvature."
             _rip_two_exp_ok = (candidate.get('include_relative_income_penalty', False)
                                and not candidate['fix_self_interest_parameter']
@@ -1333,7 +1333,7 @@ def is_valid_utility_settings(candidate: UtilitySettings, provide_explanation: b
         
     if not candidate['use_exponential_parameters']:
         explanation = "If no exponents, then "
-        if not candidate['single_exponential_parameter']:
+        if not candidate['uniform_exponential_parameter']:
             explanation += "nonexistent exponents cannot be different for each term."
             return explanation if provide_explanation else False
         if candidate['apply_exponents_to_payoffs']:
@@ -1463,13 +1463,13 @@ def is_valid_utility_settings(candidate: UtilitySettings, provide_explanation: b
         "No explicit check needed here; this comment documents why."
 
         if (candidate['use_exponential_parameters']
-                and not candidate['single_exponential_parameter']
+                and not candidate['uniform_exponential_parameter']
                 and not candidate['include_social_comparison']
                 and not candidate.get('include_relative_income_penalty', False)):
             explanation += (
-                "single_exponential_parameter=False is redundant when tie=True with no social "
+                "uniform_exponential_parameter=False is redundant when tie=True with no social "
                 "comparison and no RIP: γ₂ is never added to the parameter list (Vᵢⱼ is absent), "
-                "so the model is numerically identical to single_exponential_parameter=True."
+                "so the model is numerically identical to uniform_exponential_parameter=True."
             )
             return explanation if provide_explanation else False
 
@@ -1555,7 +1555,7 @@ def generate_utility_settings(
         • 'apply_exponents_to_payoffs':
             - If True, apply exponents to payoffs before transforming them with differences or ratios.
             - If False, exponents are applied to the bases after payoff differences or ratios have been computed.
-        • 'single_exponential_parameter':
+        • 'uniform_exponential_parameter':
             - If True, all terms have the same exponent parameter if they have exponent parameters at all.
             - If False, all terms have unique exponent parmeters if they have exponent parameters at all.
         • 'single_payoffs_not_differences':
@@ -2490,7 +2490,7 @@ def compute_conditional_hamming_distance_matrix(
 
     This corrects raw Hamming's inflation when a parent feature is absent: e.g., two models
     with no exponents and one with per-term exponents should have equal conditional Hamming
-    distance to the no-exponent model on the 'single_exponential_parameter' axis, because
+    distance to the no-exponent model on the 'uniform_exponential_parameter' axis, because
     that flag is forced (not live) in the no-exponent model.
 
     is_valid_utility_settings is the sole source of truth for liveness — if new settings or
@@ -2813,7 +2813,7 @@ def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str
     so a single pivot yields a valid candidate wherever possible.
 
     Examples of couplings handled:
-        • use_exponential_parameters=False    ⇒ single_exponential_parameter=False
+        • use_exponential_parameters=False    ⇒ uniform_exponential_parameter=False
         • include_social_comparison=False     ⇒ negativity_social_comparison=False
         • use_negativity_parameters=True      ⇒ negativity_social_comparison=True
         • payoff_ratios_not_differences=True  ⇒ single_payoffs_not_differences=False
@@ -2826,9 +2826,9 @@ def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str
 
     if pivot == 'use_exponential_parameters':
         if not utility_settings['use_exponential_parameters']:
-            utility_settings['single_exponential_parameter'] = False
+            utility_settings['uniform_exponential_parameter'] = False
         else:
-            utility_settings['single_exponential_parameter'] = True
+            utility_settings['uniform_exponential_parameter'] = True
 
     if pivot == 'include_social_comparison':
         if not utility_settings['include_social_comparison']:
@@ -2859,7 +2859,7 @@ def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str
         utility_settings['negativity_social_comparison'] = False
         utility_settings['fix_self_interest_parameter'] = False
         utility_settings['single_payoffs_not_differences'] = True
-        utility_settings['single_exponential_parameter'] = True
+        utility_settings['uniform_exponential_parameter'] = True
 
     if pivot == 'conditional_welfare_mode' and utility_settings['conditional_welfare_mode']:
         utility_settings['use_negativity_parameters'] = True
@@ -2868,7 +2868,7 @@ def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str
         if not utility_settings['include_altruism_term']:
             "This is required to remain valid in the generator under conditional mode"
             utility_settings['fix_self_interest_parameter'] = False
-            utility_settings['single_exponential_parameter'] = True
+            utility_settings['uniform_exponential_parameter'] = True
 
     if pivot == 'include_welfare_efficiency_term' and utility_settings['include_welfare_efficiency_term']:
         utility_settings['conditional_welfare_mode']        = False
@@ -2908,7 +2908,7 @@ def _apply_minimal_dependent_fixes(utility_settings: UtilitySettings, pivot: str
     if utility_settings['single_payoffs_not_differences']:
         utility_settings['reference_dependent_utility'] = False
     if not utility_settings['use_exponential_parameters']:
-        utility_settings['single_exponential_parameter'] = False
+        utility_settings['uniform_exponential_parameter'] = False
     "Only force negativity_social_comparison=True when social comparison is actually present."
     "The original rule was unconditional, which created invalid candidates (include_social_comparison=False"
     "with negativity_social_comparison=True) and silently broke sibling detection."
@@ -2998,7 +2998,7 @@ def classify_pair_relation(model_1: Union[UtilitySettings, BoolTuple], model_2: 
             (e.g., apply_exponents_to_payoffs, single_payoffs_not_differences, payoff_ratios_not_differences,
             reference_dependent_*).
         • Parent/child: flags that change the number of free parameters
-            (e.g., use_exponential_parameters, single_exponential_parameter, use_negativity_parameters,
+            (e.g., use_exponential_parameters, uniform_exponential_parameter, use_negativity_parameters,
             negativity_social_comparison, include_social_comparison (outside min–max), include_altruism_term,
             fix_self_interest_parameter).
         • For conditional-welfare models, flipping include_altruism_term **is** parent/child; the parent has explicit
@@ -3045,7 +3045,7 @@ def classify_pair_relation(model_1: Union[UtilitySettings, BoolTuple], model_2: 
     )
     settings_when_flipped_make_children_parents = (
         'use_exponential_parameters',
-        'single_exponential_parameter',
+        'uniform_exponential_parameter',
         'use_negativity_parameters',
         'negativity_social_comparison',
         'fix_self_interest_parameter',

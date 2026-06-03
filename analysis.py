@@ -1571,7 +1571,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         print(top_uf_data), print("")
 
         formula = f"BIC ~ C(conditional_welfare_mode) + C(reference_dependent_altruism) + " \
-                "C(use_exponential_parameters) + C(single_exponential_parameter) + "  \
+                "C(use_exponential_parameters) + C(uniform_exponential_parameter) + "  \
                 "C(single_payoffs_not_differences) + C(payoff_ratios_not_differences) + "  \
                 "C(reference_dependent_utility) + C(use_negativity_parameters) + "  \
                 "C(negativity_social_comparison) + C(include_social_comparison) + "  \
@@ -2344,7 +2344,7 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
             The canonical set (keys only are used) of Boolean settings that define models.
             Example keys:
             ['conditional_welfare_mode','reference_dependent_altruism','min_max_rawlsian_leontief',
-                'use_exponential_parameters','apply_exponents_to_payoffs','single_exponential_parameter',
+                'use_exponential_parameters','apply_exponents_to_payoffs','uniform_exponential_parameter',
                 'single_payoffs_not_differences','payoff_ratios_not_differences','reference_dependent_utility',
                 'use_negativity_parameters','negativity_social_comparison','fix_self_interest_parameter',
                 'include_social_comparison','include_altruism_term']
@@ -2466,7 +2466,7 @@ def utility_setting_contribution_analysis(*, general_settings: dict, file_paths:
     }
     PARENT_CHILD_FLIPS = {
         'use_exponential_parameters',
-        'single_exponential_parameter',
+        'uniform_exponential_parameter',
         'use_negativity_parameters',
         'negativity_social_comparison',
         'fix_self_interest_parameter',
@@ -2888,7 +2888,7 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
             • use_exponential_parameters=True in parent:
                 - If child has no γ's: set all parent γ* to 1.0.
                 - If child uses a single γ (γ1) and parent has multiple γ's: tie all parent γ* to child's γ1.
-            • single_exponential_parameter flip (tie ↔ untie):
+            • uniform_exponential_parameter flip (tie ↔ untie):
                 - If parent has multiple γ's but child has γ1 only: copy γ1 to every parent γ*.
             • include_social_comparison added in parent: set αᵢⱼ=0 and βᵢⱼ=0 in parent.
             • include_altruism_term added in parent: set Vᵢⱼ=0 and λᵢⱼ=0 in parent (if present).
@@ -2926,7 +2926,7 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
                     if parameter_key.startswith('γ'):
                         parent_parameters[parameter_key] = 1.0
 
-        elif changed_utility_setting == "single_exponential_parameter":
+        elif changed_utility_setting == "uniform_exponential_parameter":
             "Tie/untie exponents: if parent has multiple γ's and child had γ1, tie them to γ1."
             if 'γ1' in child_parameter_dict:
                 common_gamma = float(child_parameter_dict['γ1'])
@@ -3988,8 +3988,8 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
         Eps = _get(params, "αᵢⱼ", "αij", default=0.0)
 
         g1  = _get(params, "γ₁", "γ1", default=1.0)
-        g2  = _get(params, "γ₂", "γ2", default=g1 if utility_settings.get("single_exponential_parameter", False) else g1)
-        if not utility_settings.get("single_exponential_parameter", False):
+        g2  = _get(params, "γ₂", "γ2", default=g1 if utility_settings.get("uniform_exponential_parameter", False) else g1)
+        if not utility_settings.get("uniform_exponential_parameter", False):
             g2 = _get(params, "γ₂", "γ2", default=g1)
         g3  = _get(params, "γ₃", "γ3", default=g1)
 

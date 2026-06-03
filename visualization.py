@@ -1263,6 +1263,7 @@ def belief_accuracy_analysis(file_paths: FilePaths, general_settings: GeneralSet
 
     return fig
 
+
 def plot_ic_robustness_analysis(general_settings: Dict[str, Any], file_paths: Dict[str, str], figure_layout: Dict[str, Any]) -> go.Figure:
     """
     Plot IC robustness diagnostics from the information criterion analysis results file.
@@ -1480,7 +1481,7 @@ def plot_ic_scores_delta_bic(figure_layout: dict, file_paths: dict, general_sett
         'min_max_rawlsian_leontief':      "Min-Max (Rawls/Leontief)",
         'use_exponential_parameters':     "Use Exponential Params",
         'apply_exponents_to_payoffs':     "Apply Exponents to Payoffs",
-        'single_exponential_parameter':   "Single Exponential Param",
+        'uniform_exponential_parameter':  "Uniform Exponential Param",
         'single_payoffs_not_differences': "Single Payoffs, Not Differences",
         'payoff_ratios_not_differences':  "Payoff Ratios, Not Differences",
         'reference_dependent_utility':    "Ref-Dependent Utility",
@@ -1872,7 +1873,7 @@ def plot_participant_architecture_mds(
         "P_min_max_rawlsian_leontief":      "P(Min-Max / Rawls)",
         "P_use_exponential_parameters":     "P(Exponential Params)",
         "P_apply_exponents_to_payoffs":     "P(Exponents to Payoffs)",
-        "P_single_exponential_parameter":   "P(Single Exponent)",
+        "P_uniform_exponential_parameter":   "P(Uniform Exponent)",
         "P_single_payoffs_not_differences": "P(Single Payoffs)",
         "P_payoff_ratios_not_differences":  "P(Payoff Ratios)",
         "P_reference_dependent_utility":    "P(Ref-Dep Utility)",
@@ -2782,20 +2783,4 @@ def plot_population_recovery_bootstrap(
 
     return figure
 
-
-def main():
-    import sys
-    from config import general_settings, file_paths, figure_layout
-    plot_ic_scores_delta_bic(
-        figure_layout=figure_layout,
-        file_paths=file_paths,
-        general_settings=general_settings,
-        include_dropdown=True,
-        annotate_canonical_models=True,
-    )
-    sys.exit(0)
-
-
-if __name__ == '__main__':
-    main()
 

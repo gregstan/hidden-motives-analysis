@@ -6,7 +6,7 @@ Andreoni & Miller (2002) use a CES utility function:
 
 `U = [α·π_self^ρ + (1−α)·π_other^ρ]^(1/ρ)`
 
-The outer `^(1/ρ)` is a monotone transform absorbed by softmax temperature — no separate handling needed. The exponents can already be tied via `single_exponential_parameter`. The one structural property not testable in the current 505-model space is the **weight constraint α + (1−α) = 1**, which ties the altruism weight to the complement of the self-interest weight.
+The outer `^(1/ρ)` is a monotone transform absorbed by softmax temperature — no separate handling needed. The exponents can already be tied via `uniform_exponential_parameter`. The one structural property not testable in the current 505-model space is the **weight constraint α + (1−α) = 1**, which ties the altruism weight to the complement of the self-interest weight.
 
 The conditional welfare mode already enforces this complement structure, but always conditionally (switching weights based on who is ahead). A standalone unconditional form — `Vᵢᵢ·self + (1−Vᵢᵢ)·alt` — is not in the current candidate set. The paper's claim that it tests all canonical forms has a thorn: the specific A&M constrained form is absent. Adding a 17th flag fills this gap with a well-defined parent-child relationship (the tied form is a child of the free-weight form, with one fewer free parameter).
 
@@ -183,7 +183,7 @@ n_social_preference_params = sum([
 ])
 ```
 
-Note the semantics are slightly mixed: `fix_self_interest_parameter` contributes based on **weight freedom** (whether Vᵢᵢ is free), while the other two contribute based on **term presence**. The purpose of the count is to drive the exponent rule: if only one social preference weight/term exists in the model (n=1), distinct exponents γ1 ≠ γ2 are nonsensical (no second term to apply γ2 to), so `single_exponential_parameter=True` is required.
+Note the semantics are slightly mixed: `fix_self_interest_parameter` contributes based on **weight freedom** (whether Vᵢᵢ is free), while the other two contribute based on **term presence**. The purpose of the count is to drive the exponent rule: if only one social preference weight/term exists in the model (n=1), distinct exponents γ1 ≠ γ2 are nonsensical (no second term to apply γ2 to), so `uniform_exponential_parameter=True` is required.
 
 When `tie=True`:
 - `include_altruism_term=True` (required) → contributes 1 to n
@@ -220,7 +220,7 @@ The hardcoded tuple `settings_when_flipped_make_children_parents` at ~line 2985 
 ```python
 settings_when_flipped_make_children_parents = (
     'use_exponential_parameters',
-    'single_exponential_parameter',
+    'uniform_exponential_parameter',
     'use_negativity_parameters',
     'negativity_social_comparison',
     'fix_self_interest_parameter',
@@ -254,7 +254,7 @@ if (not parent_utility_settings.get('tie_self_interest_and_altruism', False)
         embedded_parent_values['λᵢⱼ'] = 1.0 - Lai
 ```
 
-No γ2 special-casing is needed: both parent and child expose γ2 identically when `use_exponential_parameters=True` and `single_exponential_parameter=False`, so the generic param-matching pass handles it correctly.
+No γ2 special-casing is needed: both parent and child expose γ2 identically when `use_exponential_parameters=True` and `uniform_exponential_parameter=False`, so the generic param-matching pass handles it correctly.
 
 ---
 
@@ -283,10 +283,10 @@ Every tied model's parent is its free-weight counterpart. No indirect or non-obv
 2. `tie=True, include_altruism_term=False` → **invalid** (nothing to tie)
 3. `tie=True, conditional_welfare_mode=True` → **invalid** (incompatible family)
 4. `tie=True, use_negativity_parameters=True, include_social_comparison=False` → **valid** (removes Vᵢⱼ and λᵢⱼ; params are Vᵢᵢ, λᵢᵢ + exponents)
-5. `tie=True, single_payoffs_not_differences=True, single_exponential_parameter=True` → **valid** (the core A&M form; params: Vᵢᵢ, γ₁)
+5. `tie=True, single_payoffs_not_differences=True, uniform_exponential_parameter=True` → **valid** (the core A&M form; params: Vᵢᵢ, γ₁)
 6. `tie=True, include_social_comparison=True` → **valid** (Vᵢᵢ, αᵢⱼ + exponents)
 7. `tie=True, include_relative_income_penalty=True` → **valid** (Vᵢᵢ, αᵢⱼ penalty + exponents)
-8. `tie=True, use_exponential_parameters=True, single_exponential_parameter=False` → **valid** (Vᵢᵢ, γ₁, γ₂; untied exponents allowed per user intent)
+8. `tie=True, use_exponential_parameters=True, uniform_exponential_parameter=False` → **valid** (Vᵢᵢ, γ₁, γ₂; untied exponents allowed per user intent)
 
 ---
 
@@ -319,7 +319,7 @@ from utilities import convert_utility_settings
 am_form = {**utility_settings,
     'tie_self_interest_and_altruism': True,
     'single_payoffs_not_differences': True,
-    'single_exponential_parameter':   True,
+    'uniform_exponential_parameter':   True,
     'use_exponential_parameters':     True,
     'include_altruism_term':          True,
     'fix_self_interest_parameter':    False,

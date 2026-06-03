@@ -573,7 +573,7 @@ def discrete_bayesian_model(dyad_games: list[dict], choice_funct: callable, play
         'reference_dependent_altruism':   False,
         'min_max_rawlsian_leontief':      False,
         'use_exponential_parameters':     False,
-        'single_exponential_parameter':   False,
+        'uniform_exponential_parameter':  False,
         'single_payoffs_not_differences': False,
         'payoff_ratios_not_differences':  False,
         'reference_dependent_utility':    False,

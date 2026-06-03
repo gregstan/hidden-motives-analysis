@@ -266,7 +266,7 @@ utility_settings: UtilitySettings = {
     'reference_dependent_altruism':   False,
     'min_max_rawlsian_leontief':      False,
     'use_exponential_parameters':     True,
-    'single_exponential_parameter':   False,
+    'uniform_exponential_parameter':   False,
     'apply_exponents_to_payoffs':     False,
     'single_payoffs_not_differences': False,
     'payoff_ratios_not_differences':  False,
@@ -284,7 +284,7 @@ utility_settings: UtilitySettings = {
     - Include a social comparison term (envy/guilt, disparity components).
 3.  **use_exponential_parameters**: 
     - Exponentiate some parameters (e.g., curvature) to ensure positivity or shape constraints.
-4.  **single_exponential_parameter**: 
+4.  **uniform_exponential_parameter**: 
     - Use one shared exponent vs. separate exponents for different terms.
 5.  **apply_exponents_to_payoffs**: 
     - If True, apply exponents to payoff magnitudes; otherwise to parameters.

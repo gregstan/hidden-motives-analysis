@@ -1,13 +1,10 @@
-import hashlib
-import time
+import hashlib, time
 from visualization import *
 from visualization import _hsla
 from utilities import compute_conditional_hamming_distance_matrix
 from behavioral_distances import *
 from behavioral_distances import _fmt_duration, _ampd_distance_name, _classical_mds
 from analysis import *
-
-_UNSET = object()   # sentinel: "caller did not provide - read from general_settings"
 
 
 "=========================================================================================="
@@ -656,17 +653,17 @@ def _exhaustive_search_worker(args: tuple) -> tuple:
 def compute_architecture_compression_curve(
     general_settings: dict,
     file_paths: dict,
-    population_top_n_models=_UNSET,
-    participant_top_r_models=_UNSET,
-    M_max=_UNSET,
-    exhaustive_M_max=_UNSET,
-    score_basis=_UNSET,
-    stopping_criteria=_UNSET,
-    marginal_gain_threshold=_UNSET,
-    n_consecutive_low_marginal_gains_required=_UNSET,
-    cumulative_gain_threshold=_UNSET,
-    diagnose_selected_library_redundancy=_UNSET,
-    n_workers=_UNSET,
+    population_top_n_models=None,
+    participant_top_r_models=None,
+    M_max=None,
+    exhaustive_M_max=None,
+    score_basis=None,
+    stopping_criteria=None,
+    marginal_gain_threshold=None,
+    n_consecutive_low_marginal_gains_required=None,
+    cumulative_gain_threshold=None,
+    diagnose_selected_library_redundancy=None,
+    n_workers=None,
     create_new_file: bool = False,
     param_bds=None,
     utility_settings=None,
@@ -714,17 +711,17 @@ def compute_architecture_compression_curve(
 
     "Resolve settings: explicit kwargs take priority; fall back to general_settings nested dict."
     ia = general_settings.get('individual_architecture_settings', {})
-    if population_top_n_models               is _UNSET: population_top_n_models               = ia.get('population_top_n_models', 120)
-    if participant_top_r_models              is _UNSET: participant_top_r_models              = ia.get('participant_top_r_models', 10)
-    if M_max                                 is _UNSET: M_max                                 = ia.get('M_max', None)
-    if exhaustive_M_max                      is _UNSET: exhaustive_M_max                      = ia.get('exhaustive_M_max', 4)
-    if score_basis                           is _UNSET: score_basis                           = ia.get('score_basis', 'ic_equivalent_participant_score')
-    if stopping_criteria                     is _UNSET: stopping_criteria                     = ia.get('stopping_criteria', 'kneedle_elbow')
-    if marginal_gain_threshold               is _UNSET: marginal_gain_threshold               = ia.get('marginal_gain_threshold', 0.01)
-    if n_consecutive_low_marginal_gains_required is _UNSET: n_consecutive_low_marginal_gains_required = ia.get('n_consecutive_low_marginal_gains_required', 1)
-    if cumulative_gain_threshold             is _UNSET: cumulative_gain_threshold             = ia.get('cumulative_gain_threshold', 0.80)
-    if diagnose_selected_library_redundancy  is _UNSET: diagnose_selected_library_redundancy  = ia.get('diagnose_selected_library_redundancy', True)
-    if n_workers                             is _UNSET: n_workers                             = ia.get('n_workers', None)
+    if population_top_n_models               is None: population_top_n_models               = ia.get('population_top_n_models', 120)
+    if participant_top_r_models              is None: participant_top_r_models              = ia.get('participant_top_r_models', 10)
+    if M_max                                 is None: M_max                                 = ia.get('M_max', None)
+    if exhaustive_M_max                      is None: exhaustive_M_max                      = ia.get('exhaustive_M_max', 4)
+    if score_basis                           is None: score_basis                           = ia.get('score_basis', 'ic_equivalent_participant_score')
+    if stopping_criteria                     is None: stopping_criteria                     = ia.get('stopping_criteria', 'kneedle_elbow')
+    if marginal_gain_threshold               is None: marginal_gain_threshold               = ia.get('marginal_gain_threshold', 0.01)
+    if n_consecutive_low_marginal_gains_required is None: n_consecutive_low_marginal_gains_required = ia.get('n_consecutive_low_marginal_gains_required', 1)
+    if cumulative_gain_threshold             is None: cumulative_gain_threshold             = ia.get('cumulative_gain_threshold', 0.80)
+    if diagnose_selected_library_redundancy  is None: diagnose_selected_library_redundancy  = ia.get('diagnose_selected_library_redundancy', True)
+    if n_workers                             is None: n_workers                             = ia.get('n_workers', None)
 
     proc_dir    = file_paths['processed']
     vis_dir     = file_paths.get('visuals', proc_dir)
@@ -1439,14 +1436,14 @@ def compute_model_recovery_simulation(
     file_paths: dict,
     param_bds: dict,
     utility_settings: dict,
-    generating_model=_UNSET,
-    n_agents_grid=_UNSET,
-    n_games_grid=_UNSET,
-    softmax_temperature=_UNSET,
-    candidate_model_selection_mode=_UNSET,
-    n_candidate_models=_UNSET,
-    ampd_matrix_name_or_path=_UNSET,
-    random_seed=_UNSET,
+    generating_model=None,
+    n_agents_grid=None,
+    n_games_grid=None,
+    softmax_temperature=None,
+    candidate_model_selection_mode=None,
+    n_candidate_models=None,
+    ampd_matrix_name_or_path=None,
+    random_seed=None,
     create_new_file: bool = False,
 ) -> pd.DataFrame:
     """
@@ -1486,7 +1483,7 @@ def compute_model_recovery_simulation(
             Default: [73] (the real N only). Example: [10, 20, 30, 50, 73].
             max(n_agents_grid) agents are generated; all values are nested subsets.
         • n_games_grid: list[int] | None; games-per-agent adequacy curve.
-            Default: [20, 40, 60, 90, 120, 180, 240].
+            Default: [30, 60, 90, 120, 150].
             max(n_games_grid) games are generated per agent; all values are nested subsets.
         • softmax_temperature: float; fixed tau used for both data generation (default 0.5).
         • candidate_model_selection_mode: str; 'hamming' or 'ampd' max-min diversity selection.
@@ -1510,18 +1507,18 @@ def compute_model_recovery_simulation(
 
     "Resolve settings: explicit kwargs take priority; fall back to general_settings nested dict."
     mr = general_settings.get('model_recovery_settings', {})
-    if generating_model               is _UNSET: generating_model               = mr.get('generating_model', 443)
-    if n_agents_grid                  is _UNSET: n_agents_grid                  = mr.get('n_agents_grid', None)
-    if n_games_grid                   is _UNSET: n_games_grid                   = mr.get('n_games_grid', None)
-    if softmax_temperature            is _UNSET: softmax_temperature            = mr.get('softmax_temperature', 0.5)
-    if candidate_model_selection_mode is _UNSET: candidate_model_selection_mode = mr.get('candidate_model_selection_mode', 'hamming')
-    if n_candidate_models             is _UNSET: n_candidate_models             = mr.get('n_candidate_models', 100)
-    if ampd_matrix_name_or_path       is _UNSET: ampd_matrix_name_or_path       = mr.get('ampd_matrix_name_or_path', None)
-    if random_seed                    is _UNSET: random_seed                    = mr.get('random_seed', 42)
+    if generating_model               is None: generating_model               = mr.get('generating_model', 443)
+    if n_agents_grid                  is None: n_agents_grid                  = mr.get('n_agents_grid', None)
+    if n_games_grid                   is None: n_games_grid                   = mr.get('n_games_grid', None)
+    if softmax_temperature            is None: softmax_temperature            = mr.get('softmax_temperature', 0.5)
+    if candidate_model_selection_mode is None: candidate_model_selection_mode = mr.get('candidate_model_selection_mode', 'hamming')
+    if n_candidate_models             is None: n_candidate_models             = mr.get('n_candidate_models', 100)
+    if ampd_matrix_name_or_path       is None: ampd_matrix_name_or_path       = mr.get('ampd_matrix_name_or_path', None)
+    if random_seed                    is None: random_seed                    = mr.get('random_seed', 42)
 
     "Resolve n_games_grid and n_agents_grid; derive max values."
     if n_games_grid is None:
-        n_games_grid = [20, 40, 60, 90, 120, 180, 240]
+        n_games_grid = [30, 60, 90, 120, 150]
     if n_agents_grid is None:
         n_agents_grid = [73]
 
@@ -1543,36 +1540,29 @@ def compute_model_recovery_simulation(
     _non_flag_columns = {
         'utility_idx', 'utility_bitstring', 'k_params', 'redundant_with', 'differing_settings',
         'n_data', 'pvar', 'param_norm_sd', 'loss_nll', 'AIC', 'BIC', 'ΔAIC', 'ΔBIC',
-        'AIC_rank', 'BIC_rank', 'parents', 'siblings', 'children',
-        'ampd_to_best', 'policy_regret_norm_to_best', 'equation',
-        'canonical_model',
+        'AIC_rank', 'BIC_rank', 'parents', 'siblings', 'children', 'ampd_to_best', 
+        'policy_regret_norm_to_best', 'canonical_model', 'equation', 
     }
     flag_columns = [col for col in registry_df.columns if col not in _non_flag_columns]
 
     "Resolve generating_model to (generating_utility_idx, generating_utility_settings)."
-    if isinstance(generating_model, int):
-        generating_utility_idx = generating_model
-        gen_registry_row = registry_df[registry_df['utility_idx'] == generating_utility_idx]
-        if len(gen_registry_row) == 0:
-            raise ValueError(f"Generating model idx={generating_utility_idx} not found in registry.")
-    else:
-        "UtilitySettings dict provided: find the unique matching registry row by flag values."
-        _flag_mask = pd.Series([True] * len(registry_df), index=registry_df.index)
-        for col in flag_columns:
-            if col in registry_df.columns:
-                _flag_mask &= (registry_df[col] == bool(generating_model.get(col, False)))
-        gen_registry_row = registry_df[_flag_mask]
-        if len(gen_registry_row) != 1:
-            raise ValueError(
-                f"Could not uniquely identify generating model from UtilitySettings dict "
-                f"({len(gen_registry_row)} matches). Pass an integer utility_idx instead."
-            )
-        generating_utility_idx = int(gen_registry_row.iloc[0]['utility_idx'])
-
-    generating_utility_settings = {
-        col: bool(gen_registry_row.iloc[0][col])
-        for col in flag_columns if col in gen_registry_row.columns
-    }
+    "convert_utility_settings normalizes any input type (int, str, tuple, dict) to a full"
+    "UtilitySettings dict. The registry lookup then uses per-column boolean matching so it"
+    "remains robust when the registry CSV was built under an older flag schema."
+    generating_utility_settings = gnrl.convert_utility_settings(
+        generating_model, into=dict, file_paths=file_paths, general_settings=general_settings
+    )
+    _flag_mask = pd.Series([True] * len(registry_df), index=registry_df.index)
+    for col in flag_columns:
+        if col in registry_df.columns:
+            _flag_mask &= (registry_df[col] == bool(generating_utility_settings.get(col, False)))
+    gen_registry_row = registry_df[_flag_mask]
+    if len(gen_registry_row) != 1:
+        raise ValueError(
+            f"Could not uniquely identify generating model in registry "
+            f"({len(gen_registry_row)} matches). Pass an integer utility_idx instead."
+        )
+    generating_utility_idx = int(gen_registry_row.iloc[0]['utility_idx'])
     print(f"Generating model: utility_idx={generating_utility_idx}  "
           f"k_params={gen_registry_row.iloc[0].get('k_params', '?')}")
     print(f"  {build_utility_equation(utility_settings=generating_utility_settings)}")
@@ -1714,14 +1704,17 @@ def compute_model_recovery_simulation(
               f"Conditional Hamming metrics will be NaN.")
         cond_hamming_metrics_df = None
 
+    _canonical_flag_keys = list(utility_settings.keys())
     candidate_models: List[Tuple[int, dict]] = []
     for utility_idx_val in selected_model_indices:
         registry_row = registry_df[registry_df['utility_idx'] == utility_idx_val]
         if len(registry_row) == 0:
             continue
+        "Use canonical key set so dicts always have all 17 flags even when the registry"
+        "CSV was built before a new flag was added. Missing columns default to False."
         candidate_utility_settings = {
-            col: bool(registry_row.iloc[0][col])
-            for col in flag_columns if col in registry_row.columns
+            col: bool(registry_row.iloc[0][col]) if col in registry_row.columns else False
+            for col in _canonical_flag_keys
         }
         candidate_models.append((utility_idx_val, candidate_utility_settings))
 
@@ -2143,13 +2136,13 @@ def plot_model_recovery_simulation(
     general_settings: dict,
     file_paths: dict,
     figure_layout: dict,
-    generating_model=_UNSET,
-    n_candidate_models=_UNSET,
-    candidate_model_selection_mode=_UNSET,
-    softmax_temperature=_UNSET,
-    n_agents_grid=_UNSET,
-    n_games_grid=_UNSET,
-    random_seed=_UNSET,
+    generating_model=None,
+    n_candidate_models=None,
+    candidate_model_selection_mode=None,
+    softmax_temperature=None,
+    n_agents_grid=None,
+    n_games_grid=None,
+    random_seed=None,
     export_fig: bool = True,
 ) -> 'go.Figure':
     """
@@ -2193,13 +2186,13 @@ def plot_model_recovery_simulation(
     """
     "Resolve settings: explicit kwargs take priority; fall back to general_settings nested dict."
     mr = general_settings.get('model_recovery_settings', {})
-    if generating_model               is _UNSET: generating_model               = mr.get('generating_model', 443)
-    if n_candidate_models             is _UNSET: n_candidate_models             = mr.get('n_candidate_models', 100)
-    if candidate_model_selection_mode is _UNSET: candidate_model_selection_mode = mr.get('candidate_model_selection_mode', 'hamming')
-    if softmax_temperature            is _UNSET: softmax_temperature            = mr.get('softmax_temperature', 0.5)
-    if n_agents_grid                  is _UNSET: n_agents_grid                  = mr.get('n_agents_grid', None)
-    if n_games_grid                   is _UNSET: n_games_grid                   = mr.get('n_games_grid', None)
-    if random_seed                    is _UNSET: random_seed                    = mr.get('random_seed', 42)
+    if generating_model               is None: generating_model               = mr.get('generating_model', 443)
+    if n_candidate_models             is None: n_candidate_models             = mr.get('n_candidate_models', 100)
+    if candidate_model_selection_mode is None: candidate_model_selection_mode = mr.get('candidate_model_selection_mode', 'hamming')
+    if softmax_temperature            is None: softmax_temperature            = mr.get('softmax_temperature', 0.5)
+    if n_agents_grid                  is None: n_agents_grid                  = mr.get('n_agents_grid', None)
+    if n_games_grid                   is None: n_games_grid                   = mr.get('n_games_grid', None)
+    if random_seed                    is None: random_seed                    = mr.get('random_seed', 42)
 
     if n_agents_grid is None:
         n_agents_grid = [73]

@@ -436,7 +436,7 @@
                             "min_max_rawlsian_leontief": false,
                             "use_exponential_parameters": false,
                             "apply_exponents_to_payoffs": false,
-                            "single_exponential_parameter": false,
+                            "uniform_exponential_parameter": false,
                             "single_payoffs_not_differences": false,
                             "payoff_ratios_not_differences": false,
                             "reference_dependent_utility": false,

@@ -259,9 +259,9 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
         }
         rip_basic     = _rip_base
         rip_canonical = {**_rip_base, 'fix_self_interest_parameter': True,
-                         'use_exponential_parameters': True, 'single_exponential_parameter': True}
+                         'use_exponential_parameters': True, 'uniform_exponential_parameter': True}
         rip_two_exp   = {**_rip_base, 'fix_self_interest_parameter': False,
-                         'use_exponential_parameters': True, 'single_exponential_parameter': False}
+                         'use_exponential_parameters': True, 'uniform_exponential_parameter': False}
         print(f"  RIP basic                 : {build_utility_equation(rip_basic)}")
         print(f"  Canonical ERC (B-O 2000)  : {build_utility_equation(rip_canonical)}")
         print(f"  RIP two exponents (Vᵢᵢ+pen): {build_utility_equation(rip_two_exp)}")

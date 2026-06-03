@@ -112,7 +112,7 @@ Placed at index 4, right after Flag 1. Adds an ERC-style penalty on top of whate
 self-interest and altruism terms are already present:
 
 - Linear: `−αᵢⱼ×(πᵢᴬ/(πᵢᴬ+πⱼᴬ) − ½)`
-- Power: `−αᵢⱼ×(πᵢᴬ/(πᵢᴬ+πⱼᴬ) − ½)^γ₁` (or γ₃ when not `single_exponential_parameter`)
+- Power: `−αᵢⱼ×(πᵢᴬ/(πᵢᴬ+πⱼᴬ) − ½)^γ₁` (or γ₃ when not `uniform_exponential_parameter`)
 
 Uses the existing `αᵢⱼ` parameter. No new parameters. `apply_exponents_to_payoffs`
 does **not** apply here (user decision).
@@ -124,13 +124,13 @@ does **not** apply here (user decision).
 ```python
 ordered_keys = (
     'conditional_welfare_mode',          # 0
-    'reference_dependent_altruism',       # 1
+    'reference_dependent_altruism',      # 1
     'min_max_rawlsian_leontief',         # 2
-    'include_welfare_efficiency_term',    # 3  <- NEW
-    'include_relative_income_penalty',    # 4  <- NEW
+    'include_welfare_efficiency_term',   # 3  <- NEW
+    'include_relative_income_penalty',   # 4  <- NEW
     'use_exponential_parameters',        # 5
     'apply_exponents_to_payoffs',        # 6
-    'single_exponential_parameter',      # 7
+    'uniform_exponential_parameter',     # 7
     'single_payoffs_not_differences',    # 8
     'payoff_ratios_not_differences',     # 9
     'reference_dependent_utility',       # 10
@@ -329,8 +329,8 @@ elif utility_settings.get('include_welfare_efficiency_term'):
         si_part   = (1 - Vᵢᵢ_used) * payAi
         welf_part = Vᵢᵢ_used * ((payAi + payAj) / 2)
     if utility_settings['include_social_comparison']:
-        "Maximin: Vᵢⱼ×min(πᵢᴬ, πⱼᴬ) — uses exp2 when single_exponential_parameter=False."
-        exp_j   = exp2 if not utility_settings['single_exponential_parameter'] else exp1
+        "Maximin: Vᵢⱼ×min(πᵢᴬ, πⱼᴬ) — uses exp2 when uniform_exponential_parameter=False."
+        exp_j   = exp2 if not utility_settings['uniform_exponential_parameter'] else exp1
         maximin = Vᵢⱼ * (min(payAi, payAj) ** exp_j
                           if utility_settings['use_exponential_parameters']
                           else min(payAi, payAj))

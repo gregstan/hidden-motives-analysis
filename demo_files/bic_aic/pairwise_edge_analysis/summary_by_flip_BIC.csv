@@ -1,7 +1,7 @@
 ﻿edge_type,flip_name,n_edges,mean_delta,median_delta
 non_network,conditional_welfare_mode,1,30.22602277607365,30.22602277607365
 parent_child,use_exponential_parameters,4,-14.679782324164982,-5.296294294903134
-parent_child,single_exponential_parameter,2,-4.209238415676495,-4.209238415676495
+parent_child,uniform_exponential_parameter,2,-4.209238415676495,-4.209238415676495
 parent_child,negativity_social_comparison,2,1.7263523367462028,1.7263523367462028
 parent_child,include_altruism_term,7,4.618405220982879,4.968492513286037
 parent_child,use_negativity_parameters,4,6.392895498258078,5.330941458230342

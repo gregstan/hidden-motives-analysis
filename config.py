@@ -130,7 +130,7 @@ class UtilitySettings(TypedDict):
     include_relative_income_penalty: bool
     use_exponential_parameters: bool
     apply_exponents_to_payoffs: bool
-    single_exponential_parameter: bool
+    uniform_exponential_parameter: bool
     single_payoffs_not_differences: bool
     payoff_ratios_not_differences: bool
     reference_dependent_utility: bool
@@ -302,7 +302,7 @@ def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, gener
 
         if utility_settings['use_exponential_parameters']:
             param_keys.append('γ1')
-            if not utility_settings['single_exponential_parameter']:
+            if not utility_settings['uniform_exponential_parameter']:
                 param_keys.append('γ2')
 
     else:
@@ -316,7 +316,7 @@ def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, gener
                 param_keys.append('λᵢⱼ')
             if utility_settings['use_exponential_parameters']:
                 param_keys.append('γ1')
-                if not utility_settings['single_exponential_parameter'] and utility_settings['include_altruism_term']:
+                if not utility_settings['uniform_exponential_parameter'] and utility_settings['include_altruism_term']:
                     param_keys.append('γ2')
 
         elif utility_settings.get('include_welfare_efficiency_term'):
@@ -325,7 +325,7 @@ def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, gener
                 param_keys.append('Vᵢⱼ')
             if utility_settings['use_exponential_parameters']:
                 param_keys.append('γ1')
-                if not utility_settings['single_exponential_parameter'] and utility_settings['include_social_comparison']:
+                if not utility_settings['uniform_exponential_parameter'] and utility_settings['include_social_comparison']:
                     param_keys.append('γ2')
 
         else:
@@ -349,7 +349,7 @@ def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, gener
                     param_keys.append('αᵢⱼ')
 
             if utility_settings['use_exponential_parameters']:
-                if utility_settings['single_exponential_parameter']:
+                if utility_settings['uniform_exponential_parameter']:
                     param_keys.append('γ1')
                 else:
                     "Match enumeration rule for γ's across present terms"
@@ -634,6 +634,26 @@ def ensure_directory_and_join(base_dir: str, file_name: str, max_total_path_len:
 "======================================= Variables ========================================"
 "=========================================================================================="
 
+utility_settings: UtilitySettings = {
+    'conditional_welfare_mode':        False,
+    'reference_dependent_altruism':    False,
+    'min_max_rawlsian_leontief':       False,
+    'include_welfare_efficiency_term': False,
+    'include_relative_income_penalty': False,
+    'use_exponential_parameters':      True,
+    'apply_exponents_to_payoffs':      False,
+    'uniform_exponential_parameter':   False,
+    'single_payoffs_not_differences':  False,
+    'payoff_ratios_not_differences':   False,
+    'reference_dependent_utility':     False,
+    'use_negativity_parameters':       False,
+    'negativity_social_comparison':    True,
+    'tie_self_interest_and_altruism':  False,
+    'fix_self_interest_parameter':     False,
+    'include_social_comparison':       True,
+    'include_altruism_term':           True,
+}
+
 experiment_num = 3
 run_in_parallel = True
 track_evolution = False
@@ -732,12 +752,12 @@ general_settings: GeneralSettings = {
         'n_workers':                                 None,
     },
     'model_recovery_settings': {
-        'generating_model':               472,
+        'generating_model':               utility_settings,
         'n_agents_grid':                  [73],
-        'n_games_grid':                   [30, 60, 90, 120, 150, 180],
+        'n_games_grid':                   [30, 60, 90, 120, 150],
         'softmax_temperature':            1.0,
         'candidate_model_selection_mode': 'hamming',
-        'n_candidate_models':             505,
+        'n_candidate_models':             603,
         'ampd_matrix_name_or_path':       None,
         'random_seed':                    42,
     },
@@ -765,26 +785,6 @@ if not general_settings['random_seeds']['use_seeds']:
 general_settings['ampd_settings']['random_seed']               = general_settings['random_seeds']['seed']
 general_settings['model_recovery_settings']['random_seed']     = general_settings['random_seeds']['seed']
 general_settings['optimization_policy']['dual_annealing_seed'] = general_settings['random_seeds']['seed']
-
-utility_settings: UtilitySettings = {
-    'conditional_welfare_mode':        False,
-    'reference_dependent_altruism':    False,
-    'min_max_rawlsian_leontief':       False,
-    'include_welfare_efficiency_term': False,
-    'include_relative_income_penalty': False,
-    'use_exponential_parameters':      True,
-    'apply_exponents_to_payoffs':      False,
-    'single_exponential_parameter':    False,
-    'single_payoffs_not_differences':  False,
-    'payoff_ratios_not_differences':   False,
-    'reference_dependent_utility':     False,
-    'use_negativity_parameters':       False,
-    'negativity_social_comparison':    True,
-    'tie_self_interest_and_altruism':  False,
-    'fix_self_interest_parameter':     False,
-    'include_social_comparison':       True,
-    'include_altruism_term':           True,
-}
 
 param_bds: ParameterBounds = {
     'Vᵢᵢ': (-1, 1), 'λᵢᵢ': (-1, 1), 'Vᵢⱼ': (-1, 1), 'λᵢⱼ': (-1, 1), 'αᵢⱼ': (-1, 1), 'βᵢⱼ': (-1, 1), 

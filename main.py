@@ -23,7 +23,29 @@ run_code_settings: RunCodeSettings = {
 
 def main():
     """Execute main code."""
+    all_utility_functions_dataframe(
+        build_equation_function=build_utility_equation, 
+        general_settings=general_settings, 
+        utility_settings=utility_settings, 
+        file_paths=file_paths, 
+        param_bds=param_bds, 
+        create_new_file=True
+    )
+    exit()
+    compute_model_recovery_simulation(
+        general_settings=general_settings,
+        utility_settings=utility_settings,
+        create_new_file=True,
+        file_paths=file_paths,
+        param_bds=param_bds,
+    )
 
+    plot_model_recovery_simulation(
+        general_settings=general_settings,
+        figure_layout=figure_layout,
+        file_paths=file_paths,
+    )
+    exit()
     "Apply master random seed when reproducibility mode is enabled."
     _master_seed = general_settings.get('random_seeds', {}).get('seed', None)
     if _master_seed is not None:
