@@ -2638,17 +2638,13 @@ def run_population_recovery_bootstrap(
         else:
             best_row = ic_comparison_df.iloc[ic_comparison_df["BIC"].argmin()]
 
-        "Build the 16-key settings dict: read all setting columns present in the CSV."
+        "Build the settings dict from canonical key order: present CSV columns get their value, absent keys"
+        "default False. Single comprehension preserves canonical insertion order for all keys."
         "gnrl._CANONICAL_UTILITY_SETTINGS avoids shadowing by the utility_settings parameter."
-        all_16_keys = list(gnrl._CANONICAL_UTILITY_SETTINGS.keys())
         resolved_settings: UtilitySettings = {
-            setting_key: bool(best_row[setting_key])
-            for setting_key in all_16_keys
-            if setting_key in ic_comparison_df.columns
+            setting_key: (bool(best_row[setting_key]) if setting_key in ic_comparison_df.columns else False)
+            for setting_key in gnrl._CANONICAL_UTILITY_SETTINGS
         }
-        for setting_key in all_16_keys:
-            if setting_key not in resolved_settings:
-                resolved_settings[setting_key] = False
 
         bitstring_str = gnrl.convert_utility_settings(utility_settings=resolved_settings, into=str)
         equation_str  = gnrl.convert_utility_settings(
@@ -2709,7 +2705,9 @@ def run_population_recovery_bootstrap(
                 _empirical_params: dict[str, dict[str, float]] = {}
                 for _model_entry in _ic_data.get("ic_results", {}).values():
                     _entry_settings = _model_entry.get("utility_settings", {})
-                    _entry_tuple    = gnrl.convert_utility_settings(utility_settings=_entry_settings, into=tuple)
+                    "Expand IC entry to canonical key count (fills any missing keys with False)."
+                    _entry_settings_canonical = {**{k: False for k in gnrl._CANONICAL_UTILITY_SETTINGS}, **_entry_settings}
+                    _entry_tuple    = gnrl.convert_utility_settings(utility_settings=_entry_settings_canonical, into=tuple)
                     if _entry_tuple != target_tuple:
                         continue
                     for _player_uuid, _player_data in _model_entry.get("minvec", {}).items():

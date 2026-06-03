@@ -253,7 +253,7 @@ class GeneralSettings(TypedDict, total=False):
 
 
 class RunCodeSettings(TypedDict):
-    run_simulation_analyses: bool
+    run_belief_update_simulation: bool
     run_illustrate_belief_updates: bool
     run_alternative_model_contest: bool
     run_typological_bayesian_models: bool
@@ -263,6 +263,7 @@ class RunCodeSettings(TypedDict):
     run_inequality_aversion_analysis: bool
     run_individual_architecture_analysis: bool
     run_model_recovery_simulation: bool
+    run_param_recovery_analysis: bool
 
 
 class ParamCovarInfo(TypedDict):

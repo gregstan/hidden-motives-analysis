@@ -27,6 +27,7 @@ analysis_options = {
     # ── Requires IC results in bic_aic/ ──────────────────────────────────────────────────
     'run_individual_architecture':  True,  # Architecture compression curve: how many utility types does the population need?
     'run_model_recovery':           False,  # Model recovery simulation: data adequacy check for the IC pipeline.
+    'run_population_bootstrap':     False,  # Population parameter recovery bootstrap: bias/variance of IC winner's param means.
 
     # ── Requires raw experiment data ─────────────────────────────────────────────────────
     'run_parameter_distribution':   True,  # Population parameter distributions and correlations.
@@ -819,7 +820,43 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             )
 
     "=========================================================================================="
-    "============ Section 12: Population Parameter Distributions and Correlations ============="
+    "============== Section 12: Population Parameter Recovery Bootstrap ===================="
+    "=========================================================================================="
+    """
+    Manuscript context: Section 7.4 (bias and variance of population mean estimates).
+    Functions exercised: run_population_recovery_bootstrap.
+    Requires: IC JSON in bic_aic/ (supplies empirical fitted parameters as bootstrap truth).
+    NOTE: Each iteration re-fits 73 synthetic agents — expensive. Light mode uses 1 iteration.
+    """
+
+    if analysis_options.get('run_population_bootstrap'):
+        print("\n" + _section_header("SECTION 12: Population parameter recovery bootstrap"))
+
+        ic_json_path = ROOT / "bic_aic" / "All_Utility_Forms_IC_Analysis_Experiment3.json"
+        if not ic_json_path.exists():
+            print(
+                "\n" + "!" * 70 + "\n"
+                "CRITICAL WARNING: IC JSON not found at:\n"
+                f"  {pretty_path(ic_json_path)}\n"
+                "Section 12 cannot run without this file. Generate it by running\n"
+                "information_criterion_analysis() (Section 9), or obtain it from the authors.\n"
+                + "!" * 70 + "\n"
+            )
+        else:
+            demo_bootstrap_file_paths = {**demo_real_file_paths, "bic_aic": ROOT / "bic_aic"}
+
+            run_population_recovery_bootstrap(
+                general_settings=general_settings,
+                figure_layout=figure_layout,
+                file_paths=demo_bootstrap_file_paths,
+                param_bds=param_bds,
+                n_bootstrap_iterations=1 if light_mode else 10,
+                create_new_file=True,
+                n_games=10 if light_mode else 60,
+            )
+
+    "=========================================================================================="
+    "============ Section 13: Population Parameter Distributions and Correlations ============="
     "=========================================================================================="
     """
     Manuscript context: Section 5 (parameter estimates, cross-role correlations, ratios).
@@ -829,7 +866,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
 
     if analysis_options['run_parameter_distribution'] and not light_mode:
-        print("\n" + _section_header("SECTION 12: Population parameter distribution results"))
+        print("\n" + _section_header("SECTION 13: Population parameter distribution results"))
 
         experiment_num_for_distributions = general_settings.get('experiment_num', 3)
         distribution_settings = {**general_settings, 'experiment_num': experiment_num_for_distributions}
@@ -893,7 +930,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
             )
 
     "=========================================================================================="
-    "================ Section 13: Inequality Aversion Bot Competition Heatmaps ================"
+    "================ Section 14: Inequality Aversion Bot Competition Heatmaps ================"
     "=========================================================================================="
     """
     Manuscript context: Section 5.4 (envy vs guilt asymmetry competition).
@@ -902,7 +939,7 @@ def run_quick_demo(analysis_options: dict[str, bool]) -> None:
     """
 
     if analysis_options['run_inequality_aversion']:
-        print("\n" + _section_header("SECTION 13: Inequality aversion bot competition heatmaps"))
+        print("\n" + _section_header("SECTION 14: Inequality aversion bot competition heatmaps"))
 
         visualize_inequality_aversion_bot_competition(
             figure_layout=figure_layout,

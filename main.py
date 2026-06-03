@@ -8,7 +8,7 @@ from analysis import *
 "=========================================================================================="
 
 run_code_settings: RunCodeSettings = {
-    'run_simulation_analyses':              True,
+    'run_belief_update_simulation':         True,
     'run_illustrate_belief_updates':        True,
     'run_alternative_model_contest':        True,
     'run_typological_bayesian_models':      True,
@@ -17,22 +17,13 @@ run_code_settings: RunCodeSettings = {
     'run_individual_architecture_analysis': True,
     'run_model_recovery_simulation':        True,
     'run_parameter_distribution_results':   True,
+    'run_param_recovery_analysis':          True,
     'run_inequality_aversion_analysis':     True,
 }
 
 def main():
     """Execute main code."""
 
-    run_population_recovery_bootstrap(
-        general_settings=general_settings,
-        figure_layout=figure_layout,
-        file_paths=file_paths,
-        param_bds=param_bds,
-        n_bootstrap_iterations=10,
-        create_new_file=True,
-        n_games=60,
-    )
-    exit()
     "Apply master random seed when reproducibility mode is enabled."
     _master_seed = general_settings.get('random_seeds', {}).get('seed', None)
     if _master_seed is not None:
@@ -44,7 +35,7 @@ def main():
     for _dir_key in ('processed', 'param_data', 'player_fits', 'dyad_data', 'discrete', 'visuals', 'bic_aic'):
         os.makedirs(str(file_paths[_dir_key]), exist_ok=True)
 
-    if run_code_settings['run_simulation_analyses']:
+    if run_code_settings['run_belief_update_simulation']:
 
         sample_ratios = list(np.round(np.linspace(start=0.05, stop=0.95, num=19), decimals=3))
         verify_particle_filter_fidelity(general_settings=general_settings, utility_settings=utility_settings,
@@ -52,14 +43,19 @@ def main():
                                         sample_ratios=sample_ratios, n_predictors=8, n_games_per_dyad=8)
 
         use_dynamic_predictor = True
-        create_simulated_data(n_games=24, randomize_parameters=False, param_bds=param_bds, file_paths=file_paths, run_analysis=True,
-                              params_chooser_range={'Vᵢᵢ': (1, 1, 1), 'Vᵢⱼ': (-1, 1, 5), 'std': (1.0, 1.0, 1), 'τ': (0.5, 3, 3)},
-                              params_predictor_range={'Vᵢᵢ': (1, 1, 1), 'Vᵢⱼ': (-1, 1, 7), 'std': (0.5, 1.5, 3), 'τ': (0.5, 3, 3)},
-                              utility_settings=utility_settings, dynamic_predictor=use_dynamic_predictor)
+        create_simulated_data(
+            param_bds=param_bds, 
+            file_paths=file_paths, 
+            params_chooser_range={'Vᵢᵢ': (1, 1, 1), 'Vᵢⱼ': (-1, 1, 5), 'std': (1.0, 1.0, 1), 'τ': (0.5, 3, 3)},
+            params_predictor_range={'Vᵢᵢ': (1, 1, 1), 'Vᵢⱼ': (-1, 1, 7), 'std': (0.5, 1.5, 3), 'τ': (0.5, 3, 3)},
+            utility_settings=utility_settings, 
+            dynamic_predictor=use_dynamic_predictor,
+            randomize_parameters=False, n_games=24, 
+        )
 
         df_merged = run_parameter_recovery_simulation(
             general_settings=general_settings, file_paths=file_paths,
-            figure_layout=figure_layout, export_fig=True, create_new_file=True, 
+            figure_layout=figure_layout, export_fig=True, create_new_file=False, 
             produce_figures=True, correlation_csv_name="correlation_results.csv", 
             include_dropdown=False, use_dynamic_predictor=use_dynamic_predictor,
         )
@@ -80,7 +76,7 @@ def main():
         )
 
         "Table B: chooser τ bins — face-valid version: higher chooser randomness → slower recovery."
-        bins_chooser_tau = tabulate_recovery_correlations_by_prior_bins(
+        tabulate_recovery_correlations_by_prior_bins(
             df=df_merged,
             file_paths=file_paths,
             temp_col="τ_true_chooser",
@@ -95,28 +91,33 @@ def main():
         )
 
         plot_parameter_recovery_correlation(
-            df=None, file_paths=file_paths, round_selection='first',
+            file_paths=file_paths, round_selection='first',
             as_scatterplot=False, boxplot_param="Vij",
             include_dropdown=False, figure_layout=figure_layout, 
             export_fig=True, fitted_suffix="_belief_predictor",
         )
 
-        plot_param_recovery_correlation_by_round(df_merged=df_merged, figure_layout=figure_layout, general_settings=general_settings, file_paths=file_paths)
-        run_update_speed_simulation_regression(general_settings=general_settings, file_paths=file_paths)
+        plot_param_recovery_correlation_by_round(
+            general_settings=general_settings, 
+            figure_layout=figure_layout, 
+            file_paths=file_paths,
+            df_merged=df_merged, 
+        )
+        run_update_speed_simulation_regression(
+            general_settings=general_settings, 
+            file_paths=file_paths
+        )
 
         update_speeds = analyze_update_speed_in_human_on_bot_study(
-            file_paths=file_paths, general_settings=general_settings, utility_settings=utility_settings,
+            general_settings=general_settings, 
+            utility_settings=utility_settings,
+            file_paths=file_paths, 
         )
         plot_update_speed_by_counterpart(
             update_speeds_per_counterpart=update_speeds['update_speeds_per_counterpart'],
-            figure_layout=figure_layout, export_fig=export_fig, file_name="visuals/update_speeds_per_avatar.html",
-        )
-
-        run_param_recovery_by_k(
-            general_settings=general_settings,
-            file_paths=file_paths,
+            file_name="visuals/update_speeds_per_avatar.html",
             figure_layout=figure_layout,
-            param_bds=param_bds,
+            export_fig=export_fig, 
         )
 
     if run_code_settings['run_illustrate_belief_updates']:
@@ -143,45 +144,48 @@ def main():
             player_role='predictor',
             general_settings=general_settings,
             utility_settings=utility_settings,
-            file_paths=file_paths,
             figure_layout=figure_layout,
+            file_paths=file_paths,
             n_rounds=9,
         )
 
         visualize_bayesian_updates_3d(
             dyad_games_or_key=0,
-            player_uuid=2,
             figure_layout=figure_layout,
             file_paths=file_paths,
             general_settings=general_settings,
-            fix_z_axis=True,
+            fix_z_axis=True, player_uuid=2,
         )
 
         for participant_number in range(n_players_experiment_2):
             belief_accuracy_analysis(
                 file_paths=file_paths, participant_num=participant_number,
                 general_settings=general_settings, figure_layout=figure_layout,
-                fitted_by_player=True, compute_optimum_updates=True, animate_figure=False,
+                fitted_by_player=True, compute_optimum_updates=True, 
             )
 
     if run_code_settings['run_alternative_model_contest']:
 
         alternative_model_contest(
-            general_settings=general_settings, param_info=param_info, param_bds=param_bds,
-            utility_settings=utility_settings, file_paths=file_paths, figure_layout=figure_layout,
+            general_settings=general_settings, 
+            utility_settings=utility_settings,  
+            figure_layout=figure_layout,
+            param_info=param_info, 
+            file_paths=file_paths,
+            param_bds=param_bds,
         )
 
     if run_code_settings['run_typological_bayesian_models']:
 
         typological_model_comparison_fit_population(
-            file_paths=file_paths,
             general_settings=general_settings,
-            k_min=4, k_max=4,
+            prior_init_method="uniform",
+            file_paths=file_paths,
             n_subsets_per_k=2300,
             intervals_per_dim=5,
-            prior_init_method="uniform",
-            penalty_weight=10,
             save_after_n_iter=1,
+            penalty_weight=10,
+            k_min=4, k_max=4,
         )
 
         typological_model_profiles = {
@@ -202,21 +206,38 @@ def main():
 
     if run_code_settings['run_information_criterion_analysis']:
 
-        utility_setting_varieties = gnrl.generate_utility_settings(utility_settings=utility_settings)
+        gnrl.generate_utility_settings(utility_settings=utility_settings)
         gnrl.identify_redundant_utility_functions(
-            utility_settings=utility_settings,
             build_equation_function=build_utility_equation,
-            file_paths=file_paths,
             compute_ampd_fn=compute_ampd_matrix,
             general_settings=general_settings,
+            utility_settings=utility_settings,
+            file_paths=file_paths,
             param_bds=param_bds,
         )
         gnrl.equation_to_settings(
-            equation_function=build_utility_equation, utility_settings=utility_settings,
-            file_paths=file_paths, create_new_file=True,
+            equation_function=build_utility_equation, 
+            utility_settings=utility_settings,
+            file_paths=file_paths, 
         )
 
         dynamic_updating = mp.cpu_count() >= 10 and general_settings['run_in_parallel']
+
+        """
+        Warn when a global seed is set alongside multi-start random exploration. On macOS (fork
+        semantics), all Pool workers inherit an identical RNG state from the parent at fork time.
+        With n_random_starts > 1, every worker would explore the exact same random candidates —
+        defeating the purpose of multi-start. n_random_starts=1 (the IC default) is unaffected.
+        """
+        _ic_master_seed = general_settings.get('random_seeds', {}).get('seed', None)
+        _ic_n_random_starts = general_settings.get('optimization_policy', {}).get('n_random_starts', 1)
+        if _ic_master_seed is not None and _ic_n_random_starts > 1 and general_settings.get('run_in_parallel', True):
+            print(
+                f"\n[WARNING] Master random seed ({_ic_master_seed}) is set with n_random_starts={_ic_n_random_starts} "
+                f"and run_in_parallel=True. On fork-based systems (macOS/Linux), parallel workers inherit "
+                f"identical RNG states, so all workers will explore the same random start candidates. "
+                f"Set n_random_starts=1 or random_seeds.seed=None to avoid this."
+            )
 
         information_criterion_analysis(
             general_settings=general_settings, utility_settings=utility_settings,
@@ -224,31 +245,46 @@ def main():
             check_for_n_players='all', dynamic_updating=dynamic_updating,
         )
 
-        plot_ic_scores_delta_bic(figure_layout=figure_layout, file_paths=file_paths, general_settings=general_settings, include_dropdown=False)
-        plot_ic_robustness_analysis(general_settings=general_settings, file_paths=file_paths, figure_layout=figure_layout)
+        plot_ic_scores_delta_bic(
+            figure_layout=figure_layout, file_paths=file_paths, 
+            general_settings=general_settings, include_dropdown=False)
+        plot_ic_robustness_analysis(general_settings=general_settings, 
+                                    file_paths=file_paths, figure_layout=figure_layout)
 
         utility_setting_contribution_analysis(
-            general_settings=general_settings, file_paths=file_paths, utility_settings_universe=utility_settings,
-            score_col="BIC", use_edge_types=("sibling", "parent_child"), include_non_network_toggles=True, export_csv=True,
+            general_settings=general_settings, 
+            utility_settings_universe=utility_settings,
+            use_edge_types=("sibling", "parent_child"), 
+            include_non_network_toggles=True, 
+            file_paths=file_paths, 
+            score_col="BIC", 
         )
 
-        extract_rankings_of_canonical_utility_functions(file_paths=file_paths, rank_col="BIC", print_=True)
+        extract_rankings_of_canonical_utility_functions(
+            file_paths=file_paths, rank_col="BIC"
+        )
 
     if run_code_settings['run_model_nesting_violation_analysis']:
 
         model_nesting_adjacency_matrices(
-            general_settings=general_settings, utility_settings=utility_settings,
-            file_paths=file_paths, create_new_file=True, equation_form=True, print_=False,
+            general_settings=general_settings, 
+            utility_settings=utility_settings,
+            file_paths=file_paths, 
+            equation_form=True, 
         )
         gnrl.summarize_nesting_relationship_counts(
-            general_settings=general_settings, utility_settings=utility_settings, file_paths=file_paths,
-            model_nesting_adjacency_matrices=model_nesting_adjacency_matrices, create_new_file=True, print_=True,
+            model_nesting_adjacency_matrices=model_nesting_adjacency_matrices, 
+            general_settings=general_settings, 
+            utility_settings=utility_settings, 
+            file_paths=file_paths,
         )
         gnrl.equation_to_settings(
-            equation_function=build_utility_equation, utility_settings=utility_settings,
-            file_paths=file_paths, create_new_file=True,
+            equation_function=build_utility_equation, 
+            utility_settings=utility_settings,
+            file_paths=file_paths, 
         )
-        gnrl.test_utility_functions(utility_settings=utility_settings, setting_to_flip='include_social_comparison', print_=True)
+        gnrl.test_utility_functions(utility_settings=utility_settings, 
+                                    setting_to_flip='include_social_comparison')
 
         verify_same_inputs_same_outputs_for_children_and_parents(
             general_settings=general_settings,
@@ -286,28 +322,25 @@ def main():
         extract_participant_model_combined_fits(
             general_settings=general_settings,
             file_paths=file_paths,
-            create_new_file=False,
         )
 
         "Ensure the AMPD distance matrix exists; generate if not already cached."
         compute_ampd_matrix(
             general_settings=general_settings,
+            utility_settings=utility_settings,
             file_paths=file_paths,
             param_bds=param_bds,
-            utility_settings=utility_settings,
-            create_new_file=False,
         )
 
         compute_architecture_compression_curve(
             general_settings=general_settings,
             file_paths=file_paths,
-            create_new_file=False,
         )
 
         plot_architecture_compression_curve(
             general_settings=general_settings,
-            file_paths=file_paths,
             figure_layout=figure_layout,
+            file_paths=file_paths,
         )
 
     if run_code_settings['run_model_recovery_simulation']:
@@ -317,24 +350,40 @@ def main():
         if mr.get('candidate_model_selection_mode', 'hamming') == 'ampd':
             compute_ampd_matrix(
                 general_settings=general_settings,
+                utility_settings=utility_settings,
                 file_paths=file_paths,
                 param_bds=param_bds,
-                utility_settings=utility_settings,
-                create_new_file=False,
             )
 
         compute_model_recovery_simulation(
             general_settings=general_settings,
+            utility_settings=utility_settings,
             file_paths=file_paths,
             param_bds=param_bds,
-            utility_settings=utility_settings,
-            create_new_file=False,
         )
 
         plot_model_recovery_simulation(
             general_settings=general_settings,
-            file_paths=file_paths,
             figure_layout=figure_layout,
+            file_paths=file_paths,
+        )
+
+    if run_code_settings['run_param_recovery_analysis']:
+
+        run_param_recovery_by_k(
+            general_settings=general_settings,
+            figure_layout=figure_layout,
+            file_paths=file_paths,
+            param_bds=param_bds,
+        )
+
+        run_population_recovery_bootstrap(
+            general_settings=general_settings,
+            figure_layout=figure_layout,
+            file_paths=file_paths,
+            param_bds=param_bds,
+            n_bootstrap_iterations=20,
+            n_games=60,
         )
 
     if run_code_settings['run_parameter_distribution_results']:
@@ -360,14 +409,19 @@ def main():
 
         for player_role in ('chooser', 'predictor'):
             population_parameter_distribution_histograms(
-                general_settings=general_settings, file_paths=file_paths, figure_layout=figure_layout,
-                player_role=player_role, use_initial_params=True, create_new_file=create_new_file,
+                general_settings=general_settings, 
+                file_paths=file_paths, figure_layout=figure_layout,
+                player_role=player_role, use_initial_params=True, 
             )
             for ratio_mode in ('absolute', 'skip_negative'):
                 subpopulation_stats_and_param_ratio_histograms(
-                    general_settings=general_settings, file_paths=file_paths, figure_layout=figure_layout,
-                    player_role=player_role, use_initial_params=True, create_new_file=False,
-                    ratio_mode=ratio_mode, as_subplots=True,
+                    general_settings=general_settings, 
+                    figure_layout=figure_layout,
+                    player_role=player_role, 
+                    use_initial_params=True, 
+                    ratio_mode=ratio_mode, 
+                    file_paths=file_paths, 
+                    as_subplots=True,
                 )
             param_correlation_matrix_report(
                 general_settings=general_settings, file_paths=file_paths,
@@ -376,7 +430,8 @@ def main():
 
         param_correlation_matrix_report(
             general_settings=general_settings, file_paths=file_paths,
-            player_role=player_role, cross_role_correlations=True, correction_method='holm',
+            player_role=player_role, cross_role_correlations=True, 
+            correction_method='holm',
         )
 
     if run_code_settings['run_inequality_aversion_analysis']:
@@ -386,7 +441,7 @@ def main():
             param_strong=0.75, param_weak=0.25, temperature=1.0,
             param_self_values=[0.0, 0.25, 0.5, 0.75, 1.0],
             param_altr_values=[0.0, 0.25, 0.5, 0.75, 1.0],
-            ratio_numerator="envious", show_text_values=True, text_decimals=2,
+            ratio_numerator="envious", show_text_values=True, 
             print_=True, export_fig=True, filename_stub=None,
             filter_constant_sum=False, color_range=[0.35, 0.55],
         )

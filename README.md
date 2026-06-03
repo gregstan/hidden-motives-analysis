@@ -6,7 +6,7 @@ The UBM formalizes how an observer updates beliefs about another person's *socia
 (e.g., altruism vs. selfishness; envy vs. guilt) from their repeated payoff-allocation choices
 in *iterated binary dictator games*.
 
-The full paper includes computationally intensive analyses (e.g., an IC comparison across 480 utility
+The full paper includes computationally intensive analyses (e.g., an IC comparison across 603 utility
 functions that takes weeks to run on a multi-core machine). [`quick_demo.py`](quick_demo.py) provides a
 configurable entry point that can run every major analysis at reduced scale (toggled via `light_mode`)
 or at full scale — making it useful for both fast debugging and producing the paper's main results.
@@ -50,7 +50,7 @@ analysis_options = {
     'light_mode': True,           # True: fast/small versions. False: full scale.
 
     # No external data required
-    'run_model_demos':              True,  # All 480 utility equations; Bayesian core checks.
+    'run_model_demos':              True,  # All 603 utility equations; Bayesian core checks.
     'run_nesting_tests':            True,  # Model nesting adjacency; equivalence and embedding checks.
 
     # Synthetic simulation data
@@ -62,7 +62,7 @@ analysis_options = {
 
     # Requires raw experiment data in raw_data/
     'run_model_comparison':         False, # Alternative model contest + typological comparison.
-    'run_ic_analysis':              False, # IC utility comparison (5 forms light, 480 full).
+    'run_ic_analysis':              False, # IC utility comparison (5 forms light, 603 full).
     'run_parameter_distribution':   False, # Population parameter distributions.
     'run_inequality_aversion':      False, # Inequality aversion bot competition heatmaps.
 }
@@ -73,7 +73,7 @@ Key rules:
   game counts, and player counts across every section.
 - `visualize_belief_updates` and `run_update_speed_analysis` require `run_simulation` to have
   produced data first (either in the same run or a prior run).
-- `run_ic_analysis` with `light_mode=False` runs all 480 models and takes **weeks**.
+- `run_ic_analysis` with `light_mode=False` runs all 603 models and takes **weeks**.
   With `light_mode=True` it runs 5 representative forms (one per k level, k=1..5).
 - Sections 8–11 check whether the required raw CSV files exist. If any are missing a loud
   warning is printed (missing raw data is treated as an error, not a normal skip).
@@ -83,7 +83,7 @@ Key rules:
 ## 4) What to look at after running
 
 ### Sections 1–2 (utility model + nesting): terminal output
-The equations for all 480 utility forms print to the terminal, along with nesting relationship
+The equations for all 603 utility forms print to the terminal, along with nesting relationship
 counts, parent-child classification examples, and pass/fail results from the equivalence
 and embedding sanity checks.
 
@@ -197,7 +197,7 @@ Additional docs:
 
 ## 8) Full IC model comparison output (precomputed)
 
-The large-scale IC comparison across 480 utility functions is too compute-intensive to run in the
+The large-scale IC comparison across 603 utility functions is too compute-intensive to run in the
 quick demo (months on the paper's settings). Results are included as:
 
 [`bic_aic/All_Utility_Forms_IC_Analysis_Experiment3.csv`](bic_aic/All_Utility_Forms_IC_Analysis_Experiment3.csv)
@@ -209,7 +209,7 @@ Sort by *BIC* ascending for the overall ranking. The generating function is
 
 **Dynamic updating.** By default the IC analysis uses a static (no belief-updating) version of the
 UBM for computational tractability. A full dynamic version — fitting individual-level Bayesian
-belief-updating parameters across all 73 participants for each of the 480 utility functions — is
+belief-updating parameters across all 73 participants for each of the 603 utility functions — is
 available via the `dynamic_updating=True` argument, but is prohibitively slow on a typical machine
 (months on 6 cores). In `main.py`, `dynamic_updating` is set automatically: it enables itself when
 `general_settings['run_in_parallel']` is `True` **and** the machine has 10 or more logical CPU
@@ -283,11 +283,11 @@ distance to the actual winner, conditional Hamming distance, and more.
 | `n_games_grid` | `[20, 40, 60, 90, 120, 180, 240]` | Games-per-agent adequacy curve |
 | `softmax_temperature` | `0.5` | Fixed τ for both data generation and NLL fitting |
 | `candidate_model_selection_mode` | `'hamming'` | Candidate diversity method: `'hamming'` or `'ampd'` |
-| `n_candidate_models` | `480` | Candidate set size for IC comparison |
+| `n_candidate_models` | `603` | Candidate set size for IC comparison |
 | `random_seed` | `42` | Reproducibility seed |
 
 **Outputs:**
-- A parameter-encoded CSV in `processed/`, e.g. `model_recovery_gen=443_cands=480_hamming_tau=0p5_agents=73_games=20-40-60-90-120-180-240_seed=42.csv`.
+- A parameter-encoded CSV in `processed/`, e.g. `model_recovery_gen=443_cands=603_hamming_tau=0p5_agents=73_games=20-40-60-90-120-180-240_seed=42.csv`.
 - `visuals/model_recovery_simulation_443.html` — interactive Plotly figure; a dropdown selects all eight metrics (normalized to [0, 1] on a shared axis) or any individual metric.
 
 **Prerequisite:** `bic_aic/All_Utility_Forms_IC_Analysis_Experiment3.json` must exist — it supplies the parameter distributions used for synthetic data generation.

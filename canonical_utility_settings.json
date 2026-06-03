@@ -13,6 +13,7 @@
     "reference_dependent_utility": false,
     "use_negativity_parameters": false,
     "negativity_social_comparison": true,
+    "tie_self_interest_and_altruism": false,
     "fix_self_interest_parameter": true,
     "include_social_comparison": true,
     "include_altruism_term": false
@@ -25,12 +26,13 @@
     "include_relative_income_penalty": true,
     "use_exponential_parameters": false,
     "apply_exponents_to_payoffs": false,
-    "single_exponential_parameter": false,
+    "single_exponential_parameter": true,
     "single_payoffs_not_differences": true,
     "payoff_ratios_not_differences": false,
     "reference_dependent_utility": false,
     "use_negativity_parameters": false,
     "negativity_social_comparison": false,
+    "tie_self_interest_and_altruism": false,
     "fix_self_interest_parameter": false,
     "include_social_comparison": false,
     "include_altruism_term": false
@@ -49,6 +51,7 @@
     "reference_dependent_utility": false,
     "use_negativity_parameters": false,
     "negativity_social_comparison": false,
+    "tie_self_interest_and_altruism": false,
     "fix_self_interest_parameter": false,
     "include_social_comparison": false,
     "include_altruism_term": false
@@ -67,7 +70,8 @@
     "reference_dependent_utility": false,
     "use_negativity_parameters": false,
     "negativity_social_comparison": false,
-    "fix_self_interest_parameter": true,
+    "tie_self_interest_and_altruism": true,
+    "fix_self_interest_parameter": false,
     "include_social_comparison": false,
     "include_altruism_term": true
   },
@@ -79,12 +83,13 @@
     "include_relative_income_penalty": false,
     "use_exponential_parameters": false,
     "apply_exponents_to_payoffs": false,
-    "single_exponential_parameter": false,
+    "single_exponential_parameter": true,
     "single_payoffs_not_differences": true,
     "payoff_ratios_not_differences": false,
     "reference_dependent_utility": false,
     "use_negativity_parameters": false,
     "negativity_social_comparison": false,
+    "tie_self_interest_and_altruism": false,
     "fix_self_interest_parameter": false,
     "include_social_comparison": true,
     "include_altruism_term": false
@@ -103,6 +108,7 @@
     "reference_dependent_utility": false,
     "use_negativity_parameters": false,
     "negativity_social_comparison": false,
+    "tie_self_interest_and_altruism": false,
     "fix_self_interest_parameter": false,
     "include_social_comparison": false,
     "include_altruism_term": true

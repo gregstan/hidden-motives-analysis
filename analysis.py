@@ -1602,6 +1602,27 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
     base_file_paths = copy.deepcopy(file_paths)
     loss_funct_type = general_settings.get('loss_funct_type')
 
+    """
+    Disable global random seeds for multi-iteration IC runs. With max_iters > 1, the IC
+    robustness loop must draw fresh random initial guesses each iteration; re-using a seeded
+    sequence would make every restart of the process explore the same trajectory. We save the
+    current global RNG state first and restore it before returning so that subsequent analyses
+    in main.py are unaffected and can still use their own seed.
+    """
+    _ic_saved_rng: tuple | None = None
+    if max_iters > 1 and general_settings.get('random_seeds', {}).get('use_seeds', False):
+        general_settings['random_seeds']['use_seeds'] = False
+        general_settings['random_seeds']['seed']      = None
+        general_settings.get('optimization_policy', {})['dual_annealing_seed'] = None
+        _ic_saved_rng = (random.getstate(), np.random.get_state())
+        random.seed(None)
+        np.random.seed(None)
+        print(
+            "[IC] max_iters > 1: global random seed disabled for this analysis. "
+            "Each iteration will draw fresh random initial guesses. The "
+            "global RNG state will be restored when the IC completes."
+        )
+
     "Remove suffix from file names if any."
     base_file_paths = prep.add_remove_file_name_suffix(
         file_paths=base_file_paths, file_name_suffix=None, add_suffix=False
@@ -2287,6 +2308,13 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         iter_idx = max_iters_done
 
     ic_correlations(df=df)
+
+    "Restore the global RNG state that was saved before the IC unseeded it, so that any"
+    "analyses that run after this function in main.py still see the original seed state."
+    if _ic_saved_rng is not None:
+        random.setstate(_ic_saved_rng[0])
+        np.random.set_state(_ic_saved_rng[1])
+        print("[IC] Global RNG state restored. Subsequent analyses will use the original seed.")
 
     "Return the DataFrame and the dictionary of all results."
     return df, all_ic_results
@@ -5117,7 +5145,12 @@ def population_parameter_distribution_df(general_settings: dict[str, Any], file_
         if df is not None:
             if "temp" in list(df.columns):
                 df = df.rename(columns={"temp": "τ"})
-            return df
+            "Stale-cache guard: old runs used Ƹᵢⱼ/Ʒᵢⱼ (U+01B8/U+01B7); current code uses αᵢⱼ/βᵢⱼ."
+            "If the cached CSV has old names, fall through and regenerate rather than returning stale data."
+            _legacy_cols = {'Ƹᵢⱼ', 'Ʒᵢⱼ', 'Ƹᵢⱼ_std', 'Ʒᵢⱼ_std'}
+            if not _legacy_cols.intersection(df.columns):
+                return df
+            print(f"[population_parameter_distribution_df] Stale cache detected (old Ƹ/Ʒ param names). Regenerating {file_name}.")
 
     "List of all player uuids in the experiment."
     player_uuids = prep.all_player_uuids(

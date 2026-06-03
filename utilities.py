@@ -1462,14 +1462,25 @@ def is_valid_utility_settings(candidate: UtilitySettings, provide_explanation: b
         "which conflicts with the tie requirement for include_altruism_term=True."
         "No explicit check needed here; this comment documents why."
 
-        artificially_limit_combinations = True
+        if (candidate['use_exponential_parameters']
+                and not candidate['single_exponential_parameter']
+                and not candidate['include_social_comparison']
+                and not candidate.get('include_relative_income_penalty', False)):
+            explanation += (
+                "single_exponential_parameter=False is redundant when tie=True with no social "
+                "comparison and no RIP: γ₂ is never added to the parameter list (Vᵢⱼ is absent), "
+                "so the model is numerically identical to single_exponential_parameter=True."
+            )
+            return explanation if provide_explanation else False
+
+        artificially_limit_combinations = False
         if artificially_limit_combinations:
-            "Option A: restrict tie to single-payoff forms only. Theoretical motivation: the A&M CES"
-            "aggregator [α·πᵢ^ρ + (1-α)·πⱼ^ρ]^(1/ρ) is defined over individual payoffs, not differences."
-            "The complement constraint α+(1-α)=1 has its economic interpretation as a CES aggregator"
-            "precisely in that context. Toggle artificially_limit_combinations=False to allow the tied"
-            "weight form across all payoff representations (utility() and build_utility_equation() both"
-            "support this correctly — the restriction lives only here)."
+            """Option A: restrict tie to single-payoff forms only. Theoretical motivation: the A&M CES
+            aggregator [α·πᵢ^ρ + (1-α)·πⱼ^ρ]^(1/ρ) is defined over individual payoffs, not differences.
+            The complement constraint α+(1-α)=1 has its economic interpretation as a CES aggregator
+            precisely in that context. Toggle artificially_limit_combinations=False to allow the tied
+            weight form across all payoff representations (utility() and build_utility_equation() both
+            support this correctly — the restriction lives only here)."""
             if not candidate['single_payoffs_not_differences']:
                 explanation += (
                     "the tied-weight form is currently restricted to single-payoff models "
