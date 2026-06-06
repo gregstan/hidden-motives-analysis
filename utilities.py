@@ -1044,7 +1044,7 @@ def equation_to_settings(equation_function: Callable, utility_settings: UtilityS
 
 def convert_utility_settings(
     utility_settings: Union[
-        Dict[str, bool],
+        UtilitySettings,
         Tuple[bool, ...],
         Tuple[int, ...],
         str,
@@ -1056,7 +1056,7 @@ def convert_utility_settings(
     sort_alphabetically: bool = False,
     file_paths: Optional[FilePaths] = None,
     general_settings: Optional[GeneralSettings] = None,
-) -> Union[Dict[str, bool], Tuple[bool, ...], Tuple[int, ...], str]:
+) -> Union[UtilitySettings, Tuple[bool, ...], Tuple[int, ...], str]:
     """
     Swiss-army conversion between all representations of a utility settings configuration.
     All input types are auto-detected; `into` selects the desired output format.
@@ -1073,12 +1073,15 @@ def convert_utility_settings(
         • int                 — utility_idx model index in all_utility_functions.csv
 
     Accepted `into` values:
-        • str       — formatted bitstring XXXX-XXXX-XXXX-XXXXX (default)
-        • 'raw_str' — raw 17-char bitstring without dashes (backward-compat)
-        • 'equation'— utility equation string (calls model.build_utility_equation)
-        • tuple     — tuple[bool, ...]
-        • dict      — UtilitySettings dict[str, bool]
-        • int       — tuple[int, ...] of 0/1 values (used internally by model_key_maker)
+        • str         — formatted bitstring XXXX-XXXX-XXXX-XXXXX (default)
+        • 'raw_str'   — raw 17-char bitstring without dashes (backward-compat)
+        • 'equation'  — utility equation string (calls model.build_utility_equation)
+        • tuple       — tuple[bool, ...]
+        • dict        — UtilitySettings dict[str, bool]
+        • int         — integer utility_idx (looks up row in all_utility_functions_dataframe;
+                         falls back to positional index in generate_utility_settings if file_paths
+                         is None or the CSV hasn't been generated yet)
+        • 'int-tuple' — tuple[int, ...] of 0/1 values (used internally by model_key_maker)
 
     Arguments:
         • utility_settings: any of the above input forms.
@@ -1105,7 +1108,7 @@ def convert_utility_settings(
         • TypeError for inputs that are not one of the accepted types.
     """
     "Validate `into`."
-    valid_into = (tuple, dict, str, int, 'raw_str', 'equation')
+    valid_into = (tuple, dict, str, int, 'raw_str', 'equation', 'int-tuple')
     if into not in valid_into:
         raise ValueError(f"`into` must be one of {valid_into!r}, not {into!r}.")
 
@@ -1124,6 +1127,10 @@ def convert_utility_settings(
                     utility_settings=_CANONICAL_UTILITY_SETTINGS,
                     general_settings=general_settings,
                 )
+                if 'single_exponential_parameter' in registry_df.columns:
+                    registry_df = registry_df.rename(
+                        columns={'single_exponential_parameter': 'uniform_exponential_parameter'}
+                    )
                 matching_rows = registry_df[registry_df["utility_idx"] == model_idx]
                 if len(matching_rows) == 1:
                     flag_cols = [col for col in _CANONICAL_UTILITY_SETTINGS.keys() if col in registry_df.columns]
@@ -1198,6 +1205,13 @@ def convert_utility_settings(
             f"utility_settings must be a dict, tuple, str, or int; got {type(utility_settings)}."
         )
 
+    "Migrate stale dict that predates the single→uniform rename."
+    if isinstance(utility_settings, dict) and 'single_exponential_parameter' in utility_settings:
+        utility_settings = {
+            ('uniform_exponential_parameter' if setting_key == 'single_exponential_parameter' else setting_key): setting_val
+            for setting_key, setting_val in utility_settings.items()
+        }
+
     "Legacy translation: map old-schema input onto the current 16-key canonical schema."
     if input_settings_format is not None:
         old_format_keys = list(input_settings_format.keys())
@@ -1259,6 +1273,38 @@ def convert_utility_settings(
         return tuple(bool(flag_value) for _, flag_value in _ordered_pairs())
 
     if into is int:
+        "Look up the utility_idx of this settings configuration in the model registry."
+        settings_dict_for_lookup = {flag_name: bool(flag_value) for flag_name, flag_value in _ordered_pairs()}
+        if file_paths is not None:
+            try:
+                registry_df = all_utility_functions_dataframe(
+                    file_paths=file_paths,
+                    utility_settings=_CANONICAL_UTILITY_SETTINGS,
+                    general_settings=general_settings,
+                )
+                flag_cols = [col for col in settings_dict_for_lookup if col in registry_df.columns]
+                mask = pd.Series([True] * len(registry_df), index=registry_df.index)
+                for col in flag_cols:
+                    mask &= (registry_df[col] == settings_dict_for_lookup[col])
+                match_rows = registry_df[mask]
+                if len(match_rows) == 1:
+                    return int(match_rows.iloc[0]['utility_idx'])
+            except Exception:
+                pass
+        "Fallback: positional index in generate_utility_settings(sort_by_k=True)."
+        all_settings_list = generate_utility_settings(
+            utility_settings=_CANONICAL_UTILITY_SETTINGS, sort_by_k=True
+        )
+        for pos_idx, candidate in enumerate(all_settings_list):
+            if candidate == settings_dict_for_lookup:
+                return pos_idx
+        raise ValueError(
+            f"convert_utility_settings(into=int): no matching model found in registry or "
+            f"generate_utility_settings for settings: {settings_dict_for_lookup!r}. "
+            "Provide file_paths so the CSV registry can be searched first."
+        )
+
+    if into == 'int-tuple':
         return tuple(int(bool(flag_value)) for _, flag_value in _ordered_pairs())
 
     if into is str or into == 'raw_str':
@@ -1716,6 +1762,13 @@ def all_utility_functions_dataframe(
         loaded_registry_df = pd.read_csv(registry_out_path, dtype={"utility_bitstring": str})
         registry_csv_needs_resave = False
 
+        "Migrate stale CSV that predates the single→uniform rename."
+        if 'single_exponential_parameter' in loaded_registry_df.columns:
+            loaded_registry_df = loaded_registry_df.rename(
+                columns={'single_exponential_parameter': 'uniform_exponential_parameter'}
+            )
+            registry_csv_needs_resave = True
+
         "--- canonical_model column: add if missing ---"
         if "canonical_model" not in loaded_registry_df.columns:
             non_flag_column_names: set = {
@@ -1852,7 +1905,7 @@ def all_utility_functions_dataframe(
 
         settings_row_dict: Dict[str, Any] = {"k_params": k_params_value, "utility_bitstring": formatted_utility_bitstring}
         for flag_name in canonical_flag_order:
-            settings_row_dict[flag_name] = bool(settings_dict[flag_name])
+            settings_row_dict[flag_name] = int(bool(settings_dict[flag_name]))
         settings_rows.append(settings_row_dict)
 
     registry_df = pd.DataFrame(settings_rows)

@@ -794,7 +794,7 @@ def compute_ampd_matrix(
                         for param_name, param_value in player_data.get("params", {}).get(role, {}).items():
                             if param_name in pools:
                                 pools[param_name].append(float(param_value))
-            return {k: v for k, v in pools.items() if v}
+            return {param_name: param_value for param_name, param_value in pools.items() if param_value}
 
         participant_parameter_pools = _build_participant_pools(ic_json_path_for_pools)
         if print_:
@@ -914,6 +914,16 @@ def compute_ampd_matrix(
     }
     flag_cols = [col for col in registry_df.columns if col not in non_flag_cols]
 
+    "Migrate stale registry CSV that predates the single→uniform rename."
+    if 'single_exponential_parameter' in registry_df.columns:
+        registry_df = registry_df.rename(
+            columns={'single_exponential_parameter': 'uniform_exponential_parameter'}
+        )
+        flag_cols = [
+            'uniform_exponential_parameter' if c == 'single_exponential_parameter' else c
+            for c in flag_cols
+        ]
+
     def _parse_csv_bool(val: Any) -> bool:
         if isinstance(val, str):
             return val.strip().lower() not in ("false", "0", "")
@@ -1029,8 +1039,13 @@ def compute_ampd_matrix(
     def _merge_batch_results(batch_results: list) -> None:
         """Write a completed worker batch's distances into master_df (symmetric)."""
         for utility_idx_i, utility_idx_j, dist in batch_results:
-            master_df.loc[utility_idx_i, utility_idx_j] = dist
-            master_df.loc[utility_idx_j, utility_idx_i] = dist
+            "Store exactly-zero AMPD pairs (functionally identical models) as 1e-10 rather than 0.0."
+            "Off-diagonal 0.0 is the sentinel for uncomputed cells in old-format files, so storing"
+            "a legitimate zero as 0.0 causes _zero_off_diag_to_nan to reconvert it to NaN on every"
+            "subsequent load, triggering an infinite recomputation cycle for those pairs."
+            stored_dist = dist if dist > 0.0 else 1e-10
+            master_df.loc[utility_idx_i, utility_idx_j] = stored_dist
+            master_df.loc[utility_idx_j, utility_idx_i] = stored_dist
 
     if n_workers_clamped == 1:
         "Sequential path — preserves per-pair printing for interactive use."

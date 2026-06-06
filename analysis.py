@@ -1328,7 +1328,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         
         "List of all models as tuples of boolean flags"
         model_setting_tuples: list[tuple] = [gnrl.convert_utility_settings(
-            utility_settings=settings, into=tuple) for settings in model_nesting_data['settings']]
+            utility_settings=settings, into=tuple, sort_alphabetically=True) for settings in model_nesting_data['settings']]
 
         "Index of the new model in the list of models"
         target_model_settings_idx = next((settings_idx for settings_idx, settings in enumerate(
@@ -4587,7 +4587,7 @@ def model_nesting_adjacency_matrices(general_settings: GeneralSettings, utility_
                 adjacency_equations = [equations[edx] for edx in adjacency_list_model]
                 equation_dict[relation][equation] = adjacency_equations
             for idx, settings in enumerate(settings_list):
-                settings = str(gnrl.convert_utility_settings(settings, tuple))
+                settings = str(gnrl.convert_utility_settings(settings, tuple, sort_alphabetically=True))
                 adjacency_list_model = model_nesting_data['adjacency_lists'][relation][idx]
                 adjacent_settings = [settings_list[sdx] for sdx in adjacency_list_model]
                 adjacency_dict[relation][settings] = adjacent_settings
@@ -4597,7 +4597,7 @@ def model_nesting_adjacency_matrices(general_settings: GeneralSettings, utility_
     "Save the data."
     model_nesting_data_compact = copy.deepcopy(model_nesting_data)
     model_nesting_data_compact['settings'] = [
-        (int(setting) for setting in gnrl.convert_utility_settings(utility_settings=settings, into=tuple)) 
+        (int(setting) for setting in gnrl.convert_utility_settings(utility_settings=settings, into=tuple, sort_alphabetically=True))
         for settings in model_nesting_data_compact['settings']
     ]
     with open(model_nesting_file_path, 'w', encoding='utf-8') as file:

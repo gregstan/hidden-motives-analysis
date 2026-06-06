@@ -1,4 +1,4 @@
-import hashlib, time
+import hashlib, random, time
 from visualization import *
 from visualization import _hsla
 from utilities import compute_conditional_hamming_distance_matrix
@@ -1372,10 +1372,11 @@ def _recovery_simulation_stem(
     generating_utility_idx: int,
     n_candidate_models: Optional[int],
     candidate_model_selection_mode: str,
-    softmax_temperature: float,
+    softmax_temperature: Optional[float],
     n_agents_grid: List[int],
     n_games_grid: List[int],
     random_seed: int,
+    n_simulation_iterations: int = 1,
 ) -> str:
     """
     Returns the canonical filename stem for a model recovery simulation run.
@@ -1383,15 +1384,15 @@ def _recovery_simulation_stem(
     settings never overwrite each other.
 
     Stem format:
-        model_recovery_gen={idx}_cands={n}_{mode}_tau={tau}_agents={a1-a2-...}_games={g1-g2-...}_seed={seed}
+        model_recovery_gen={idx}_cands={n}_{mode}_tau={tau}_agents={...}_games={...}_seed={seed}_iters={n}
 
     Example:
-        model_recovery_gen=443_cands=100_hamming_tau=0p5_agents=73_games=20-40-60-90-120-180-240_seed=42
+        model_recovery_gen=570_cands=100_hamming_tau=fitted_agents=73_games=30-60-90-120-150_seed=42_iters=1
     """
-    _tau_str    = str(softmax_temperature).replace('.', 'p')
+    _tau_str    = 'fitted' if softmax_temperature is None else str(softmax_temperature).replace('.', 'p')
     _cands_str  = str(n_candidate_models) if n_candidate_models is not None else 'all'
-    _agents_str = '-'.join(str(val) for val in sorted(n_agents_grid))
-    _games_str  = '-'.join(str(val) for val in sorted(n_games_grid))
+    _agents_str = '-'.join(str(agent_count) for agent_count in sorted(n_agents_grid))
+    _games_str  = '-'.join(str(game_count)  for game_count  in sorted(n_games_grid))
     return (
         f'model_recovery'
         f'_gen={generating_utility_idx}'
@@ -1400,51 +1401,27 @@ def _recovery_simulation_stem(
         f'_agents={_agents_str}'
         f'_games={_games_str}'
         f'_seed={random_seed}'
+        f'_iters={n_simulation_iterations}'
     )
 
 
-def _build_synthetic_histories_json(
-    all_synthetic_agent_dyads: List[dict],
-    n_agents: int,
-    n_games: int,
-) -> dict:
-    """
-    Converts synthetic agent dyad data into the JSON format that
-    information_criterion_analysis reads (the 'player_pairs_exper{N}.json' format).
-
-    Arguments:
-        • all_synthetic_agent_dyads: list of dicts from create_simulated_dyad, one per agent.
-        • n_agents: int; number of agents to include (first n_agents from the list).
-        • n_games: int; number of games per agent (first n_games from each agent's game list).
-
-    Returns:
-        • dict with "histories" and "player_info" top-level keys.
-    """
-    synthetic_json: dict = {"histories": {}, "player_info": {}}
-    for agent_idx, agent_dyad_data in enumerate(all_synthetic_agent_dyads[:n_agents]):
-        for dyad_key_str, games_list in agent_dyad_data.items():
-            synthetic_json["histories"][dyad_key_str] = games_list[:n_games]
-            chooser_uuid   = f"synthetic_agent_{agent_idx}_chooser"
-            predictor_uuid = f"synthetic_agent_{agent_idx}_predictor"
-            synthetic_json["player_info"][chooser_uuid]   = {"player_type": "participant"}
-            synthetic_json["player_info"][predictor_uuid] = {"player_type": "participant"}
-    return synthetic_json
-
 
 def compute_model_recovery_simulation(
-    general_settings: dict,
-    file_paths: dict,
-    param_bds: dict,
-    utility_settings: dict,
-    generating_model=None,
-    n_agents_grid=None,
-    n_games_grid=None,
-    softmax_temperature=None,
-    candidate_model_selection_mode=None,
-    n_candidate_models=None,
-    ampd_matrix_name_or_path=None,
-    random_seed=None,
-    create_new_file: bool = False,
+    general_settings: GeneralSettings,
+    utility_settings: UtilitySettings,
+    param_bds: ParameterBounds,
+    file_paths: FilePaths,
+    figure_layout: FigLay,
+    generating_model:               Optional[Union[int, str, Tuple, UtilitySettings]] = None,
+    n_agents_grid:                  Optional[List[int]] = None,
+    n_games_grid:                   Optional[List[int]] = None,
+    softmax_temperature:            Optional[float] = None,
+    candidate_model_selection_mode: Optional[str] = None,
+    n_candidate_models:             Optional[int] = None,
+    n_simulation_iterations:        int = 1,
+    cleanup_synthetic_data:         bool = False,
+    random_seed:                    Optional[int] = None,
+    create_new_file:                bool = False,
 ) -> pd.DataFrame:
     """
     Simulation study answering two intertwined data-adequacy questions:
@@ -1452,80 +1429,94 @@ def compute_model_recovery_simulation(
         the generating utility model?" and
     (2) "How many participants (synthetic agents) are needed for reliable recovery?"
 
+    For each (n_simulation_iteration, n_agents_value, n_games_value) condition, fresh
+    synthetic data is generated via create_simulated_experiment — producing output in the
+    exact same format as the real experiment — then handed directly to the IC pipeline.
+    This is the most faithful possible test of the pipeline because it avoids any
+    adapter layer between data generation and IC analysis.
+
+    n_games in n_games_grid is the TOTAL game budget per synthetic participant, distributed
+    across their three dyadic pairings (as in the real experiment). With per-round role flip,
+    each participant spends roughly half their games as chooser and half as predictor.
+    n_games=120 is therefore directly comparable to the real study's 120-game design.
+
     Procedure:
-        1. Resolve generating_model (int idx or UtilitySettings dict) to a
-           (utility_idx, UtilitySettings) pair.
-        2. Extract fitted chooser parameter vectors for the generating model from the IC JSON
-           as the realistic parameter pool.
-        3. Select n_candidate_models candidates via max-min AMPD/Hamming diversity,
-           always seeding the selection with the generating model.
-        4. Generate synthetic data for max(n_agents_grid) agents × max(n_games_grid) games
-           each (done once; all conditions use nested subsets of this pre-generated data).
-        5. For each (n_agents_value, n_games_value) condition, write a sliced synthetic
-           histories JSON to a condition-specific directory, then call
-           information_criterion_analysis on it (restricted to the candidate model set).
-        6. Extract population-level BIC results, determine whether the generating model
-           wins population BIC, and append one row per candidate model to the partial CSV.
-        7. On restart with create_new_file=False, completed conditions are skipped and
-           within-condition IC runs can resume from their saved per-model JSON files.
+        1. Resolve generating_model to (utility_idx, UtilitySettings).
+        2. Extract fitted chooser parameter vectors from the IC JSON as the parameter pool.
+           τ is included in the pool when softmax_temperature is None (default).
+        3. Select n_candidate_models candidates via max-min AMPD/Hamming diversity.
+        4. For each simulation iteration and each (n_agents_value, n_games_value) condition,
+           call create_simulated_experiment with fresh random data, then call
+           information_criterion_analysis on the resulting histories file.
+        5. Extract population-level BIC (and NLL) results, compute recovery metrics, and
+           append one row per candidate model to the partial CSV.
+        6. On restart with create_new_file=False, completed conditions are skipped and
+           within-condition IC runs can resume from saved per-model JSON files.
 
     Arguments:
         • general_settings: dict; must contain 'experiment_num', 'run_in_parallel', etc.
-            The 'optimization_method' key controls the optimization used by IC (default
-            'globloc' in general_settings); this is NOT a separate parameter — it is read
-            from general_settings to keep all IC runs consistent.
-        • file_paths: dict; must contain 'processed', 'bic_aic', 'player_fits', 'visuals'.
+        • file_paths: dict; must contain 'processed', 'bic_aic', 'player_fits', 'simulations'.
         • param_bds: dict; {param_name: (low, high)} parameter bounds.
-        • utility_settings: dict; used to derive canonical flag order for the registry.
-        • generating_model: int | dict; utility_idx (int) or full UtilitySettings dict
-            identifying the model used to generate synthetic data. Default: 443.
+        • utility_settings: dict; canonical utility settings (current IC winner). Used for
+            registry flag order and as the default generating_model.
+        • generating_model: int | UtilitySettings | None; model used to generate synthetic data.
+            Default None defers to general_settings['model_recovery_settings']['generating_model'],
+            which itself defaults to utility_settings (the current IC winner).
         • n_agents_grid: list[int] | None; synthetic-participant adequacy curve.
-            Default: [73] (the real N only). Example: [10, 20, 30, 50, 73].
-            max(n_agents_grid) agents are generated; all values are nested subsets.
+            Default [73]. Each value generates a fresh independent participant sample.
         • n_games_grid: list[int] | None; games-per-agent adequacy curve.
-            Default: [30, 60, 90, 120, 150].
-            max(n_games_grid) games are generated per agent; all values are nested subsets.
-        • softmax_temperature: float; fixed tau used for both data generation (default 0.5).
+            Default [30, 60, 90, 120, 150]. n_games=120 matches the real study.
+        • softmax_temperature: float | None; when None (default), per-participant empirically
+            fitted τ values are used for data generation and the IC is run with
+            temperature_is_param inherited from general_settings (replicating the real pipeline).
+            When a float is provided, all participants share this fixed τ and the IC is run with
+            temperature_is_param=False. Use a low value (e.g. 0.2) as a sanity check — lower τ
+            produces more deterministic choices and should substantially increase recovery rates.
         • candidate_model_selection_mode: str; 'hamming' or 'ampd' max-min diversity selection.
-        • n_candidate_models: int | None; size of the candidate set (default 100).
-        • ampd_matrix_name_or_path: str | None; path to AMPD matrix when mode='ampd'.
-        • random_seed: int; reproducibility seed (default 42).
+        • n_candidate_models: int | None; candidate set size (default 100).
+        • n_simulation_iterations: int; number of independent simulation runs over the full
+            (n_agents × n_games) grid. Each iteration uses a fresh random seed and generates
+            a new synthetic dataset. Results across all iterations are pooled. Default 1 for
+            speed; set higher (e.g. 3–5) for stable recovery-rate estimates.
+        • cleanup_synthetic_data: bool; when True (default), delete condition-specific synthetic
+            data and IC fit files after completion. The final summary CSV is always preserved.
+        • random_seed: int | None; reproducibility seed (default 42).
         • create_new_file: bool; if False and final CSV exists, load and return it immediately.
 
     Returns:
-        • pd.DataFrame; one row per (n_agents_fitted, n_games_fitted, candidate utility_idx).
-            Each row reports population-level BIC for one candidate model in one condition,
-            allowing recovery rate and BIC rank curves to be plotted across the grid.
+        • pd.DataFrame; one row per (simulation_iteration, n_agents_fitted, n_games_fitted,
+            candidate utility_idx). Each row reports population-level BIC and NLL for one
+            candidate model in one condition.
 
     Resume support:
-        Each completed (n_agents, n_games) condition is appended to a partial CSV.
+        Completed (iteration, n_agents, n_games) conditions are appended to a partial CSV.
         On restart with create_new_file=False, completed conditions are skipped. Within-
-        condition IC runs also resume from their saved per-model JSON files (write_mode=resume).
+        condition IC runs also resume from saved per-model JSON files (write_mode=resume).
         On clean completion the partial CSV is deleted.
     """
     import copy as _copy
 
     "Resolve settings: explicit kwargs take priority; fall back to general_settings nested dict."
     mr = general_settings.get('model_recovery_settings', {})
-    if generating_model               is None: generating_model               = mr.get('generating_model', 443)
+    if generating_model               is None: generating_model               = mr.get('generating_model', utility_settings)
     if n_agents_grid                  is None: n_agents_grid                  = mr.get('n_agents_grid', None)
     if n_games_grid                   is None: n_games_grid                   = mr.get('n_games_grid', None)
-    if softmax_temperature            is None: softmax_temperature            = mr.get('softmax_temperature', 0.5)
+    if softmax_temperature            is None: softmax_temperature            = mr.get('softmax_temperature', None)
     if candidate_model_selection_mode is None: candidate_model_selection_mode = mr.get('candidate_model_selection_mode', 'hamming')
     if n_candidate_models             is None: n_candidate_models             = mr.get('n_candidate_models', 100)
-    if ampd_matrix_name_or_path       is None: ampd_matrix_name_or_path       = mr.get('ampd_matrix_name_or_path', None)
     if random_seed                    is None: random_seed                    = mr.get('random_seed', 42)
+    n_simulation_iterations = max(1, int(mr.get('n_simulation_iterations', n_simulation_iterations)))
 
     "Resolve n_games_grid and n_agents_grid; derive max values."
     if n_games_grid is None:
         n_games_grid = [30, 60, 90, 120, 150]
     if n_agents_grid is None:
         n_agents_grid = [73]
+    elif isinstance(n_agents_grid, int):
+        n_agents_grid = [n_agents_grid]
 
-    n_games_max   = max(n_games_grid)
-    n_agents_max  = max(n_agents_grid)
-    n_games_grid  = sorted(set(n_val for n_val in n_games_grid  if 0 < n_val <= n_games_max))
-    n_agents_grid = sorted(set(n_val for n_val in n_agents_grid if 0 < n_val <= n_agents_max))
+    n_games_grid  = sorted(set(n_val for n_val in n_games_grid  if 0 < n_val))
+    n_agents_grid = sorted(set(n_val for n_val in n_agents_grid if 0 < n_val))
 
     "Load utility registry and identify boolean flag columns."
     processed_dir         = str(file_paths['processed'])
@@ -1563,8 +1554,8 @@ def compute_model_recovery_simulation(
             f"({len(gen_registry_row)} matches). Pass an integer utility_idx instead."
         )
     generating_utility_idx = int(gen_registry_row.iloc[0]['utility_idx'])
-    print(f"Generating model: utility_idx={generating_utility_idx}  "
-          f"k_params={gen_registry_row.iloc[0].get('k_params', '?')}")
+    generating_k_params    = int(gen_registry_row.iloc[0].get('k_params', 0))
+    print(f"Generating model: utility_idx={generating_utility_idx}  k_params={generating_k_params}")
     print(f"  {build_utility_equation(utility_settings=generating_utility_settings)}")
 
     "Check for cached final result."
@@ -1576,6 +1567,7 @@ def compute_model_recovery_simulation(
         n_agents_grid=n_agents_grid,
         n_games_grid=n_games_grid,
         random_seed=random_seed,
+        n_simulation_iterations=n_simulation_iterations,
     )
     output_csv_path  = os.path.join(processed_dir, f'{_stem}.csv')
     partial_csv_path = os.path.join(processed_dir, f'{_stem}_partial.csv')
@@ -1589,20 +1581,22 @@ def compute_model_recovery_simulation(
                   f"  ({len(cached_df)} rows)")
             return cached_df
 
-    "Detect completed (n_games, n_agents) conditions from partial CSV for mid-run resume."
+    "Detect completed (simulation_iteration, n_games, n_agents) conditions for mid-run resume."
     completed_conditions: set = set()
     accumulated_dataframes: List[pd.DataFrame] = []
     if not create_new_file and os.path.exists(partial_csv_path):
         partial_df = pd.read_csv(partial_csv_path, encoding='utf-8-sig')
+        resume_cols = ['simulation_iteration', 'n_games_fitted', 'n_agents_fitted']
         if (not partial_df.empty
-                and 'n_games_fitted' in partial_df.columns
-                and 'n_agents_fitted' in partial_df.columns):
+                and all(resume_col in partial_df.columns for resume_col in resume_cols)):
             for _, condition_row in (
-                partial_df[['n_games_fitted', 'n_agents_fitted']].drop_duplicates().iterrows()
+                partial_df[resume_cols].drop_duplicates().iterrows()
             ):
-                completed_conditions.add(
-                    (int(condition_row['n_games_fitted']), int(condition_row['n_agents_fitted']))
-                )
+                completed_conditions.add((
+                    int(condition_row['simulation_iteration']),
+                    int(condition_row['n_games_fitted']),
+                    int(condition_row['n_agents_fitted']),
+                ))
             accumulated_dataframes.append(partial_df)
             print(f"Resuming from partial CSV: "
                   f"{len(completed_conditions)} conditions already done: "
@@ -1610,17 +1604,10 @@ def compute_model_recovery_simulation(
 
     "Load distance matrix for diversity-based candidate selection."
     if candidate_model_selection_mode == 'ampd':
-        if ampd_matrix_name_or_path is not None:
-            ampd_matrix_path = (
-                ampd_matrix_name_or_path if os.path.isabs(ampd_matrix_name_or_path)
-                else os.path.join(processed_dir, ampd_matrix_name_or_path)
-            )
-            distance_matrix_df = pd.read_csv(ampd_matrix_path, index_col=0)
-        else:
-            distance_matrix_df = compute_ampd_matrix(
-                general_settings=general_settings, file_paths=file_paths,
-                param_bds=param_bds, utility_settings=utility_settings, create_new_file=False,
-            )
+        distance_matrix_df = compute_ampd_matrix(
+            general_settings=general_settings, file_paths=file_paths,
+            param_bds=param_bds, utility_settings=utility_settings, create_new_file=False,
+        )
         distance_matrix_df.index   = distance_matrix_df.index.astype(int)
         distance_matrix_df.columns = distance_matrix_df.columns.astype(int)
     else:
@@ -1647,6 +1634,13 @@ def compute_model_recovery_simulation(
     selected_model_indices: List[int] = [generating_utility_idx]
     remaining_model_indices = [model_idx for model_idx in all_model_indices
                                if model_idx != generating_utility_idx]
+    """
+    Shuffle to break ties randomly (Hamming distances are integers, so many models tie at 
+    the same minimum distance from the selected set each round; without shuffling the first-
+    encountered — lowest utility_idx — always wins, biasing the candidate set toward low-k models).
+    """
+    _tie_break_rng = random.Random(random_seed)
+    _tie_break_rng.shuffle(remaining_model_indices)
 
     while len(selected_model_indices) < target_n_candidates and remaining_model_indices:
         best_candidate_idx  = None
@@ -1677,21 +1671,12 @@ def compute_model_recovery_simulation(
     if candidate_model_selection_mode == 'ampd':
         ampd_metrics_df = distance_matrix_df
     else:
-        if ampd_matrix_name_or_path is not None:
-            _ampd_metr_path = (
-                ampd_matrix_name_or_path if os.path.isabs(ampd_matrix_name_or_path)
-                else os.path.join(processed_dir, ampd_matrix_name_or_path)
-            )
-            ampd_metrics_df = pd.read_csv(_ampd_metr_path, index_col=0)
-        else:
-            ampd_metrics_df = compute_ampd_matrix(
-                general_settings=general_settings, file_paths=file_paths,
-                param_bds=param_bds, utility_settings=utility_settings, create_new_file=False,
-            )
+        ampd_metrics_df = compute_ampd_matrix(
+            general_settings=general_settings, file_paths=file_paths,
+            param_bds=param_bds, utility_settings=utility_settings, create_new_file=False,
+        )
         ampd_metrics_df.index   = ampd_metrics_df.index.astype(int)
         ampd_metrics_df.columns = ampd_metrics_df.columns.astype(int)
-        print(f"AMPD matrix loaded for recovery metrics: "
-              f"{ampd_metrics_df.shape[0]}×{ampd_metrics_df.shape[1]}")
 
     try:
         cond_hamming_metrics_df = compute_conditional_hamming_distance_matrix(
@@ -1704,6 +1689,11 @@ def compute_model_recovery_simulation(
               f"Conditional Hamming metrics will be NaN.")
         cond_hamming_metrics_df = None
 
+    def _reg_bool(val: Any) -> bool:
+        if isinstance(val, str):
+            return val.strip().lower() not in ('false', '0', '')
+        return bool(val)
+
     _canonical_flag_keys = list(utility_settings.keys())
     candidate_models: List[Tuple[int, dict]] = []
     for utility_idx_val in selected_model_indices:
@@ -1713,7 +1703,7 @@ def compute_model_recovery_simulation(
         "Use canonical key set so dicts always have all 17 flags even when the registry"
         "CSV was built before a new flag was added. Missing columns default to False."
         candidate_utility_settings = {
-            col: bool(registry_row.iloc[0][col]) if col in registry_row.columns else False
+            col: _reg_bool(registry_row.iloc[0][col]) if col in registry_row.columns else False
             for col in _canonical_flag_keys
         }
         candidate_models.append((utility_idx_val, candidate_utility_settings))
@@ -1723,10 +1713,12 @@ def compute_model_recovery_simulation(
     ic_json_name   = f"All_Utility_Forms_IC_Analysis_Experiment{experiment_num}.json"
     ic_json_path   = os.path.join(str(file_paths['bic_aic']), ic_json_name)
 
-    "Fallback: if the IC JSON is absent from the repo's bic_aic/, try the original analysis"
-    "directory as a convenience for the primary author's machine.  For all other users, the"
-    "JSON must exist in bic_aic/ (generated by information_criterion_analysis() or provided"
-    "by the authors).  A missing file raises a clear error rather than an opaque crash."
+    """
+    Fallback: if the IC JSON is absent from the repo's bic_aic/, try the original analysis
+    directory as a convenience for the primary author's machine.  For all other users, the
+    JSON must exist in bic_aic/ (generated by information_criterion_analysis() or provided
+    by the authors).  A missing file raises a clear error rather than an opaque crash.
+    """
     _fallback_ic_json_path = (
         r"C:\Users\Gregory Stanley\Desktop\U of M\Research Archive\Multiplayer"
         r"\ABM_Simulation\Judgment_Game\Inputs\Iter_Binary_Dictator"
@@ -1743,19 +1735,11 @@ def compute_model_recovery_simulation(
                 "information_criterion_analysis() or can be obtained from the authors."
             )
 
-    print(f"Loading IC JSON: {os.path.basename(ic_json_path)}")
-    with open(ic_json_path, 'r', encoding='utf-8-sig') as ic_file_handle:
-        ic_data = json.load(ic_file_handle)
-    ic_results = ic_data.get('ic_results', {})
-
     """
-    Load the IC CSV header to get the exact set and ORDER of flag columns at IC-run time.
-    This is the definitive source because:
-      - The IC CSV and IC JSON were produced by the same code run and use the same flag-column
-        ordering (config.py::utility_settings insertion order at IC time).
-      - New flags added since the IC run may have been INSERTED (not appended), so a simple
-        'first N keys' truncation of the current utility_settings would produce the wrong order.
-      - Using the IC CSV column list directly is order-safe regardless of where new flags landed.
+    Load the IC CSV header FIRST (only reads column names, fast) to determine the flag-column
+    order at IC-run time. This is needed to build the lookup key before touching the JSON.
+    The IC CSV and IC JSON use the same flag-column ordering (config.py insertion order at
+    IC time). New flags inserted since the IC run are absent from this list and default False.
     """
     _ic_csv_non_flag_cols = {
         'idx', 'n_data', 'k_params', 'pvar', 'param_norm_sd', 'loss',
@@ -1766,9 +1750,18 @@ def compute_model_recovery_simulation(
     _ic_csv_path = os.path.join(os.path.dirname(ic_json_path), _ic_csv_name)
     if os.path.exists(_ic_csv_path):
         _ic_csv_header = pd.read_csv(_ic_csv_path, nrows=0, encoding='utf-8-sig')
-        _ic_csv_flag_cols: list = [c for c in _ic_csv_header.columns if c not in _ic_csv_non_flag_cols]
+        _ic_csv_flag_cols: list = [col for col in _ic_csv_header.columns if col not in _ic_csv_non_flag_cols]
     else:
         _ic_csv_flag_cols = None
+
+    "Build the lookup key before opening the JSON."
+    _ic_flag_keys_for_lookup = (
+        _ic_csv_flag_cols if _ic_csv_flag_cols is not None else list(utility_settings.keys())
+    )
+    _gen_tuple_v1 = tuple(
+        bool(generating_utility_settings.get(col, False)) for col in _ic_flag_keys_for_lookup
+    )
+    _gen_equation_for_lookup = build_utility_equation(utility_settings=generating_utility_settings)
 
     """
     Find generating model entry in the IC JSON — without relying on integer indices.
@@ -1777,48 +1770,70 @@ def compute_model_recovery_simulation(
     1. IC-CSV-guided tuple lookup (fast O(1)):  Build the lookup tuple using ONLY the flag
        columns that existed at IC time (from the IC CSV header) in their original order.
        New flags (e.g., include_welfare_efficiency_term, include_relative_income_penalty)
-       are absent from that list and default to False, which is correct — old models do not
-       use those flags.
+       are absent from that list and default to False, which is correct — old models do
+       not use those flags.
 
     2. Equation-string scan (fallback):  If the IC CSV is absent or the tuple still misses,
        scan IC JSON entries for one whose 'U' field equals build_utility_equation() for the
        generating model.  Index-and-order-agnostic.
 
-    3. Uniform sampling (last resort):  Model genuinely absent from IC JSON (added after the
+    3. Per-player fit files (MemoryError fallback):  The combined IC JSON is ~600 MB;
+       on machines with insufficient RAM, load individual per-player fit files instead.
+
+    4. Uniform sampling (last resort):  Model genuinely absent from IC JSON (added after the
        IC run and uses a new flag that makes it distinct from all IC-era models).  Warn and
        sample from param_bds.  Recovery validity is unaffected — we test form recovery.
     """
-    "Strategy 1: IC-CSV-guided settings tuple."
-    _ic_flag_keys_for_lookup = (
-        _ic_csv_flag_cols if _ic_csv_flag_cols is not None else list(utility_settings.keys())
-    )
-    _gen_tuple_v1 = tuple(
-        bool(generating_utility_settings.get(col, False)) for col in _ic_flag_keys_for_lookup
-    )
-    generating_model_entry = ic_results.get(str(_gen_tuple_v1))
-
-    "Strategy 2: equation-string scan."
-    if generating_model_entry is None:
-        _gen_equation = build_utility_equation(utility_settings=generating_utility_settings)
-        for _ic_entry in ic_results.values():
-            if _ic_entry.get('U') == _gen_equation:
-                generating_model_entry = _ic_entry
-                break
+    generating_model_entry = None
+    _match_method = None
+    print(f"Loading IC JSON ({os.path.getsize(ic_json_path) // 1_048_576} MB): "
+          f"{os.path.basename(ic_json_path)}")
+    try:
+        with open(ic_json_path, 'r', encoding='utf-8-sig') as ic_file_handle:
+            ic_data = json.load(ic_file_handle)
+        ic_results = ic_data.get('ic_results', {})
+        generating_model_entry = ic_results.get(str(_gen_tuple_v1))
+        if generating_model_entry is not None:
+            _match_method = 'IC-CSV-tuple'
+        else:
+            for _ic_entry in ic_results.values():
+                if _ic_entry.get('U') == _gen_equation_for_lookup:
+                    generating_model_entry = _ic_entry
+                    _match_method = 'equation-string'
+                    break
+    except MemoryError:
+        print("  MemoryError loading combined IC JSON; will use per-player fit files for param pool.")
 
     if generating_model_entry is not None:
         _ic_json_idx = generating_model_entry.get('idx', 'unknown')
-        _match_method = 'IC-CSV-tuple' if ic_results.get(str(_gen_tuple_v1)) is not None else 'equation-string'
         print(f"  Generating model matched: new registry idx={generating_utility_idx} "
               f"→ IC JSON idx={_ic_json_idx} (via {_match_method})")
 
-    "Mean param keys for the generating model: no _std, no tau (tau is fixed during generation)."
+    """
+    Build the generating model's utility parameter keys (excluding τ and _std).
+    τ is handled separately: when softmax_temperature is None (default), the empirically
+    fitted τ is included per participant; when a fixed temperature is specified, τ is
+    omitted from the pool and overridden uniformly at condition build time.
+    """
     general_settings_for_fitting = {
         **general_settings, 'update_method': 'naive', 'include_covariance': False,
     }
-    generating_param_keys = parameter_keys_for_utility_settings(
+    all_generating_param_keys = parameter_keys_for_utility_settings(
         utility_settings=generating_utility_settings,
         general_settings=general_settings_for_fitting,
     )
+    "Utility-only keys (no τ, no _std): used to verify completeness of extracted parameter vectors."
+    generating_utility_param_keys = [
+        param_key for param_key in all_generating_param_keys
+        if not param_key.endswith('_std') and param_key != 'τ'
+    ]
+
+    """
+    Backwards-compatibility remap for parameter names that were renamed in a prior codebase
+    version. Applied before key-matching so that IC JSON files written under old names still
+    populate the param_pool without falling through to uniform-sampling fallback.
+    """
+    _legacy_param_remap = {'Ƹᵢⱼ': 'αᵢⱼ', 'Ʒᵢⱼ': 'βᵢⱼ'}
 
     param_pool: List[dict] = []
     if generating_model_entry is not None:
@@ -1826,27 +1841,86 @@ def compute_model_recovery_simulation(
             raw_chooser_params = player_entry.get('params', {}).get('chooser', None)
             if raw_chooser_params is None:
                 continue
+            raw_chooser_params = {
+                _legacy_param_remap.get(param_key, param_key): param_val
+                for param_key, param_val in raw_chooser_params.items()
+            }
             clean_params = {
                 param_key: float(param_val)
                 for param_key, param_val in raw_chooser_params.items()
-                if param_key in generating_param_keys
-                and not param_key.endswith('_std')
-                and param_key != 'τ'
+                if param_key in generating_utility_param_keys
             }
-            if len(clean_params) == len(generating_param_keys):
+            "When using empirically fitted τ (default), include it in the pool entry."
+            if softmax_temperature is None and 'τ' in raw_chooser_params:
+                clean_params['τ'] = float(raw_chooser_params['τ'])
+            if len(clean_params) >= len(generating_utility_param_keys):
                 param_pool.append(clean_params)
 
+    "Strategy 3: per-player fit files (MemoryError fallback — same logic as run_population_recovery_bootstrap)."
+    if not param_pool and generating_model_entry is None:
+        _legacy_new_keys = frozenset(('include_welfare_efficiency_term', 'include_relative_income_penalty'))
+        _bitstring_14 = ''.join(
+            str(int(val))
+            for _, val in sorted(
+                (key, val) for key, val in generating_utility_settings.items()
+                if key not in _legacy_new_keys
+            )
+        )
+        _pf_dir_current  = os.path.join(str(file_paths['player_fits']), f'experiment_{experiment_num}')
+        _pf_dir_fallback = os.path.join(
+            r"C:\Users\Gregory Stanley\Desktop\U of M\Research Archive\Multiplayer"
+            r"\ABM_Simulation\Judgment_Game\Inputs\Iter_Binary_Dictator",
+            "player_fits", f"experiment_{experiment_num}",
+        )
+        for _pf_search_dir in (_pf_dir_current, _pf_dir_fallback):
+            if not os.path.isdir(_pf_search_dir):
+                continue
+            _pf_files = [f for f in os.listdir(_pf_search_dir)
+                         if _bitstring_14 in f and f.endswith('.json')]
+            if not _pf_files:
+                continue
+            print(f"  Loading {len(_pf_files)} per-player fit files "
+                  f"(bitstring={_bitstring_14}) from {pretty_path(_pf_search_dir)}")
+            for _pf_fname in sorted(_pf_files):
+                try:
+                    with open(os.path.join(_pf_search_dir, _pf_fname), 'r', encoding='utf-8') as _pf_f:
+                        _pf_data = json.load(_pf_f)
+                except Exception:
+                    continue
+                _dyad_keys = list(_pf_data.keys())
+                if not _dyad_keys:
+                    continue
+                _pe = _pf_data[_dyad_keys[0]][0].get('parameter_estimates', {})
+                _method_data = next(
+                    (_pe[m] for m in ('grid', 'particle', 'naive', 'update', 'globloc', 'bayes', 'general')
+                     if m in _pe), None,
+                )
+                if _method_data is None:
+                    continue
+                _raw_params = {
+                    _legacy_param_remap.get(param_key, param_key): param_val
+                    for param_key, param_val in _method_data.get('params', {}).get('chooser', {}).items()
+                }
+                clean_params = {
+                    param_key: float(param_val)
+                    for param_key, param_val in _raw_params.items()
+                    if param_key in generating_utility_param_keys
+                }
+                if softmax_temperature is None and 'τ' in _raw_params:
+                    clean_params['τ'] = float(_raw_params['τ'])
+                if len(clean_params) >= len(generating_utility_param_keys):
+                    param_pool.append(clean_params)
+            if param_pool:
+                print(f"  Loaded {len(param_pool)} participant parameter vectors "
+                      f"from per-player fit files.")
+                break
+
     if not param_pool:
-        # Two reasons we reach here:
-        # (a) generating_model_entry is None — the model was added after the last IC run
-        #     and genuinely has no entry in the IC JSON.
-        # (b) IC JSON param keys don't match current parameter names (older JSON).
-        # In both cases fall back to uniform sampling from param_bds.
-        # Recovery validity is unaffected: we are testing form recovery, not param fidelity.
+        "Strategy 4: uniform sampling — model absent from IC JSON (added after last IC run)."
         if generating_model_entry is None:
             print(
                 f"\n  Warning: generating model (registry idx={generating_utility_idx}) not "
-                f"found in IC JSON by truncated-tuple or equation-string search.\n"
+                f"found in IC JSON or per-player fit files.\n"
                 f"  This model was probably added after the last IC analysis run.\n"
                 f"  Falling back to uniform sampling from param_bds. Re-run "
                 f"information_criterion_analysis() to populate IC JSON with this model."
@@ -1855,32 +1929,54 @@ def compute_model_recovery_simulation(
             _sample_minvec = generating_model_entry.get('minvec', {})
             _first_player_entry = next(iter(_sample_minvec.values()), {}) if _sample_minvec else {}
             _ic_json_keys = list(_first_player_entry.get('params', {}).get('chooser', {}).keys())
+            _remapped_keys = [_legacy_param_remap.get(k, k) for k in _ic_json_keys]
             print(
                 f"\n  Warning: IC JSON chooser params for model {generating_utility_idx} use "
-                f"parameter names that do not match the current codebase.\n"
-                f"    IC JSON keys found:  {_ic_json_keys}\n"
-                f"    Current keys needed: {generating_param_keys}\n"
+                f"parameter names that do not match the current codebase after backwards-compat remap.\n"
+                f"    IC JSON keys (original):  {_ic_json_keys}\n"
+                f"    IC JSON keys (remapped):  {_remapped_keys}\n"
+                f"    Current keys needed:      {generating_utility_param_keys}\n"
                 f"  Falling back to uniform sampling from param_bds."
             )
-        _rng_for_pool = np.random.RandomState(random_seed)
+        _fallback_param_info = make_param_info(
+            param_bds=param_bds,
+            utility_settings=generating_utility_settings,
+            general_settings=general_settings_for_fitting,
+            guess_seed=random_seed,
+            random_guesses_are_unique=True,
+        )
         for _ in range(200):
-            _sample = {
-                param_key: float(_rng_for_pool.uniform(
-                    param_bds[param_key][0], param_bds[param_key][1]
-                ))
-                for param_key in generating_param_keys
-                if param_key in param_bds
+            sampled_parameter_values = _fallback_param_info['guesses']()
+            sampled_parameter_dict   = dict(zip(_fallback_param_info['keys'], sampled_parameter_values))
+            fallback_entry = {
+                param_key: param_val for param_key, param_val in sampled_parameter_dict.items()
+                if not param_key.endswith('_std')
             }
-            if len(_sample) == len(generating_param_keys):
-                param_pool.append(_sample)
+            param_pool.append(fallback_entry)
         if not param_pool:
             raise ValueError(
                 f"Could not build a parameter pool for generating model "
-                f"{generating_utility_idx}. Verify that all expected param keys are in "
-                f"param_bds.\n  Expected keys: {generating_param_keys}"
+                f"{generating_utility_idx}. Verify that all expected parameter keys are in "
+                f"param_bds.\n  Expected utility param keys: {generating_utility_param_keys}"
             )
     print(f"  Extracted {len(param_pool)} participant parameter vectors "
           f"for generating model {generating_utility_idx}.")
+
+    """
+    Sort candidate_models by k ascending so ic_position_to_registry_utility_idx matches the order
+    that information_criterion_analysis assigns to ic_df['idx']. The IC always re-sorts
+    utility_setting_varieties by count_free_parameters(setting, gs) before enumerating (analysis.py
+    lines 1667-1670), so position 0 = lowest k regardless of the order we pass them in.
+    We replicate that sort here using temperature_is_param=False, which is what the IC forces
+    (analysis.py line 1641) before running count_free_parameters.
+    """
+    _sort_gs = {**general_settings_for_fitting, 'temperature_is_param': False}
+    candidate_models = sorted(
+        candidate_models,
+        key=lambda entry: gnrl.count_free_parameters(
+            utility_settings=entry[1], general_settings=_sort_gs,
+        ),
+    )
 
     "Build the candidate utility settings list (for IC's utility_setting_varieties param)."
     candidate_utility_settings_list = [settings for _, settings in candidate_models]
@@ -1888,234 +1984,376 @@ def compute_model_recovery_simulation(
         position: utility_idx for position, (utility_idx, _) in enumerate(candidate_models)
     }
 
-    "Identify the histories filename IC will look for in the processed directory."
-    "experiment_num is already defined above in the IC JSON loading block."
-    _raw_histories_filename = file_paths['file_names'].get(
+    """
+    Histories filename that the IC pipeline looks for in the processed directory.
+    experiment_num is already set above in the IC JSON loading block. The base filename
+    (before any suffix added by add_remove_file_name_suffix) is used so create_simulated_experiment
+    writes to the same path the IC pipeline will read.
+    """
+    _raw_histories_filename  = file_paths['file_names'].get(
         f'player_pairs_exper{experiment_num}',
         f'Social_Preference_Prediction_Pairs_Exper{experiment_num}.json',
     )
-    "Strip any suffix that may have been added by add_remove_file_name_suffix."
     histories_filename_clean = _raw_histories_filename.split('~')[0]
-
-    "Generate synthetic data for n_agents_max agents × n_games_max games (done once; sliced per condition)."
-    print(f"\nGenerating synthetic data: {n_agents_max} agents × {n_games_max} games ...")
-    random_state = np.random.RandomState(random_seed)
-    all_synthetic_agent_dyads: List[dict] = []
-
-    for agent_idx in range(n_agents_max):
-        pool_sample_index = random_state.randint(len(param_pool))
-        generating_params = dict(param_pool[pool_sample_index])
-        generating_params['τ'] = softmax_temperature
-
-        "Seed per-agent RNG only when a master seed is set; None means unseeded."
-        if random_seed is not None:
-            random.seed(random_seed + agent_idx * 1000)
-            np.random.seed(random_seed + agent_idx * 1000)
-
-        dyad_data = create_simulated_dyad(
-            n_games=n_games_max,
-            params_chooser=generating_params,
-            params_predictor=generating_params,
-            general_settings=general_settings,
-            utility_settings=generating_utility_settings,
-            param_bds=param_bds,
-            default_utility_settings=False,
-            dynamic_predictor=False,
-            player_1_uuid=f"synthetic_agent_{agent_idx}_chooser",
-            player_2_uuid=f"synthetic_agent_{agent_idx}_predictor",
-        )
-        all_synthetic_agent_dyads.append(dyad_data)
-
-        if (agent_idx + 1) % 20 == 0 or (agent_idx + 1) == n_agents_max:
-            print(f"  Generated {agent_idx + 1}/{n_agents_max} agents.")
-
-    "Save max-scale synthetic data for reference and auditing."
-    max_scale_synthetic_json  = _build_synthetic_histories_json(
-        all_synthetic_agent_dyads, n_agents_max, n_games_max
-    )
-    max_scale_synthetic_path  = os.path.join(processed_dir, f'{_stem}_synthetic_data.json')
-    with open(max_scale_synthetic_path, 'w', encoding='utf-8') as _max_scale_file:
-        json.dump(max_scale_synthetic_json, _max_scale_file, ensure_ascii=False)
-    print(f"Max-scale synthetic data saved: {pretty_path(max_scale_synthetic_path)}")
 
     total_start_time = time.time()
 
-    def _dist_lookup(matrix_df, from_uid, to_uid):
-        if matrix_df is None:
+    def _dist_lookup(distance_matrix_df, from_uid, to_uid):
+        if distance_matrix_df is None:
             return float('nan')
         try:
-            return float(matrix_df.loc[int(from_uid), int(to_uid)])
+            return float(distance_matrix_df.loc[int(from_uid), int(to_uid)])
         except (KeyError, ValueError):
             return float('nan')
 
-    for n_agents_value in n_agents_grid:
-        for n_games_value in n_games_grid:
-            if (n_games_value, n_agents_value) in completed_conditions:
-                print(f"[n_agents={n_agents_value}, n_games={n_games_value}] "
-                      f"Already complete; skipping.")
-                continue
+    for simulation_iteration_idx in range(n_simulation_iterations):
 
-            condition_start_time = time.time()
-            print(f"\n[n_agents={n_agents_value}, n_games={n_games_value}] "
-                  f"Running information_criterion_analysis on "
-                  f"{len(candidate_models)} candidate models × {n_agents_value} synthetic agents ...")
+        print(f"\n{'=' * 70}")
+        print(f"Model recovery simulation — iteration {simulation_iteration_idx + 1}/{n_simulation_iterations}")
+        print(f"{'=' * 70}")
 
-            "Write condition-specific synthetic histories JSON."
-            "Use _dir_key (8-char MD5) + abbreviated condition key to stay under Windows MAX_PATH."
-            _cond_key           = f"na{n_agents_value}_ng{n_games_value}"
-            condition_histories_json = _build_synthetic_histories_json(
-                all_synthetic_agent_dyads, n_agents_value, n_games_value
-            )
-            condition_base_dir      = os.path.join(
-                processed_dir, 'model_recovery_synthetic', _dir_key, _cond_key,
-            )
-            condition_processed_dir = os.path.join(condition_base_dir, 'processed')
-            os.makedirs(condition_processed_dir, exist_ok=True)
-            condition_histories_path = os.path.join(condition_processed_dir, 'histories.json')
-            with open(condition_histories_path, 'w', encoding='utf-8') as _cond_hist_file:
-                json.dump(condition_histories_json, _cond_hist_file, ensure_ascii=False)
+        for n_agents_value in n_agents_grid:
+            for n_games_value in n_games_grid:
+                if (simulation_iteration_idx, n_games_value, n_agents_value) in completed_conditions:
+                    print(f"[iter={simulation_iteration_idx + 1}, n_agents={n_agents_value}, "
+                          f"n_games={n_games_value}] Already complete; skipping.")
+                    continue
 
-            "Build file_paths for the IC call, redirecting outputs to the condition directory."
-            condition_file_paths = _copy.deepcopy(file_paths)
-            condition_file_paths['processed']   = condition_processed_dir
-            condition_file_paths['param_data']  = os.path.join(condition_base_dir, 'param_data')
-            condition_file_paths['player_fits'] = os.path.join(
-                str(file_paths['simulations']), 'model_recovery_simulation',
-                _dir_key, _cond_key,
-            )
-            condition_file_paths['bic_aic']     = os.path.join(condition_base_dir, 'bic_aic')
-            condition_file_paths['file_names']  = _copy.deepcopy(file_paths['file_names'])
-            condition_file_paths['file_names'][f'player_pairs_exper{experiment_num}'] = 'histories.json'
+                if n_games_value < 4:
+                    print(f"[iter={simulation_iteration_idx + 1}, n_agents={n_agents_value}, "
+                          f"n_games={n_games_value}] Skipping — n_games must be ≥ 4. "
+                          f"(The 4-player batch structure requires distributing n_games across "
+                          f"6 pairs; n_games < 4 leaves most pairs with 0 games.)")
+                    continue
 
-            "Build general_settings for the IC call."
-            condition_general_settings = {
-                **general_settings,
-                'write_mode':           'resume',  # enables within-condition resume on restart
-                'temperature_is_param': False,     # IC fits with fixed tau
-                'update_method':        'naive',   # static (non-dynamic) belief updating
-            }
+                condition_start_time = time.time()
+                print(f"\n[iter={simulation_iteration_idx + 1}, n_agents={n_agents_value}, "
+                      f"n_games={n_games_value}] Generating synthetic data and running IC "
+                      f"on {len(candidate_models)} candidate models ...")
 
-            "Call information_criterion_analysis on the synthetic data."
-            ic_df, _ = information_criterion_analysis(
-                general_settings=condition_general_settings,
-                utility_settings=utility_settings,
-                file_paths=condition_file_paths,
-                param_bds=param_bds,
-                utility_setting_varieties=candidate_utility_settings_list,
-            )
-
-            "Map IC's enumerate-position idx back to registry utility_idx, then add recovery columns."
-            ic_df = ic_df.copy()
-            ic_df['utility_idx'] = ic_df['idx'].map(ic_position_to_registry_utility_idx)
-            ic_df = ic_df.sort_values('BIC', ascending=True).reset_index(drop=True)
-            ic_df['bic_rank_overall'] = range(1, len(ic_df) + 1)
-            ic_df['n_agents_fitted']  = n_agents_value
-            ic_df['n_games_fitted']   = n_games_value
-            ic_df['true_utility_idx'] = generating_utility_idx
-            ic_df['is_generating_model'] = ic_df['utility_idx'] == generating_utility_idx
-
-            gen_mask = ic_df['is_generating_model']
-            if gen_mask.any():
-                generating_model_bic_rank = int(ic_df.loc[gen_mask, 'bic_rank_overall'].iloc[0])
-                recovered                 = generating_model_bic_rank == 1
-            else:
-                generating_model_bic_rank = None
-                recovered                 = False
-            ic_df['recovered'] = recovered
-
-            "Continuous recovery distance metrics."
-            _n_cands      = len(ic_df)
-            _bic_rank_true = (
-                generating_model_bic_rank if generating_model_bic_rank is not None
-                else _n_cands
-            )
-            _rank_pct_true = 1.0 - (_bic_rank_true - 1) / max(_n_cands - 1, 1)
-
-            _winner_rows = ic_df[ic_df['bic_rank_overall'] == 1]
-            _winner_uid  = (
-                int(_winner_rows.iloc[0]['utility_idx'])
-                if len(_winner_rows) > 0 else None
-            )
-
-            ic_df['ampd_to_truth'] = ic_df['utility_idx'].apply(
-                lambda uid: _dist_lookup(ampd_metrics_df, uid, generating_utility_idx)
-            )
-            ic_df['cond_hamming_to_truth'] = ic_df['utility_idx'].apply(
-                lambda uid: _dist_lookup(cond_hamming_metrics_df, uid, generating_utility_idx)
-            )
-
-            _ampd_winner         = _dist_lookup(ampd_metrics_df,         _winner_uid, generating_utility_idx)
-            _cond_hamming_winner = _dist_lookup(cond_hamming_metrics_df, _winner_uid, generating_utility_idx)
-
-            from scipy.stats import spearmanr as _spearmanr
-            _valid_mask_a = ic_df['ampd_to_truth'].notna()
-            if _valid_mask_a.sum() >= 3:
-                _rho_a, _pval_a = _spearmanr(
-                    ic_df.loc[_valid_mask_a, 'bic_rank_overall'],
-                    ic_df.loc[_valid_mask_a, 'ampd_to_truth'],
+                """
+                Each (iteration, n_agents, n_games) condition generates fresh independent
+                synthetic data via create_simulated_experiment, which produces output in the
+                same JSON format as the real experiment. The uuid_tag encodes both n_games and
+                n_agents so that player fit files written by the IC pipeline never collide across
+                conditions even if the player_fits directory is shared.
+                """
+                condition_seed = (
+                    (random_seed if random_seed is not None else 0)
+                    + simulation_iteration_idx * 100_000
+                    + n_games_value * 100
+                    + n_agents_value
                 )
-                _spear_r, _spear_p = float(_rho_a), float(_pval_a)
-            else:
-                _spear_r, _spear_p = float('nan'), float('nan')
+                condition_key     = f"iter{simulation_iteration_idx}_na{n_agents_value}_ng{n_games_value}"
+                condition_tag     = f"mr{n_games_value}g{n_agents_value}a"
+                condition_rng     = np.random.default_rng(seed=condition_seed)
 
-            _valid_mask_h = ic_df['cond_hamming_to_truth'].notna()
-            if _valid_mask_h.sum() >= 3:
-                _rho_h, _pval_h = _spearmanr(
-                    ic_df.loc[_valid_mask_h, 'bic_rank_overall'],
-                    ic_df.loc[_valid_mask_h, 'cond_hamming_to_truth'],
+                "Build empirical parameter dicts for this condition's synthetic participants."
+                _pool_size = len(param_pool)
+                condition_param_pool_entries = [
+                    param_pool[int(condition_rng.integers(0, _pool_size))]
+                    for _ in range(n_agents_value)
+                ]
+                empirical_chooser_parameters_for_condition = {
+                    f"mrpx_{condition_tag}_{participant_idx:04d}": dict(pool_entry)
+                    for participant_idx, pool_entry in enumerate(condition_param_pool_entries)
+                }
+                "Use same parameters for predictors — both roles model the same generating utility function."
+                empirical_predictor_parameters_for_condition = dict(
+                    empirical_chooser_parameters_for_condition
                 )
-                _ch_spear_r, _ch_spear_p = float(_rho_h), float(_pval_h)
-            else:
-                _ch_spear_r, _ch_spear_p = float('nan'), float('nan')
 
-            ic_df['bic_rank_true_model']           = _bic_rank_true
-            ic_df['rank_percentile_true_model']     = _rank_pct_true
-            ic_df['ampd_winner_to_truth']           = _ampd_winner
-            ic_df['cond_hamming_winner_to_truth']   = _cond_hamming_winner
-            ic_df['ampd_rank_spearman_r']           = _spear_r
-            ic_df['ampd_rank_spearman_p']           = _spear_p
-            ic_df['cond_hamming_rank_spearman_r']   = _ch_spear_r
-            ic_df['cond_hamming_rank_spearman_p']   = _ch_spear_p
+                """
+                write_mode='overwrite' ensures the IC pipeline discards any stale IC files from
+                prior failed runs. Stale files from 0-player runs contain minvec=null (written
+                explicitly by the n_data==0 branch in analysis.py), which would poison the resume
+                path. Outer-loop condition resume is handled by the partial CSV, not by IC files.
+                """
+                condition_general_settings = {
+                    **general_settings,
+                    'write_mode':  'overwrite',
+                    'update_method': 'naive',  # matches the real IC analysis default
+                    'create_new_file': True,   # fresh synthetic data each run
+                }
+                if softmax_temperature is not None:
+                    "User specified τ: override all per-participant τ; IC uses fixed τ."
+                    for participant_params in empirical_chooser_parameters_for_condition.values():
+                        participant_params['τ'] = softmax_temperature
+                    for participant_params in empirical_predictor_parameters_for_condition.values():
+                        participant_params['τ'] = softmax_temperature
+                    condition_general_settings['temperature_is_param'] = False
+                    condition_general_settings['softmax_temperature']  = softmax_temperature
+                else:
+                    """
+                    Fitted τ per participant: IC also fits τ, mirroring the real IC pipeline.
+                    Participants whose empirical params include τ use it directly; those without
+                    τ fall back to condition_general_settings['softmax_temperature'].
+                    """
+                    condition_general_settings['temperature_is_param'] = general_settings.get(
+                        'temperature_is_param', True,
+                    )
 
-            "Select and rename columns for the output CSV."
-            _output_col_map = {
-                'loss': 'nll_population', 'AIC': 'aic_population',
-                'BIC': 'bic_population',  'ΔBIC': 'delta_bic', 'n_data': 'n_data_population',
-            }
-            _keep_cols = [
-                'n_agents_fitted', 'n_games_fitted', 'utility_idx', 'true_utility_idx',
-                'bic_rank_overall', 'is_generating_model', 'recovered',
-                'loss', 'k_params', 'AIC', 'BIC', 'ΔBIC', 'n_data',
-                'ampd_to_truth', 'cond_hamming_to_truth',
-                'bic_rank_true_model', 'rank_percentile_true_model',
-                'ampd_winner_to_truth', 'cond_hamming_winner_to_truth',
-                'ampd_rank_spearman_r', 'ampd_rank_spearman_p',
-                'cond_hamming_rank_spearman_r', 'cond_hamming_rank_spearman_p',
-            ]
-            condition_df = ic_df[[col for col in _keep_cols if col in ic_df.columns]].copy()
-            condition_df.rename(columns=_output_col_map, inplace=True)
+                "Build condition-specific file_paths redirecting IC outputs to the condition directory."
+                condition_base_dir      = os.path.join(
+                    processed_dir, 'model_recovery_synthetic', _dir_key, condition_key,
+                )
+                condition_processed_dir = os.path.join(condition_base_dir, 'processed')
+                os.makedirs(condition_processed_dir, exist_ok=True)
+                condition_file_paths = _copy.deepcopy(file_paths)
+                condition_file_paths['processed']   = condition_processed_dir
+                condition_file_paths['param_data']  = os.path.join(condition_base_dir, 'param_data')
+                condition_file_paths['player_fits'] = os.path.join(
+                    str(file_paths['simulations']), 'model_recovery_simulation',
+                    _dir_key, condition_key,
+                )
+                condition_file_paths['bic_aic']    = os.path.join(condition_base_dir, 'bic_aic')
+                condition_file_paths['file_names'] = _copy.deepcopy(file_paths['file_names'])
+                condition_file_paths['file_names'][f'player_pairs_exper{experiment_num}'] = (
+                    histories_filename_clean
+                )
 
-            "Append completed condition to partial CSV (enables mid-run resume on restart)."
-            partial_write_header = not os.path.exists(partial_csv_path)
-            condition_df.to_csv(
-                partial_csv_path, mode='a', header=partial_write_header,
-                index=False, encoding='utf-8-sig',
-            )
-            accumulated_dataframes.append(condition_df)
+                "Generate fresh synthetic data for this condition via create_simulated_experiment."
+                create_simulated_experiment(
+                    n_players=n_agents_value,
+                    n_games=n_games_value,
+                    k_params=generating_k_params,
+                    utility_settings_k=generating_utility_settings,
+                    general_settings=condition_general_settings,
+                    param_bds=param_bds,
+                    random_gen=condition_rng,
+                    file_paths=condition_file_paths,
+                    empirical_chooser_parameters=empirical_chooser_parameters_for_condition,
+                    empirical_predictor_parameters=empirical_predictor_parameters_for_condition,
+                    uuid_tag=condition_tag,
+                    create_new_file=True,
+                )
 
-            condition_elapsed = time.time() - condition_start_time
-            _delta_bic_gen = (
-                float(ic_df.loc[gen_mask, 'ΔBIC'].iloc[0]) if gen_mask.any() else float('nan')
-            )
-            print(f"  -> recovered={recovered}  "
-                  f"rank={generating_model_bic_rank}/{len(candidate_models)}  "
-                  f"pct={_rank_pct_true:.2f}  "
-                  f"delta_bic={_delta_bic_gen:.1f}  "
-                  f"ampd_winner={_ampd_winner:.3f}  "
-                  f"cond_hamming_winner={_cond_hamming_winner:.0f}  "
-                  f"ampd_r={_spear_r:.2f}  "
-                  f"ch_r={_ch_spear_r:.2f}  "
-                  f"time={_fmt_duration(condition_elapsed)}")
+                """
+                create_simulated_experiment writes player_type='synthetic', but information_criterion_analysis
+                hardcodes only_humans=True which filters to player_type='participant'. Patch the histories
+                file so the IC pipeline treats synthetic agents as participants.
+                """
+                _histories_file_path = os.path.join(
+                    condition_processed_dir,
+                    histories_filename_clean,
+                )
+                with open(_histories_file_path, 'r', encoding='utf-8') as _histories_read_handle:
+                    _histories_json_for_patch = json.load(_histories_read_handle)
+                for _patched_player_uuid in _histories_json_for_patch.get('player_info', {}):
+                    _histories_json_for_patch['player_info'][_patched_player_uuid]['player_type'] = 'participant'
+                with open(_histories_file_path, 'w', encoding='utf-8') as _histories_write_handle:
+                    json.dump(_histories_json_for_patch, _histories_write_handle, ensure_ascii=False, indent=4)
+
+                """
+                Pre-create the players_to_dyads mapping in the main process so parallel IC
+                workers always find a complete file and cannot race to create it simultaneously.
+                """
+                prep.players_to_dyads(
+                    experiment_num=experiment_num,
+                    file_paths=condition_file_paths,
+                    create_new_file=True,
+                )
+
+                """
+                Wipe any stale IC files from prior failed runs before calling the IC pipeline.
+                Stale files written when 0 players were found contain null for every list/dict
+                field (lvec, pvec, plvec, minvec). The overwrite-mode .clear() calls in
+                analysis.py crash on NoneType. Deleting the bic_aic dir is safe: the IC pipeline
+                recreates it via ensure_directory_and_join, and outer-loop resume uses the
+                partial CSV, not these files.
+                """
+                if os.path.isdir(condition_file_paths['bic_aic']):
+                    import shutil as _shutil_pre
+                    _shutil_pre.rmtree(condition_file_paths['bic_aic'])
+
+                "Call information_criterion_analysis on the synthetic data."
+                ic_df, _ = information_criterion_analysis(
+                    utility_setting_varieties=candidate_utility_settings_list,
+                    general_settings=condition_general_settings,
+                    utility_settings=utility_settings,
+                    file_paths=condition_file_paths,
+                    param_bds=param_bds,
+                )
+
+                "Map IC enumerate-position idx back to registry utility_idx; add recovery columns."
+                ic_df = ic_df.copy()
+                ic_df['utility_idx'] = ic_df['idx'].map(ic_position_to_registry_utility_idx)
+                ic_df = ic_df.sort_values(by='BIC', ascending=True).reset_index(drop=True)
+                ic_df['bic_rank_overall']     = range(1, len(ic_df) + 1)
+                ic_df['simulation_iteration'] = simulation_iteration_idx
+                ic_df['n_agents_fitted']      = n_agents_value
+                ic_df['n_games_fitted']       = n_games_value
+                ic_df['true_utility_idx']     = generating_utility_idx
+                ic_df['is_generating_model']  = ic_df['utility_idx'] == generating_utility_idx
+
+                "NLL rank (data-fit quality without complexity penalty)."
+                if 'loss' in ic_df.columns:
+                    ic_df['nll_rank_overall'] = (
+                        ic_df['loss'].rank(method='min', ascending=True).astype(int)
+                    )
+
+                gen_mask = ic_df['is_generating_model']
+                if gen_mask.any():
+                    generating_model_bic_rank = int(ic_df.loc[gen_mask, 'bic_rank_overall'].iloc[0])
+                    recovered                 = generating_model_bic_rank == 1
+                else:
+                    generating_model_bic_rank = None
+                    recovered                 = False
+                ic_df['recovered'] = recovered
+
+                "Continuous recovery distance metrics."
+                n_candidate_models_in_condition = len(ic_df)
+                bic_rank_true_model_value = (
+                    generating_model_bic_rank if generating_model_bic_rank is not None
+                    else n_candidate_models_in_condition
+                )
+                rank_percentile_value = (
+                    1.0 - (bic_rank_true_model_value - 1) / max(n_candidate_models_in_condition - 1, 1)
+                )
+
+                winner_rows       = ic_df[ic_df['bic_rank_overall'] == 1]
+                winner_utility_idx = (
+                    int(winner_rows.iloc[0]['utility_idx']) if len(winner_rows) > 0 else None
+                )
+
+                ic_df['ampd_to_truth'] = ic_df['utility_idx'].apply(
+                    lambda uid: _dist_lookup(
+                        distance_matrix_df=ampd_metrics_df,
+                        from_uid=uid,
+                        to_uid=generating_utility_idx,
+                    )
+                )
+                ic_df['cond_hamming_to_truth'] = ic_df['utility_idx'].apply(
+                    lambda uid: _dist_lookup(
+                        distance_matrix_df=cond_hamming_metrics_df,
+                        from_uid=uid,
+                        to_uid=generating_utility_idx,
+                    )
+                )
+
+                ampd_winner_to_truth_value = _dist_lookup(
+                    distance_matrix_df=ampd_metrics_df,
+                    from_uid=winner_utility_idx,
+                    to_uid=generating_utility_idx,
+                )
+                cond_hamming_winner_to_truth_value = _dist_lookup(
+                    distance_matrix_df=cond_hamming_metrics_df,
+                    from_uid=winner_utility_idx,
+                    to_uid=generating_utility_idx,
+                )
+
+                from scipy.stats import spearmanr as _spearmanr
+
+                valid_ampd_mask = ic_df['ampd_to_truth'].notna()
+                if valid_ampd_mask.sum() >= 3:
+                    ampd_rho, ampd_pval = _spearmanr(
+                        ic_df.loc[valid_ampd_mask, 'bic_rank_overall'],
+                        ic_df.loc[valid_ampd_mask, 'ampd_to_truth'],
+                    )
+                    ampd_spearman_r_value = float(ampd_rho)
+                    ampd_spearman_p_value = float(ampd_pval)
+                else:
+                    ampd_spearman_r_value = float('nan')
+                    ampd_spearman_p_value = float('nan')
+
+                "NLL-rank / AMPD Spearman: does NLL rank also track behavioral distance to truth?"
+                if 'nll_rank_overall' in ic_df.columns and valid_ampd_mask.sum() >= 3:
+                    nll_ampd_rho, nll_ampd_pval = _spearmanr(
+                        ic_df.loc[valid_ampd_mask, 'nll_rank_overall'],
+                        ic_df.loc[valid_ampd_mask, 'ampd_to_truth'],
+                    )
+                    nll_ampd_spearman_r_value = float(nll_ampd_rho)
+                else:
+                    nll_ampd_spearman_r_value = float('nan')
+
+                valid_cond_hamming_mask = ic_df['cond_hamming_to_truth'].notna()
+                if valid_cond_hamming_mask.sum() >= 3:
+                    cond_hamming_rho, cond_hamming_pval = _spearmanr(
+                        ic_df.loc[valid_cond_hamming_mask, 'bic_rank_overall'],
+                        ic_df.loc[valid_cond_hamming_mask, 'cond_hamming_to_truth'],
+                    )
+                    cond_hamming_spearman_r_value = float(cond_hamming_rho)
+                    cond_hamming_spearman_p_value = float(cond_hamming_pval)
+                else:
+                    cond_hamming_spearman_r_value = float('nan')
+                    cond_hamming_spearman_p_value = float('nan')
+
+                ic_df['bic_rank_true_model']           = bic_rank_true_model_value
+                ic_df['rank_percentile_true_model']    = rank_percentile_value
+                ic_df['ampd_winner_to_truth']          = ampd_winner_to_truth_value
+                ic_df['cond_hamming_winner_to_truth']  = cond_hamming_winner_to_truth_value
+                ic_df['ampd_rank_spearman_r']          = ampd_spearman_r_value
+                ic_df['ampd_rank_spearman_p']          = ampd_spearman_p_value
+                ic_df['nll_ampd_rank_spearman_r']      = nll_ampd_spearman_r_value
+                ic_df['cond_hamming_rank_spearman_r']  = cond_hamming_spearman_r_value
+                ic_df['cond_hamming_rank_spearman_p']  = cond_hamming_spearman_p_value
+
+                "NLL rank of the true generating model."
+                if 'nll_rank_overall' in ic_df.columns and gen_mask.any():
+                    ic_df['nll_rank_true_model'] = int(
+                        ic_df.loc[gen_mask, 'nll_rank_overall'].iloc[0]
+                    )
+                elif 'nll_rank_overall' in ic_df.columns:
+                    ic_df['nll_rank_true_model'] = n_candidate_models_in_condition
+
+                "Select and rename columns for the output CSV."
+                output_column_rename_map = {
+                    'loss': 'nll_population', 'AIC': 'aic_population',
+                    'BIC': 'bic_population',  'ΔBIC': 'delta_bic', 'n_data': 'n_data_population',
+                }
+                keep_columns = [
+                    'simulation_iteration', 'n_agents_fitted', 'n_games_fitted', 'utility_idx', 
+                    'true_utility_idx', 'bic_rank_overall', 'nll_rank_overall', 'is_generating_model', 
+                    'recovered', 'loss', 'k_params', 'AIC', 'BIC', 'ΔBIC', 'n_data', 'ampd_to_truth', 
+                    'cond_hamming_to_truth', 'bic_rank_true_model', 'nll_rank_true_model', 'rank_percentile_true_model',
+                    'ampd_winner_to_truth', 'cond_hamming_winner_to_truth', 'ampd_rank_spearman_r', 'ampd_rank_spearman_p',
+                    'nll_ampd_rank_spearman_r', 'cond_hamming_rank_spearman_r', 'cond_hamming_rank_spearman_p',
+                ]
+                condition_df = ic_df[[col for col in keep_columns if col in ic_df.columns]].copy()
+                condition_df.rename(columns=output_column_rename_map, inplace=True)
+
+                "Append completed condition to partial CSV (enables mid-run resume on restart)."
+                partial_write_header = not os.path.exists(partial_csv_path)
+                condition_df.to_csv(
+                    partial_csv_path, mode='a', header=partial_write_header,
+                    index=False, encoding='utf-8-sig',
+                )
+                accumulated_dataframes.append(condition_df)
+
+                condition_elapsed                = time.time() - condition_start_time
+                delta_bic_generating_model       = (
+                    float(ic_df.loc[gen_mask, 'ΔBIC'].iloc[0]) if gen_mask.any() else float('nan')
+                )
+                n_conditions_total = n_simulation_iterations * len(n_agents_grid) * len(n_games_grid)
+                n_conditions_done  = len(completed_conditions) + len(accumulated_dataframes)
+                print(
+                    f"  [iter={simulation_iteration_idx + 1}, n_games={n_games_value}, "
+                    f"n_agents={n_agents_value}]  "
+                    f"Condition {n_conditions_done}/{n_conditions_total} complete  "
+                    f"({_fmt_duration(condition_elapsed)})  |  "
+                    f"recovered={recovered}  "
+                    f"BIC rank={generating_model_bic_rank}/{len(candidate_models)}  "
+                    f"pct={rank_percentile_value:.2f}  "
+                    f"delta_bic={delta_bic_generating_model:.1f}  "
+                    f"ampd_w2t={ampd_winner_to_truth_value:.4f}  "
+                    f"ch_w2t={cond_hamming_winner_to_truth_value:.1f}  "
+                    f"ampd_r={ampd_spearman_r_value:.2f}  "
+                    f"ch_r={cond_hamming_spearman_r_value:.2f}"
+                )
+                if recovered and (ampd_winner_to_truth_value is not None
+                                  and ampd_winner_to_truth_value == ampd_winner_to_truth_value
+                                  and ampd_winner_to_truth_value > 1e-6):
+                    _in_ampd_index = (
+                        ampd_metrics_df is not None
+                        and generating_utility_idx in ampd_metrics_df.index
+                    )
+                    print(
+                        f"    !! recovered=True but AMPD winner→truth = {ampd_winner_to_truth_value:.4f}  "
+                        f"(expected 0 — winner_utility_idx={winner_utility_idx}, "
+                        f"generating_utility_idx={generating_utility_idx}, "
+                        f"equal={winner_utility_idx == generating_utility_idx}, "
+                        f"generating_uid in AMPD index={_in_ampd_index})"
+                    )
 
     "Combine all conditions, write final CSV, delete partial."
     all_results_df = (
@@ -2123,26 +2361,57 @@ def compute_model_recovery_simulation(
         if accumulated_dataframes else pd.DataFrame()
     )
     all_results_df.to_csv(output_csv_path, index=False, encoding='utf-8-sig')
-    print(f"\nModel recovery simulation saved: {pretty_path(output_csv_path)}  ({len(all_results_df)} rows)")
+    print(f"\nModel recovery simulation complete: {pretty_path(output_csv_path)}  ({len(all_results_df)} rows)")
     print(f"Total time: {_fmt_duration(time.time() - total_start_time)}")
 
     if os.path.exists(partial_csv_path):
         os.remove(partial_csv_path)
 
+    "Delete condition-specific synthetic data and IC fit files to prevent disk clutter."
+    if cleanup_synthetic_data:
+        import shutil as _shutil
+        _synthetic_base_dir = os.path.join(processed_dir, 'model_recovery_synthetic', _dir_key)
+        if os.path.isdir(_synthetic_base_dir):
+            _shutil.rmtree(_synthetic_base_dir)
+            print(f"Synthetic data directories cleaned up: {pretty_path(_synthetic_base_dir)}")
+        _sim_fits_base_dir = os.path.join(
+            str(file_paths['simulations']), 'model_recovery_simulation', _dir_key
+        )
+        if os.path.isdir(_sim_fits_base_dir):
+            _shutil.rmtree(_sim_fits_base_dir)
+            print(f"Synthetic fit files cleaned up: {pretty_path(_sim_fits_base_dir)}")
+
+    plot_model_recovery_simulation(
+        general_settings=general_settings,
+        figure_layout=figure_layout or {},
+        generating_model=generating_utility_idx,
+        n_candidate_models=n_candidate_models,
+        candidate_model_selection_mode=candidate_model_selection_mode,
+        softmax_temperature=softmax_temperature,
+        n_simulation_iterations=n_simulation_iterations,
+        n_agents_grid=n_agents_grid,
+        n_games_grid=n_games_grid,
+        random_seed=random_seed,
+        file_paths=file_paths,
+    )
+
     return all_results_df
 
 
 def plot_model_recovery_simulation(
-    general_settings: dict,
-    file_paths: dict,
-    figure_layout: dict,
-    generating_model=None,
-    n_candidate_models=None,
-    candidate_model_selection_mode=None,
-    softmax_temperature=None,
-    n_agents_grid=None,
-    n_games_grid=None,
-    random_seed=None,
+    general_settings: GeneralSettings,
+    file_paths: FilePaths,
+    figure_layout: FigLay,
+    generating_model:               Optional[Union[int, str, Tuple, UtilitySettings]] = None,
+    n_candidate_models:             Optional[int] = None,
+    candidate_model_selection_mode: Optional[str] = None,
+    softmax_temperature:            Optional[float] = None,
+    n_simulation_iterations:        int = 1,
+    n_agents_grid:                  Optional[List[int]] = None,
+    n_games_grid:                   Optional[List[int]] = None,
+    random_seed:                    Optional[int] = None,
+    show_nll_metrics:               bool = False,
+    show_debug_metrics:             bool = False,
     export_fig: bool = True,
 ) -> 'go.Figure':
     """
@@ -2151,34 +2420,43 @@ def plot_model_recovery_simulation(
     Locates the correct CSV using the same parameter-encoded stem as
     compute_model_recovery_simulation. A dropdown menu selects what is plotted:
 
-    • First option (default): ALL METRICS NORMALIZED — all eight recovery metrics
-      on a shared [0,1] y-axis. Each metric is mapped to [0,1] so that 1 = perfect
-      recovery and 0 = worst possible outcome. Each metric gets a distinct color;
-      dash style distinguishes n_agents groups. Hover shows both normalized and raw values.
+    • First option (default): ALL METRICS NORMALIZED — four core recovery metrics on a
+      shared [0,1] y-axis, each mapped so 1 = perfect recovery. Each metric gets a
+      distinct color; dash style distinguishes n_agents groups. Hover shows both
+      normalized and raw values. When show_debug_metrics=True, four additional diagnostic
+      metrics are added (Recovered, Rank pct, BIC rank, ΔBIC).
 
-    • Options 2–9: individual metrics on their natural y-axis (raw values).
+    • Remaining dropdown options: individual metrics on their natural y-axis (raw values).
 
     Normalization functions applied in the "all metrics" view:
       recovered              → identity (already 0/1)
       rank_percentile        → identity (already 0–1)
       bic_rank               → (n_candidates - rank) / (n_candidates - 1)
       delta_bic              → 1 / (1 + delta_bic)   [1 at delta=0, decays as gap grows]
-      ampd_winner_to_truth          → 1 - ampd                    [invert: 0=identical=best]
-      cond_hamming_winner_to_truth  → 1 - cond_hamming / 14        [invert, 14 = max live flags]
-      ampd_rank_spearman_r          → (r + 1) / 2                  [map [-1,1] → [0,1]]
-      cond_hamming_rank_spearman_r  → (r + 1) / 2                  [map [-1,1] → [0,1]]
+      ampd_winner_to_truth          → 1 − AMPD                    [invert: 0=identical=best]
+      cond_hamming_winner_to_truth  → 1 − Hamming / 14            [invert, 14 = max live flags]
+      ampd_rank_spearman_r          → (𝑟 + 1) / 2                 [map [-1,1] → [0,1]]
+      cond_hamming_rank_spearman_r  → (𝑟 + 1) / 2                 [map [-1,1] → [0,1]]
 
     Arguments:
         • general_settings: dict; accepted for API consistency (not currently used).
         • file_paths: dict; must contain 'processed' and 'visuals'.
         • figure_layout: dict; layout settings (template, font, title_size, base_hue).
-        • generating_model: int; utility_idx of the generating model (default 443).
-        • n_candidate_models: int | None; must match the value used in compute (default 100).
+        • generating_model: int | UtilitySettings; must match compute (defaults to utility_settings).
+        • n_candidate_models: int | None; must match compute (default 100).
         • candidate_model_selection_mode: str; must match compute (default 'hamming').
-        • softmax_temperature: float; must match compute (default 0.5).
+        • softmax_temperature: float | None; must match compute (default None = fitted τ).
+        • n_simulation_iterations: int; must match compute (default 1).
         • n_agents_grid: list[int] | None; must match compute (default [73]).
-        • n_games_grid: list[int] | None; must match compute (default [20,40,60,90,120,180,240]).
-        • random_seed: int; must match compute (default 42).
+        • n_games_grid: list[int] | None; must match compute (default [30,60,90,120,150]).
+        • random_seed: int | None; must match compute (default 42).
+        • show_nll_metrics: bool; when True, add NLL-based metric series to the dropdown.
+            NLL metrics are hidden by default to avoid overloading the figure — enable for
+            comparison with BIC-based metrics. Default False.
+        • show_debug_metrics: bool; when True, add four diagnostic metrics (Recovered,
+            Rank pct, BIC rank, ΔBIC) to the metric list. Default False — the default view
+            shows only the four core metrics (AMPD winner ⟶ truth, Hamming winner ⟶ truth,
+            AMPD rank 𝑟, Hamming rank 𝑟), which together fully capture recovery.
         • export_fig: bool; if True, writes HTML to visuals/.
 
     Returns:
@@ -2186,19 +2464,26 @@ def plot_model_recovery_simulation(
     """
     "Resolve settings: explicit kwargs take priority; fall back to general_settings nested dict."
     mr = general_settings.get('model_recovery_settings', {})
-    if generating_model               is None: generating_model               = mr.get('generating_model', 443)
+    if generating_model               is None: generating_model               = mr.get('generating_model', general_settings.get('utility_settings'))
     if n_candidate_models             is None: n_candidate_models             = mr.get('n_candidate_models', 100)
     if candidate_model_selection_mode is None: candidate_model_selection_mode = mr.get('candidate_model_selection_mode', 'hamming')
-    if softmax_temperature            is None: softmax_temperature            = mr.get('softmax_temperature', 0.5)
+    if softmax_temperature            is None: softmax_temperature            = mr.get('softmax_temperature', None)
     if n_agents_grid                  is None: n_agents_grid                  = mr.get('n_agents_grid', None)
     if n_games_grid                   is None: n_games_grid                   = mr.get('n_games_grid', None)
     if random_seed                    is None: random_seed                    = mr.get('random_seed', 42)
+    n_simulation_iterations = max(1, int(mr.get('n_simulation_iterations', n_simulation_iterations)))
 
     if n_agents_grid is None:
         n_agents_grid = [73]
+    elif isinstance(n_agents_grid, int):
+        n_agents_grid = [n_agents_grid]
     if n_games_grid is None:
-        n_games_grid = [20, 40, 60, 90, 120, 180, 240]
-    generating_utility_idx = generating_model
+        n_games_grid = [30, 60, 90, 120, 150]
+    elif isinstance(n_games_grid, int):
+        n_games_grid = [n_games_grid]
+    generating_utility_idx = gnrl.convert_utility_settings(
+        generating_model, into=int, file_paths=file_paths, general_settings=general_settings
+    )
     _stem = _recovery_simulation_stem(
         generating_utility_idx=generating_utility_idx,
         n_candidate_models=n_candidate_models,
@@ -2207,6 +2492,7 @@ def plot_model_recovery_simulation(
         n_agents_grid=n_agents_grid,
         n_games_grid=n_games_grid,
         random_seed=random_seed,
+        n_simulation_iterations=n_simulation_iterations,
     )
     output_csv_path = os.path.join(str(file_paths['processed']), f'{_stem}.csv')
     all_results_df  = pd.read_csv(output_csv_path, encoding='utf-8-sig')
@@ -2223,12 +2509,71 @@ def plot_model_recovery_simulation(
     n_candidates        = all_results_df['utility_idx'].nunique()
     all_n_agents_values = sorted(all_results_df['n_agents_fitted'].unique())
     n_agents_count      = len(all_n_agents_values)
+    _max_n_agents       = max(all_n_agents_values)
 
-    _metric_configs = [
+    "Resolve generating model equation for the bottom-right annotation."
+    try:
+        _gen_util_settings = gnrl.convert_utility_settings(
+            generating_utility_idx, into=dict, file_paths=file_paths, general_settings=general_settings
+        )
+        _gen_equation = build_utility_equation(_gen_util_settings, option="A")
+    except Exception:
+        _gen_equation = f"Uᵢ(A) [model idx {generating_utility_idx}]"
+
+    _core_metric_configs = [
+        {
+            'col':         'ampd_winner_to_truth',
+            'short_label': 'AMPD winner ⟶ truth',
+            'label':       'AMPD distance: BIC winner ⟶ truth',
+            'hover_note':  '0 = winner IS the generating model; 1 = maximally distant. One-to-one (winner only)',
+            'better':      'lower',
+            'norm_desc':   '1 − AMPD',
+            'y_title':     'AMPD distance  (winner ⟶ truth;  0 = identical)',
+            'y_range':     [-0.02, 1.02],
+            'hover_fmt':   '.4f',
+        },
+        {
+            'col':         'cond_hamming_winner_to_truth',
+            'short_label': 'Hamming winner ⟶ truth',
+            'label':       'Hamming distance: BIC winner ⟶ truth',
+            'hover_note':  '0 = winner IS the generating model. Counts differing live flags only. One-to-one (winner only)',
+            'better':      'lower',
+            'norm_desc':   '1 − Hamming / 14',
+            'y_title':     'Hamming distance  (winner ⟶ truth;  live flags only)',
+            'y_range':     None,
+            'hover_fmt':   '.0f',
+        },
+        {
+            'col':         'ampd_rank_spearman_r',
+            'short_label': 'AMPD rank 𝑟',
+            'label':       'Spearman 𝑟: BIC rank ↔ AMPD distance to truth',
+            'hover_note':  '1 = BIC perfectly orders all candidates by AMPD proximity to truth. Uses all candidates.',
+            'better':      'higher',
+            'norm_desc':   '(𝑟 + 1) / 2',
+            'y_title':     'Spearman 𝑟: BIC rank ↔ AMPD to truth  (1 = perfectly ordered)',
+            'y_range':     [-1.05, 1.05],
+            'hover_fmt':   '.3f',
+        },
+        {
+            'col':         'cond_hamming_rank_spearman_r',
+            'short_label': 'Hamming rank 𝑟',
+            'label':       'Spearman 𝑟: BIC rank ↔ Hamming distance to truth',
+            'hover_note':  '1 = BIC perfectly orders all candidates by structural proximity to truth. Uses all candidates.',
+            'better':      'higher',
+            'norm_desc':   '(𝑟 + 1) / 2',
+            'y_title':     'Spearman 𝑟: BIC rank ↔ Hamming to truth  (1 = perfectly ordered)',
+            'y_range':     [-1.05, 1.05],
+            'hover_fmt':   '.3f',
+        },
+    ]
+
+    _debug_metric_configs = [
         {
             'col':         'recovered',
             'short_label': 'Recovered',
-            'label':       'Recovered (population BIC winner)',
+            'label':       'Recovered — generating model is BIC rank 1',
+            'hover_note':  '1 = generating model won; 0 = it did not',
+            'better':      'higher',
             'norm_desc':   'identity',
             'y_title':     'Recovery  (1 = generating model wins population BIC)',
             'y_range':     [-0.05, 1.05],
@@ -2239,7 +2584,9 @@ def plot_model_recovery_simulation(
         {
             'col':         'rank_percentile_true_model',
             'short_label': 'Rank pct',
-            'label':       'Rank percentile of true model',
+            'label':       'BIC rank percentile of generating model',
+            'hover_note':  '1.0 = ranked #1 of all candidates; 0 = ranked last',
+            'better':      'higher',
             'norm_desc':   'identity',
             'y_title':     'Rank percentile  (1.0 = truth ranked #1)',
             'y_range':     [-0.05, 1.05],
@@ -2247,8 +2594,10 @@ def plot_model_recovery_simulation(
         },
         {
             'col':         'bic_rank_true_model',
-            'short_label': 'BIC rank (norm.)',
-            'label':       'BIC rank of true model',
+            'short_label': 'BIC rank',
+            'label':       'BIC rank of generating model (raw)',
+            'hover_note':  f'1 = best fit; {n_candidates} = worst — lower is better',
+            'better':      'lower',
             'norm_desc':   '(n_cands − rank) / (n_cands − 1)',
             'y_title':     f'BIC rank of generating model  (1 = best of {n_candidates})',
             'y_range':     None,
@@ -2256,50 +2605,18 @@ def plot_model_recovery_simulation(
         },
         {
             'col':         'delta_bic',
-            'short_label': 'ΔBIC (inv.)',
-            'label':       'ΔBIC: true model vs winner',
+            'short_label': 'ΔBIC truth vs winner',
+            'label':       'ΔBIC: generating model minus BIC winner',
+            'hover_note':  '0 = generating model IS the winner; higher = further behind',
+            'better':      'lower',
             'norm_desc':   '1 / (1 + ΔBIC)',
-            'y_title':     'ΔBIC of generating model  (0 = exact recovery)',
+            'y_title':     'ΔBIC of generating model vs winner  (0 = exact recovery)',
             'y_range':     None,
             'hover_fmt':   '.1f',
         },
-        {
-            'col':         'ampd_winner_to_truth',
-            'short_label': 'AMPD (inv.)',
-            'label':       'AMPD: winner → truth',
-            'norm_desc':   '1 − AMPD',
-            'y_title':     'AMPD behavioral distance  (winner → truth;  0 = identical)',
-            'y_range':     [-0.02, 1.02],
-            'hover_fmt':   '.4f',
-        },
-        {
-            'col':         'cond_hamming_winner_to_truth',
-            'short_label': 'Cond. Hamming (inv.)',
-            'label':       'Conditional Hamming: winner → truth',
-            'norm_desc':   '1 − cond_hamming / 14',
-            'y_title':     'Conditional Hamming distance  (winner → truth;  live flags only)',
-            'y_range':     None,
-            'hover_fmt':   '.0f',
-        },
-        {
-            'col':         'ampd_rank_spearman_r',
-            'short_label': 'AMPD Spearman r',
-            'label':       'AMPD rank-distance Spearman r',
-            'norm_desc':   '(r + 1) / 2',
-            'y_title':     'Spearman r: BIC rank ↔ AMPD-to-truth  (1 = perfectly ordered)',
-            'y_range':     [-1.05, 1.05],
-            'hover_fmt':   '.3f',
-        },
-        {
-            'col':         'cond_hamming_rank_spearman_r',
-            'short_label': 'Cond. Hamming Spearman r',
-            'label':       'Conditional Hamming rank-distance Spearman r',
-            'norm_desc':   '(r + 1) / 2',
-            'y_title':     'Spearman r: BIC rank ↔ cond. Hamming-to-truth  (1 = perfectly ordered)',
-            'y_range':     [-1.05, 1.05],
-            'hover_fmt':   '.3f',
-        },
     ]
+
+    _metric_configs = _core_metric_configs + (_debug_metric_configs if show_debug_metrics else [])
 
     def _get_metric(df, col):
         if col in df.columns and not df[col].isna().all():
@@ -2366,7 +2683,8 @@ def plot_model_recovery_simulation(
                 continue
             summary_df  = pd.DataFrame(summary_rows)
             agents_label = f"N={n_agents_value}"
-            norm_label   = f'{m_cfg["short_label"]}  ({agents_label})'
+            norm_label   = (m_cfg["short_label"] if n_agents_count == 1
+                            else f'{m_cfg["short_label"]}  ({agents_label})')
 
             fig.add_trace(go.Scatter(
                 x=summary_df['n_games'],
@@ -2379,10 +2697,12 @@ def plot_model_recovery_simulation(
                           dash=dash_styles[a_idx % len(dash_styles)]),
                 marker=dict(size=marker_size, color=metric_color),
                 hovertemplate=(
-                    f'{norm_label}<br>'
-                    f'norm ({m_cfg["norm_desc"]})=%{{y:.3f}}<br>'
-                    f'raw {m_cfg["col"]}=%{{customdata:{m_cfg["hover_fmt"]}}}<br>'
-                    'n_games=%{x}<br>'
+                    f'<b>{m_cfg["label"]}</b><br>'
+                    f'{m_cfg["hover_note"]}<br>'
+                    f'<br>'
+                    f'𝑛 games = %{{x}}<br>'
+                    f'normalized ({m_cfg["norm_desc"]}) = %{{y:.3f}}<br>'
+                    f'raw value = %{{customdata:{m_cfg["hover_fmt"]}}}<br>'
                     '<extra></extra>'
                 ),
             ))
@@ -2403,7 +2723,7 @@ def plot_model_recovery_simulation(
                 fig.add_trace(go.Scatter(x=[], y=[], visible=False, showlegend=False))
                 continue
             summary_df   = pd.DataFrame(summary_rows)
-            hue_shift    = (a_idx * 40) % 360
+            hue_shift    = (a_idx * 20) % 360
             trace_color  = _hsla(hue=(base_hue + hue_shift) % 360, alpha=0.9)
             agents_label = f"N={n_agents_value}"
 
@@ -2416,9 +2736,11 @@ def plot_model_recovery_simulation(
                 line=dict(color=trace_color, width=line_width),
                 marker=dict(size=marker_size, color=trace_color),
                 hovertemplate=(
-                    f'{agents_label}<br>'
-                    'n_games=%{x}<br>'
-                    f'{m_cfg["col"]}=%{{y:{m_cfg["hover_fmt"]}}}<br>'
+                    f'<b>{m_cfg["label"]}</b><br>'
+                    f'{m_cfg["hover_note"]}<br>'
+                    f'<br>'
+                    f'𝑛 games = %{{x}}<br>'
+                    f'value = %{{y:{m_cfg["hover_fmt"]}}}<br>'
                     '<extra></extra>'
                 ),
             ))
@@ -2432,7 +2754,7 @@ def plot_model_recovery_simulation(
         args=[
             {'visible': btn0_visible},
             {
-                'yaxis.title.text':      'Normalized recovery score  (0 = worst,  1 = perfect recovery)',
+                'yaxis.title.text':      'Model Recovery Score (Normalized)',
                 'yaxis.title.font.size': axis_font_size,
                 'yaxis.tickfont.size':   axis_font_size,
                 'yaxis.range':           [-0.05, 1.05],
@@ -2450,7 +2772,7 @@ def plot_model_recovery_simulation(
         ]
         block2_visible = [False] * n_block
         yaxis_args = {
-            'yaxis.title.text':      'Normalized recovery score  (0 = worst,  1 = perfect recovery)',
+            'yaxis.title.text':      'Model Recovery Score (Normalized)',
             'yaxis.title.font.size': axis_font_size,
             'yaxis.tickfont.size':   axis_font_size,
             'yaxis.range':           [-0.05, 1.05],
@@ -2459,7 +2781,7 @@ def plot_model_recovery_simulation(
         }
 
         dropdown_buttons.append(dict(
-            label=m_cfg['label'],
+            label=m_cfg['short_label'],
             method='update',
             args=[
                 {'visible': block1_visible + block2_visible},
@@ -2469,24 +2791,26 @@ def plot_model_recovery_simulation(
 
     fig.update_layout(
         title=dict(
-            text=(f'Model Recovery Simulation  |  Generating Model {generating_utility_idx}'
-                  f'  ({n_candidates} candidates)'),
+            text='Model Recovery Rate by 𝑛 Synthetic Games',
             x=0.5, xanchor='center',
             y=0.97, yanchor='top',
             font=dict(size=figure_layout.get('title_size', 22) * 2),
         ),
         xaxis=dict(
             title=dict(
-                text='Number of chooser games per agent  (n_games)',
+                text='Number of chooser games per agent',
                 font=dict(size=axis_font_size),
             ),
             tickfont=dict(size=axis_font_size),
+            tickmode='array',
+            tickvals=sorted(n_games_grid),
+            ticktext=[str(v) for v in sorted(n_games_grid)],
             showgrid=True,
             gridcolor=_hsla(hue=0, saturation_percent=0, lightness_percent=78, alpha=0.4),
         ),
         yaxis=dict(
             title=dict(
-                text='Normalized recovery score  (0 = worst,  1 = perfect recovery)',
+                text='Model Recovery Score (Normalized)',
                 font=dict(size=axis_font_size),
             ),
             tickfont=dict(size=axis_font_size),
@@ -2496,12 +2820,12 @@ def plot_model_recovery_simulation(
             type='dropdown',
             direction='down',
             showactive=True,
-            x=0.0,
+            x=1.02,
             xanchor='left',
-            y=1.14,
+            y=0.62,
             yanchor='top',
             buttons=dropdown_buttons,
-            font=dict(size=base_font_size + 8),
+            font=dict(size=base_font_size + 6),
             bgcolor='white',
             bordercolor=_hsla(hue=0, saturation_percent=0, lightness_percent=60, alpha=0.8),
         )],
@@ -2511,13 +2835,33 @@ def plot_model_recovery_simulation(
             family=figure_layout.get('font', {}).get('family', 'Calibri'),
             size=base_font_size,
         ),
-        margin=dict(l=120, r=80, t=170, b=100),
+        margin=dict(l=120, r=80, t=120, b=100),
         autosize=True,
         legend=dict(
-            title=dict(text='Metric  (N agents)', font=dict(size=base_font_size)),
+            title=dict(text='Recovery Metric<br>(click to toggle)', font=dict(size=base_font_size + 4)),
             yanchor='top', y=0.98, xanchor='left', x=1.02,
-            font=dict(size=base_font_size),
+            font=dict(size=base_font_size + 4),
+            itemclick='toggle',
+            itemdoubleclick='toggleothers',
         ),
+    )
+
+    fig.add_annotation(
+        text=(f"Generating Model: {_gen_equation}<br>"
+              f"{n_candidates} candidate models · {_max_n_agents} synthetic agents"),
+        x=0.99, y=0.12,
+        xref='paper', yref='paper',
+        xanchor='right', yanchor='bottom',
+        showarrow=False,
+        font=dict(
+            size=base_font_size + 6,
+            family=figure_layout.get('font', {}).get('family', 'Calibri'),
+        ),
+        align='right',
+        bgcolor='rgba(255,255,255,0.7)',
+        bordercolor=_hsla(hue=0, saturation_percent=0, lightness_percent=60, alpha=0.5),
+        borderwidth=1,
+        borderpad=6,
     )
 
     if export_fig:

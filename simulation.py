@@ -1771,7 +1771,9 @@ def create_simulated_experiment(
     altruism_targets: list[float] | None = None,
     create_new_file: bool | None = None,
     enforce_memory_limit: bool = False,
-    empirical_chooser_parameters: dict[str, dict[str, float]] | None = None,
+    empirical_chooser_parameters:  dict[str, dict[str, float]] | None = None,
+    empirical_predictor_parameters: dict[str, dict[str, float]] | None = None,
+    uuid_tag: str | None = None,
 ) -> tuple[dict, dict[str, dict]]:
     """
     Generate (or retrieve) a full synthetic experiment in the same JSON format as the real raw data.
@@ -1813,10 +1815,23 @@ def create_simulated_experiment(
             general_settings.get('create_new_file', False).
         • empirical_chooser_parameters: dict[str, dict[str, float]] | None; when provided,
             each key is an arbitrary agent identifier and each value is a dict of param_key→float
-            representing the ground-truth parameters for that agent. n_players is overridden to
-            len(empirical_chooser_parameters). Agents beyond the last multiple of 4 are padded
-            with uniform random draws and excluded from true_params_by_uuid. When None (default),
+            representing the ground-truth parameters for that agent in the chooser role.
+            n_players is overridden to len(empirical_chooser_parameters). Agents beyond the last
+            multiple of 4 are padded with uniform random draws and excluded from
+            true_params_by_uuid. Takes priority over empirical_predictor_parameters when both
+            are provided and their key lists overlap by position. When neither dict is provided,
             parameters are sampled uniformly from bounds with altruism override.
+        • empirical_predictor_parameters: dict[str, dict[str, float]] | None; parallel to
+            empirical_chooser_parameters but used for the predictor role. When only this dict is
+            provided (empirical_chooser_parameters is None), its entries are used for all players
+            and n_players is overridden to len(empirical_predictor_parameters). When both dicts
+            are provided, empirical_chooser_parameters takes priority for players within its
+            index range; predictor params are injected for any remaining players beyond that range.
+        • uuid_tag: str | None; when provided, this tag is inserted into every synthetic player
+            UUID, making UUIDs unique across multiple calls with different tags. Useful when the
+            same create_simulated_experiment call pattern is repeated for different conditions
+            (e.g., different n_games values in a model recovery simulation). Default None leaves
+            UUIDs in the original format so existing callers are unaffected.
 
     Returns:
         • (histories_dict, true_params_by_uuid) where:
@@ -1829,9 +1844,11 @@ def create_simulated_experiment(
     if create_new_file is None:
         create_new_file = general_settings.get('create_new_file', False)
 
-    if empirical_chooser_parameters is None and (altruism_key is None or altruism_targets is None):
+    if (empirical_chooser_parameters is None and empirical_predictor_parameters is None
+            and (altruism_key is None or altruism_targets is None)):
         raise ValueError(
-            "Either empirical_chooser_parameters or both altruism_key and altruism_targets must be provided."
+            "Either empirical_chooser_parameters, empirical_predictor_parameters, or both "
+            "altruism_key and altruism_targets must be provided."
         )
 
     "Retrieve cached result if available and permitted."
@@ -1852,6 +1869,8 @@ def create_simulated_experiment(
 
     if empirical_chooser_parameters is not None:
         n_players = len(empirical_chooser_parameters)
+    elif empirical_predictor_parameters is not None:
+        n_players = len(empirical_predictor_parameters)
 
     n_players_padded = n_players + (4 - n_players % 4) % 4
 
@@ -1891,15 +1910,29 @@ def create_simulated_experiment(
 
         "Assign ground-truth parameters to each of the 4 players in this batch."
         batch_params: dict[int, dict] = {}
-        empirical_uuid_list = list(empirical_chooser_parameters.keys()) if empirical_chooser_parameters else []
-        n_empirical_players = len(empirical_uuid_list)
+        _uuid_tag_part                = f"_{uuid_tag}" if uuid_tag is not None else ""
+        empirical_chooser_uuid_list   = list(empirical_chooser_parameters.keys())  if empirical_chooser_parameters  else []
+        empirical_predictor_uuid_list = list(empirical_predictor_parameters.keys()) if empirical_predictor_parameters else []
+        n_empirical_choosers   = len(empirical_chooser_uuid_list)
+        n_empirical_predictors = len(empirical_predictor_uuid_list)
         for local_idx in range(4):
             global_idx  = batch_start + local_idx
-            player_uuid = f"synthetic_{k_params}_{global_idx:04d}"
+            player_uuid = f"synthetic{_uuid_tag_part}_{k_params}_{global_idx:04d}"
 
-            if empirical_chooser_parameters is not None and global_idx < n_empirical_players:
-                "Inject empirical parameter vector; back-fill any UBM structural params (_std, τ) not stored in the IC JSON."
-                params = dict(empirical_chooser_parameters[empirical_uuid_list[global_idx]])
+            if empirical_chooser_parameters is not None and global_idx < n_empirical_choosers:
+                "Inject empirical chooser parameter vector; back-fill any UBM structural params (_std, τ) not stored in the IC JSON."
+                params = dict(empirical_chooser_parameters[empirical_chooser_uuid_list[global_idx]])
+                for param_idx, param_key in enumerate(list(param_info_for_ubm['keys'])):
+                    if param_key not in params:
+                        lower_bound, upper_bound = param_info_for_ubm['bounds'][param_idx]
+                        if param_key.endswith("_std"):
+                            lower_bound = max(float(lower_bound), 1e-3)
+                        params[param_key] = float(random_gen.uniform(float(lower_bound), float(upper_bound)))
+                if "τ" not in params:
+                    params["τ"] = float(general_settings.get('softmax_temperature', 1.0))
+            elif empirical_predictor_parameters is not None and global_idx < n_empirical_predictors:
+                "Inject empirical predictor parameter vector; back-fill structural params as above."
+                params = dict(empirical_predictor_parameters[empirical_predictor_uuid_list[global_idx]])
                 for param_idx, param_key in enumerate(list(param_info_for_ubm['keys'])):
                     if param_key not in params:
                         lower_bound, upper_bound = param_info_for_ubm['bounds'][param_idx]
@@ -1923,7 +1956,10 @@ def create_simulated_experiment(
                     params[altruism_key] = float(altruism_targets[global_idx % len(altruism_targets)])
 
             batch_params[local_idx] = params
-            if empirical_chooser_parameters is None or global_idx < n_empirical_players:
+            n_empirical_total = max(n_empirical_choosers, n_empirical_predictors)
+            if empirical_chooser_parameters is None and empirical_predictor_parameters is None:
+                true_params_by_uuid[player_uuid] = dict(params)
+            elif global_idx < n_empirical_total:
                 true_params_by_uuid[player_uuid] = dict(params)
 
         "Sample game counts for all 6 pairs in this batch."
@@ -1931,18 +1967,18 @@ def create_simulated_experiment(
 
         "One dyad per unique pair; roles are assigned per round by a fair coin flip."
         for (local_idx_a, local_idx_b), n_games_pair in pair_game_counts.items():
-            uuid_a   = f"synthetic_{k_params}_{(batch_start + local_idx_a):04d}"
-            uuid_b   = f"synthetic_{k_params}_{(batch_start + local_idx_b):04d}"
-            params_a = batch_params[local_idx_a]
-            params_b = batch_params[local_idx_b]
+            uuid_player_a   = f"synthetic{_uuid_tag_part}_{k_params}_{(batch_start + local_idx_a):04d}"
+            uuid_player_b   = f"synthetic{_uuid_tag_part}_{k_params}_{(batch_start + local_idx_b):04d}"
+            params_player_a = batch_params[local_idx_a]
+            params_player_b = batch_params[local_idx_b]
             matching_probability = n_games_pair / n_games
 
             games_list = _simulate_pair_games(
                 n_games=n_games_pair,
-                params_player_1=params_a,
-                params_player_2=params_b,
-                uuid_player_1=uuid_a,
-                uuid_player_2=uuid_b,
+                params_player_1=params_player_a,
+                params_player_2=params_player_b,
+                uuid_player_1=uuid_player_a,
+                uuid_player_2=uuid_player_b,
                 utility_settings=utility_settings_k,
                 general_settings=general_settings_for_ubm,
                 param_info=param_info_for_ubm,
@@ -2001,7 +2037,6 @@ def create_simulated_experiment(
         os.remove(players_to_dyads_cache_path)
 
     return histories_dict, true_params_by_uuid
-
 
 
 def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FilePaths, figure_layout: FigLay, param_bds: ParamBounds,
