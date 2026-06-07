@@ -731,12 +731,12 @@ general_settings: GeneralSettings = {
     'ampd_settings': {
         'metric':                   'normalized_jsd',
         'n_games':                  625,
-        'n_iters':                  30,      # set to 250 for full-precision runs
+        'n_iters':                  60,      # set to 250 for full-precision runs
         'parameter_sampling_mode':  'uniform',
         'parameter_pairing_mode':   'shared',
         'player_roles':             None,
         'random_seed':              None,
-        'softmax_temperature':      1.5,     # AMPD-specific τ; independent of global softmax_temperature
+        'softmax_temperature':      1.0,     # AMPD-specific τ; independent of global softmax_temperature
     },
     'individual_architecture_settings': {
         'population_top_n_models':                   120,
@@ -754,7 +754,7 @@ general_settings: GeneralSettings = {
     'model_recovery_settings': {
         'generating_model':               utility_settings,
         'n_agents_grid':                  [73],
-        'n_games_grid':                   [30, 60, 90, 120, 150],
+        'n_games_grid':                   [4, 28, 52, 76, 100, 124],
         'softmax_temperature':            1.0,
         'candidate_model_selection_mode': 'hamming',
         'n_candidate_models':             603,
