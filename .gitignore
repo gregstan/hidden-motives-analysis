@@ -215,6 +215,27 @@ param_data/*
 player_fits/*
 processed/*
 visuals/*
+
+# Fundamental input data — must exist on any machine running the analyses.
+# Exper0 (46 MB) and Exper1 (97 MB) exceed GitHub's safe file-size threshold; keep them local.
+!processed/Social_Preference_Prediction_Pairs_Exper2.json
+!processed/Social_Preference_Prediction_Pairs_Exper3.json
+!processed/SPPP_Exper1_Players_to_Dyad_Keys.json
+!processed/SPPP_Exper2_Players_to_Dyad_Keys.json
+!processed/SPPP_Exper3_Players_to_Dyad_Keys.json
+!processed/Judgment_Game_Data_Experiment_2_Pre-exclusions.csv
+!processed/Social_Preference_Prediction_Processed_Results_Exper1.csv
+!processed/Social_Preference_Prediction_Processed_Results_Exper2.csv
+!processed/Social_Preference_Prediction_Processed_Results_Exper3.csv
+
+# Placeholder files so output directories exist immediately after a fresh clone.
+# Runtime makedirs in main.py also ensures this, but .gitkeep is cleaner for SSH/CI setups.
+!bic_aic/.gitkeep
+!discrete/.gitkeep
+!dyad_data/.gitkeep
+!param_data/.gitkeep
+!player_fits/.gitkeep
+!visuals/.gitkeep
 # Per-experiment simulation subdirectories contain hundreds of heavy JSON files.
 # Summary CSVs and HTML plots at simulations/ root are tracked (small, shareable).
 simulations/experiment_*/

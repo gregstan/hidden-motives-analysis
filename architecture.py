@@ -2647,7 +2647,7 @@ def plot_model_recovery_simulation(
 
     "Per-metric colors (evenly spaced hues) for the all-metrics normalized view."
     n_metrics     = len(_metric_configs)
-    metric_hues   = [(base_hue + i * (360 // n_metrics)) % 360 for i in range(n_metrics)]
+    metric_hues   = [(base_hue + idx * 40) % 360 for idx in range(n_metrics)]
     dash_styles   = ['solid', 'dash', 'dot', 'dashdot', 'longdash']
     fig = go.Figure()
 
@@ -2698,8 +2698,7 @@ def plot_model_recovery_simulation(
                 marker=dict(size=marker_size, color=metric_color),
                 hovertemplate=(
                     f'<b>{m_cfg["label"]}</b><br>'
-                    f'{m_cfg["hover_note"]}<br>'
-                    f'<br>'
+                    f'{m_cfg["hover_note"]}<br><br>'
                     f'𝑛 games = %{{x}}<br>'
                     f'normalized ({m_cfg["norm_desc"]}) = %{{y:.3f}}<br>'
                     f'raw value = %{{customdata:{m_cfg["hover_fmt"]}}}<br>'
@@ -2737,8 +2736,7 @@ def plot_model_recovery_simulation(
                 marker=dict(size=marker_size, color=trace_color),
                 hovertemplate=(
                     f'<b>{m_cfg["label"]}</b><br>'
-                    f'{m_cfg["hover_note"]}<br>'
-                    f'<br>'
+                    f'{m_cfg["hover_note"]}<br><br>'
                     f'𝑛 games = %{{x}}<br>'
                     f'value = %{{y:{m_cfg["hover_fmt"]}}}<br>'
                     '<extra></extra>'
@@ -2789,6 +2787,25 @@ def plot_model_recovery_simulation(
             ],
         ))
 
+    recovered_n_games_values = generating_model_df.loc[
+        generating_model_df['recovered'] == True, 'n_games_fitted'
+    ]
+    if not recovered_n_games_values.empty:
+        recovery_threshold_n_games = int(recovered_n_games_values.min())
+        fig.add_vline(
+            x=recovery_threshold_n_games,
+            line_dash='dash',
+            line_color=_hsla(hue=0, saturation_percent=0, lightness_percent=40, alpha=0.6),
+            line_width=3,
+            annotation_text='Recovery threshold',
+            annotation_position='top left',
+            annotation_font=dict(
+                size=base_font_size + 4,
+                family=figure_layout.get('font', {}).get('family', 'Calibri'),
+                color=_hsla(hue=0, saturation_percent=0, lightness_percent=30, alpha=0.9),
+            ),
+        )
+
     fig.update_layout(
         title=dict(
             text='Model Recovery Rate by 𝑛 Synthetic Games',
@@ -2798,7 +2815,7 @@ def plot_model_recovery_simulation(
         ),
         xaxis=dict(
             title=dict(
-                text='Number of chooser games per agent',
+                text='Number of games per agent',
                 font=dict(size=axis_font_size),
             ),
             tickfont=dict(size=axis_font_size),
@@ -2846,9 +2863,14 @@ def plot_model_recovery_simulation(
         ),
     )
 
+    _tau_label = (
+        f"softmax temperature, τ = {softmax_temperature}"
+        if softmax_temperature is not None
+        else "softmax temperature, τ, fitted individually"
+    )
     fig.add_annotation(
         text=(f"Generating Model: {_gen_equation}<br>"
-              f"{n_candidates} candidate models · {_max_n_agents} synthetic agents"),
+              f"{n_candidates} candidate models · {_max_n_agents} synthetic agents · {n_simulation_iterations} simulation iterations · {_tau_label}"),
         x=0.99, y=0.12,
         xref='paper', yref='paper',
         xanchor='right', yanchor='bottom',

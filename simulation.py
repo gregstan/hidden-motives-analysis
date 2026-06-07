@@ -2544,6 +2544,62 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         "Pass if I have the file open."
         pass
 
+    "---------- Paper table: wide-format markdown ----------"
+    out_table_path = os.path.join(out_dir, "param_recovery_by_k_table.md")
+    if not corr_by_k_df.empty:
+        canonical_params = ['Vᵢᵢ', 'Vᵢⱼ', 'αᵢⱼ', 'βᵢⱼ', 'γ1', 'γ2', 'γ3', 'λᵢᵢ', 'λᵢⱼ']
+        chooser_df       = corr_by_k_df[corr_by_k_df['player_role'] == 'chooser'].copy()
+        bic_winner_k     = min(k_bic_map, key=k_bic_map.get) if k_bic_map else None
+
+        table_rows: list[dict] = []
+        for k_val in k_param_values:
+            k_rows = chooser_df[chooser_df['k'] == k_val]
+            if k_rows.empty:
+                continue
+            row: dict = {'k': k_val, 'bic_winner': (k_val == bic_winner_k)}
+            for param in canonical_params:
+                param_match = k_rows[k_rows['param'] == param]
+                row[param] = round(float(param_match['corr'].iloc[0]), 2) if not param_match.empty else None
+            row['Agg. 𝑟'] = round(float(k_rows['agg_corr'].iloc[0]), 2)
+            row['equation'] = k_equation_map.get(k_val, '')
+            table_rows.append(row)
+
+        "Only include parameter columns that appear in at least one model."
+        present_params = [p for p in canonical_params if any(r[p] is not None for r in table_rows)]
+        col_headers    = ['𝑘'] + present_params + ['Agg. 𝑟', 'Equation']
+        sep_row        = ['---'] * len(col_headers)
+
+        md_lines = [
+            '# Parameter Recovery by 𝑘 — Correlation Table\n',
+            (
+                'Per-parameter Pearson 𝑟 (chooser role) for the BIC-winning utility function at each model '
+                'complexity 𝑘. Dashes indicate parameters absent from that model. The aggregate column is the '
+                'mean 𝑟 across all parameters present. \\* marks the overall BIC-winning model.\n'
+            ),
+            '| ' + ' | '.join(col_headers) + ' |',
+            '| ' + ' | '.join(sep_row)      + ' |',
+        ]
+        for row in table_rows:
+            mark  = ' \\*' if row['bic_winner'] else ''
+            cells = [f"{row['k']}{mark}"]
+            for param in present_params:
+                val = row.get(param)
+                cell_str = f'{val:.2f}' if val is not None else '—'
+                if cell_str == '-0.00':
+                    cell_str = '0.00'
+                cells.append(cell_str)
+            cells.append(f"{row['Agg. 𝑟']:.2f}")
+            cells.append(row['equation'])
+            md_lines.append('| ' + ' | '.join(cells) + ' |')
+
+        md_text = '\n'.join(md_lines) + '\n'
+        try:
+            with open(out_table_path, 'w', encoding='utf-8') as table_file:
+                table_file.write(md_text)
+            print(f"Saved paper table to: {pretty_path(out_table_path)}")
+        except (PermissionError, OSError):
+            pass
+
     "---------- Plotly figure: corr vs k, delegate to plot_param_recovery_by_k ----------"
     if not corr_by_k_df.empty:
         from visualization import plot_param_recovery_by_k as _plot_recovery_figure
@@ -2559,8 +2615,9 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
 
     print(f"\n{'='*70}")
     print(f"[param_recovery_by_k] Complete. Total time: {_fmt_duration(time.time() - time_start_total)}.")
-    print(f"  CSV  → {pretty_path(out_csv_path)}")
-    print(f"  Plot → {pretty_path(out_fig_path)}")
+    print(f"  CSV   → {pretty_path(out_csv_path)}")
+    print(f"  Table → {pretty_path(out_table_path)}")
+    print(f"  Plot  → {pretty_path(out_fig_path)}")
     print(f"{'='*70}\n")
 
     return corr_by_k_df, simulated_param_recovery_by_k

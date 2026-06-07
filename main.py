@@ -24,7 +24,6 @@ run_code_settings: RunCodeSettings = {
 def main():
     """Execute main code."""
 
-
     "Apply master random seed when reproducibility mode is enabled."
     _master_seed = general_settings.get('random_seeds', {}).get('seed', None)
     if _master_seed is not None:

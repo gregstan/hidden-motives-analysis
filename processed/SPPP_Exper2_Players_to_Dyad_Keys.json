@@ -1,0 +1,500 @@
+{
+    "0608bvn": [
+        "(0608bvn, 1-utilitarian-blueish-bowtie)",
+        "(0608bvn, 2-selfish-white-star)",
+        "(0608bvn, 3-competitive-green-target)",
+        "(0608bvn, 4-masochistic-fiery-ghost)"
+    ],
+    "1640lmx": [
+        "(1-utilitarian-blueish-bowtie, 1640lmx)",
+        "(1640lmx, 2-selfish-pink-pintagon)",
+        "(1640lmx, 3-competitive-green-target)",
+        "(1640lmx, 4-masochistic-fiery-ghost)"
+    ],
+    "3900lmo": [
+        "(1-utilitarian-green-target, 3900lmo)",
+        "(2-selfish-orange-lemon, 3900lmo)",
+        "(3-competitive-yellow-hourglass, 3900lmo)",
+        "(3900lmo, 4-masochistic-white-star)"
+    ],
+    "1156lnv": [
+        "(1-utilitarian-blue-cross, 1156lnv)",
+        "(1156lnv, 2-selfish-fiery-ghost)",
+        "(1156lnv, 3-competitive-purple-circle)",
+        "(1156lnv, 4-masochistic-yellow-hourglass)"
+    ],
+    "5831vst": [
+        "(1-utilitarian-green-target, 5831vst)",
+        "(2-selfish-orange-lemon, 5831vst)",
+        "(3-competitive-blue-cross, 5831vst)",
+        "(4-masochistic-blueish-bowtie, 5831vst)"
+    ],
+    "0947xkq": [
+        "(0947xkq, 1-utilitarian-fiery-ghost)",
+        "(0947xkq, 2-selfish-orange-lemon)",
+        "(0947xkq, 3-competitive-purple-circle)",
+        "(0947xkq, 4-masochistic-green-target)"
+    ],
+    "3151pob": [
+        "(1-utilitarian-blueish-bowtie, 3151pob)",
+        "(2-selfish-green-target, 3151pob)",
+        "(3-competitive-fiery-ghost, 3151pob)",
+        "(3151pob, 4-masochistic-yellow-hourglass)"
+    ],
+    "3245njh": [
+        "(1-utilitarian-green-target, 3245njh)",
+        "(2-selfish-blue-cross, 3245njh)",
+        "(3-competitive-fiery-ghost, 3245njh)",
+        "(3245njh, 4-masochistic-purple-circle)"
+    ],
+    "1458bbd": [
+        "(1-utilitarian-blue-cross, 1458bbd)",
+        "(1458bbd, 2-selfish-yellow-hourglass)",
+        "(1458bbd, 3-competitive-purple-circle)",
+        "(1458bbd, 4-masochistic-pink-pintagon)"
+    ],
+    "4248cqp": [
+        "(1-utilitarian-blue-cross, 4248cqp)",
+        "(2-selfish-purple-circle, 4248cqp)",
+        "(3-competitive-green-target, 4248cqp)",
+        "(4-masochistic-pink-pintagon, 4248cqp)"
+    ],
+    "5526rtr": [
+        "(1-utilitarian-fiery-ghost, 5526rtr)",
+        "(2-selfish-orange-lemon, 5526rtr)",
+        "(3-competitive-blue-cross, 5526rtr)",
+        "(4-masochistic-purple-circle, 5526rtr)"
+    ],
+    "3716bac": [
+        "(1-utilitarian-yellow-hourglass, 3716bac)",
+        "(2-selfish-purple-circle, 3716bac)",
+        "(3-competitive-blue-cross, 3716bac)",
+        "(3716bac, 4-masochistic-fiery-ghost)"
+    ],
+    "5045jpv": [
+        "(1-utilitarian-fiery-ghost, 5045jpv)",
+        "(2-selfish-yellow-hourglass, 5045jpv)",
+        "(3-competitive-green-target, 5045jpv)",
+        "(4-masochistic-blueish-bowtie, 5045jpv)"
+    ],
+    "0041ktt": [
+        "(0041ktt, 1-utilitarian-green-target)",
+        "(0041ktt, 2-selfish-orange-lemon)",
+        "(0041ktt, 3-competitive-blue-cross)",
+        "(0041ktt, 4-masochistic-pink-pintagon)"
+    ],
+    "5054ycy": [
+        "(1-utilitarian-purple-circle, 5054ycy)",
+        "(2-selfish-orange-lemon, 5054ycy)",
+        "(3-competitive-blueish-bowtie, 5054ycy)",
+        "(4-masochistic-green-target, 5054ycy)"
+    ],
+    "0949ypm": [
+        "(0949ypm, 1-utilitarian-orange-lemon)",
+        "(0949ypm, 2-selfish-fiery-ghost)",
+        "(0949ypm, 3-competitive-green-target)",
+        "(0949ypm, 4-masochistic-white-star)"
+    ],
+    "2822wht": [
+        "(1-utilitarian-fiery-ghost, 2822wht)",
+        "(2-selfish-purple-circle, 2822wht)",
+        "(2822wht, 3-competitive-yellow-hourglass)",
+        "(2822wht, 4-masochistic-green-target)"
+    ],
+    "3704lfm": [
+        "(1-utilitarian-white-star, 3704lfm)",
+        "(2-selfish-yellow-hourglass, 3704lfm)",
+        "(3-competitive-blue-cross, 3704lfm)",
+        "(3704lfm, 4-masochistic-blueish-bowtie)"
+    ],
+    "3812itt": [
+        "(1-utilitarian-blueish-bowtie, 3812itt)",
+        "(2-selfish-orange-lemon, 3812itt)",
+        "(3-competitive-purple-circle, 3812itt)",
+        "(3812itt, 4-masochistic-white-star)"
+    ],
+    "5636olo": [
+        "(1-utilitarian-green-target, 5636olo)",
+        "(2-selfish-blueish-bowtie, 5636olo)",
+        "(3-competitive-white-star, 5636olo)",
+        "(4-masochistic-fiery-ghost, 5636olo)"
+    ],
+    "4106hqg": [
+        "(1-utilitarian-blueish-bowtie, 4106hqg)",
+        "(2-selfish-pink-pintagon, 4106hqg)",
+        "(3-competitive-orange-lemon, 4106hqg)",
+        "(4-masochistic-white-star, 4106hqg)"
+    ],
+    "2539kma": [
+        "(1-utilitarian-orange-lemon, 2539kma)",
+        "(2-selfish-yellow-hourglass, 2539kma)",
+        "(2539kma, 3-competitive-green-target)",
+        "(2539kma, 4-masochistic-blueish-bowtie)"
+    ],
+    "2826ufl": [
+        "(1-utilitarian-yellow-hourglass, 2826ufl)",
+        "(2-selfish-green-target, 2826ufl)",
+        "(2826ufl, 3-competitive-pink-pintagon)",
+        "(2826ufl, 4-masochistic-orange-lemon)"
+    ],
+    "0456mcy": [
+        "(0456mcy, 1-utilitarian-white-star)",
+        "(0456mcy, 2-selfish-yellow-hourglass)",
+        "(0456mcy, 3-competitive-green-target)",
+        "(0456mcy, 4-masochistic-orange-lemon)"
+    ],
+    "0913yuy": [
+        "(0913yuy, 1-utilitarian-yellow-hourglass)",
+        "(0913yuy, 2-selfish-white-star)",
+        "(0913yuy, 3-competitive-pink-pintagon)",
+        "(0913yuy, 4-masochistic-blue-cross)"
+    ],
+    "1000vbk": [
+        "(1-utilitarian-fiery-ghost, 1000vbk)",
+        "(1000vbk, 2-selfish-pink-pintagon)",
+        "(1000vbk, 3-competitive-purple-circle)",
+        "(1000vbk, 4-masochistic-blue-cross)"
+    ],
+    "4719qsz": [
+        "(1-utilitarian-green-target, 4719qsz)",
+        "(2-selfish-orange-lemon, 4719qsz)",
+        "(3-competitive-blueish-bowtie, 4719qsz)",
+        "(4-masochistic-yellow-hourglass, 4719qsz)"
+    ],
+    "0556spv": [
+        "(0556spv, 1-utilitarian-fiery-ghost)",
+        "(0556spv, 2-selfish-yellow-hourglass)",
+        "(0556spv, 3-competitive-pink-pintagon)",
+        "(0556spv, 4-masochistic-green-target)"
+    ],
+    "0625wbo": [
+        "(0625wbo, 1-utilitarian-orange-lemon)",
+        "(0625wbo, 2-selfish-purple-circle)",
+        "(0625wbo, 3-competitive-blue-cross)",
+        "(0625wbo, 4-masochistic-pink-pintagon)"
+    ],
+    "0409zhm": [
+        "(0409zhm, 1-utilitarian-blueish-bowtie)",
+        "(0409zhm, 2-selfish-fiery-ghost)",
+        "(0409zhm, 3-competitive-orange-lemon)",
+        "(0409zhm, 4-masochistic-green-target)"
+    ],
+    "0713aiu": [
+        "(0713aiu, 1-utilitarian-fiery-ghost)",
+        "(0713aiu, 2-selfish-orange-lemon)",
+        "(0713aiu, 3-competitive-green-target)",
+        "(0713aiu, 4-masochistic-white-star)"
+    ],
+    "1559ivb": [
+        "(1-utilitarian-white-star, 1559ivb)",
+        "(1559ivb, 2-selfish-pink-pintagon)",
+        "(1559ivb, 3-competitive-yellow-hourglass)",
+        "(1559ivb, 4-masochistic-fiery-ghost)"
+    ],
+    "5010iyd": [
+        "(1-utilitarian-yellow-hourglass, 5010iyd)",
+        "(2-selfish-orange-lemon, 5010iyd)",
+        "(3-competitive-pink-pintagon, 5010iyd)",
+        "(4-masochistic-white-star, 5010iyd)"
+    ],
+    "1931ema": [
+        "(1-utilitarian-yellow-hourglass, 1931ema)",
+        "(1931ema, 2-selfish-orange-lemon)",
+        "(1931ema, 3-competitive-fiery-ghost)",
+        "(1931ema, 4-masochistic-green-target)"
+    ],
+    "3315lhe": [
+        "(1-utilitarian-pink-pintagon, 3315lhe)",
+        "(2-selfish-white-star, 3315lhe)",
+        "(3-competitive-orange-lemon, 3315lhe)",
+        "(3315lhe, 4-masochistic-yellow-hourglass)"
+    ],
+    "5054gdn": [
+        "(1-utilitarian-blueish-bowtie, 5054gdn)",
+        "(2-selfish-pink-pintagon, 5054gdn)",
+        "(3-competitive-green-target, 5054gdn)",
+        "(4-masochistic-yellow-hourglass, 5054gdn)"
+    ],
+    "1713rhe": [
+        "(1-utilitarian-yellow-hourglass, 1713rhe)",
+        "(1713rhe, 2-selfish-purple-circle)",
+        "(1713rhe, 3-competitive-blueish-bowtie)",
+        "(1713rhe, 4-masochistic-green-target)"
+    ],
+    "1705zun": [
+        "(1-utilitarian-fiery-ghost, 1705zun)",
+        "(1705zun, 2-selfish-purple-circle)",
+        "(1705zun, 3-competitive-yellow-hourglass)",
+        "(1705zun, 4-masochistic-white-star)"
+    ],
+    "2912mac": [
+        "(1-utilitarian-pink-pintagon, 2912mac)",
+        "(2-selfish-blueish-bowtie, 2912mac)",
+        "(2912mac, 3-competitive-orange-lemon)",
+        "(2912mac, 4-masochistic-yellow-hourglass)"
+    ],
+    "5247elg": [
+        "(1-utilitarian-green-target, 5247elg)",
+        "(2-selfish-purple-circle, 5247elg)",
+        "(3-competitive-fiery-ghost, 5247elg)",
+        "(4-masochistic-orange-lemon, 5247elg)"
+    ],
+    "5404uht": [
+        "(1-utilitarian-fiery-ghost, 5404uht)",
+        "(2-selfish-yellow-hourglass, 5404uht)",
+        "(3-competitive-blueish-bowtie, 5404uht)",
+        "(4-masochistic-orange-lemon, 5404uht)"
+    ],
+    "0507uef": [
+        "(0507uef, 1-utilitarian-green-target)",
+        "(0507uef, 2-selfish-pink-pintagon)",
+        "(0507uef, 3-competitive-blueish-bowtie)",
+        "(0507uef, 4-masochistic-fiery-ghost)"
+    ],
+    "5606vce": [
+        "(1-utilitarian-orange-lemon, 5606vce)",
+        "(2-selfish-purple-circle, 5606vce)",
+        "(3-competitive-blue-cross, 5606vce)",
+        "(4-masochistic-blueish-bowtie, 5606vce)"
+    ],
+    "5820kvg": [
+        "(1-utilitarian-yellow-hourglass, 5820kvg)",
+        "(2-selfish-pink-pintagon, 5820kvg)",
+        "(3-competitive-green-target, 5820kvg)",
+        "(4-masochistic-white-star, 5820kvg)"
+    ],
+    "2923yrp": [
+        "(1-utilitarian-green-target, 2923yrp)",
+        "(2-selfish-blueish-bowtie, 2923yrp)",
+        "(2923yrp, 3-competitive-orange-lemon)",
+        "(2923yrp, 4-masochistic-white-star)"
+    ],
+    "5358mgm": [
+        "(1-utilitarian-white-star, 5358mgm)",
+        "(2-selfish-pink-pintagon, 5358mgm)",
+        "(3-competitive-blue-cross, 5358mgm)",
+        "(4-masochistic-orange-lemon, 5358mgm)"
+    ],
+    "3022nzj": [
+        "(1-utilitarian-pink-pintagon, 3022nzj)",
+        "(2-selfish-blue-cross, 3022nzj)",
+        "(3-competitive-orange-lemon, 3022nzj)",
+        "(3022nzj, 4-masochistic-purple-circle)"
+    ],
+    "2921ogg": [
+        "(1-utilitarian-green-target, 2921ogg)",
+        "(2-selfish-purple-circle, 2921ogg)",
+        "(2921ogg, 3-competitive-blue-cross)",
+        "(2921ogg, 4-masochistic-yellow-hourglass)"
+    ],
+    "3035mqv": [
+        "(1-utilitarian-blue-cross, 3035mqv)",
+        "(2-selfish-green-target, 3035mqv)",
+        "(3-competitive-pink-pintagon, 3035mqv)",
+        "(3035mqv, 4-masochistic-yellow-hourglass)"
+    ],
+    "5534ztm": [
+        "(1-utilitarian-orange-lemon, 5534ztm)",
+        "(2-selfish-blue-cross, 5534ztm)",
+        "(3-competitive-purple-circle, 5534ztm)",
+        "(4-masochistic-blueish-bowtie, 5534ztm)"
+    ],
+    "1028zik": [
+        "(1-utilitarian-green-target, 1028zik)",
+        "(1028zik, 2-selfish-pink-pintagon)",
+        "(1028zik, 3-competitive-blueish-bowtie)",
+        "(1028zik, 4-masochistic-fiery-ghost)"
+    ],
+    "1931viu": [
+        "(1-utilitarian-green-target, 1931viu)",
+        "(1931viu, 2-selfish-yellow-hourglass)",
+        "(1931viu, 3-competitive-blue-cross)",
+        "(1931viu, 4-masochistic-fiery-ghost)"
+    ],
+    "2127mca": [
+        "(1-utilitarian-yellow-hourglass, 2127mca)",
+        "(2-selfish-green-target, 2127mca)",
+        "(2127mca, 3-competitive-purple-circle)",
+        "(2127mca, 4-masochistic-white-star)"
+    ],
+    "4928ewh": [
+        "(1-utilitarian-pink-pintagon, 4928ewh)",
+        "(2-selfish-blue-cross, 4928ewh)",
+        "(3-competitive-blueish-bowtie, 4928ewh)",
+        "(4-masochistic-purple-circle, 4928ewh)"
+    ],
+    "5638cyy": [
+        "(1-utilitarian-green-target, 5638cyy)",
+        "(2-selfish-orange-lemon, 5638cyy)",
+        "(3-competitive-pink-pintagon, 5638cyy)",
+        "(4-masochistic-yellow-hourglass, 5638cyy)"
+    ],
+    "2326qqe": [
+        "(1-utilitarian-purple-circle, 2326qqe)",
+        "(2-selfish-white-star, 2326qqe)",
+        "(2326qqe, 3-competitive-green-target)",
+        "(2326qqe, 4-masochistic-blue-cross)"
+    ],
+    "1008yoc": [
+        "(1-utilitarian-purple-circle, 1008yoc)",
+        "(1008yoc, 2-selfish-blueish-bowtie)",
+        "(1008yoc, 3-competitive-fiery-ghost)",
+        "(1008yoc, 4-masochistic-orange-lemon)"
+    ],
+    "1803rqb": [
+        "(1-utilitarian-pink-pintagon, 1803rqb)",
+        "(1803rqb, 2-selfish-blue-cross)",
+        "(1803rqb, 3-competitive-purple-circle)",
+        "(1803rqb, 4-masochistic-fiery-ghost)"
+    ],
+    "3449crw": [
+        "(1-utilitarian-purple-circle, 3449crw)",
+        "(2-selfish-white-star, 3449crw)",
+        "(3-competitive-orange-lemon, 3449crw)",
+        "(3449crw, 4-masochistic-blueish-bowtie)"
+    ],
+    "3310ree": [
+        "(1-utilitarian-yellow-hourglass, 3310ree)",
+        "(2-selfish-green-target, 3310ree)",
+        "(3-competitive-pink-pintagon, 3310ree)",
+        "(3310ree, 4-masochistic-blueish-bowtie)"
+    ],
+    "3520ald": [
+        "(1-utilitarian-green-target, 3520ald)",
+        "(2-selfish-orange-lemon, 3520ald)",
+        "(3-competitive-fiery-ghost, 3520ald)",
+        "(3520ald, 4-masochistic-pink-pintagon)"
+    ],
+    "0417vmf": [
+        "(0417vmf, 1-utilitarian-yellow-hourglass)",
+        "(0417vmf, 2-selfish-purple-circle)",
+        "(0417vmf, 3-competitive-white-star)",
+        "(0417vmf, 4-masochistic-blue-cross)"
+    ],
+    "4410aui": [
+        "(1-utilitarian-yellow-hourglass, 4410aui)",
+        "(2-selfish-fiery-ghost, 4410aui)",
+        "(3-competitive-purple-circle, 4410aui)",
+        "(4-masochistic-blue-cross, 4410aui)"
+    ],
+    "4122ipj": [
+        "(1-utilitarian-blueish-bowtie, 4122ipj)",
+        "(2-selfish-blue-cross, 4122ipj)",
+        "(3-competitive-pink-pintagon, 4122ipj)",
+        "(4-masochistic-yellow-hourglass, 4122ipj)"
+    ],
+    "4420kef": [
+        "(1-utilitarian-white-star, 4420kef)",
+        "(2-selfish-yellow-hourglass, 4420kef)",
+        "(3-competitive-green-target, 4420kef)",
+        "(4-masochistic-blueish-bowtie, 4420kef)"
+    ],
+    "1104gkc": [
+        "(1-utilitarian-green-target, 1104gkc)",
+        "(1104gkc, 2-selfish-pink-pintagon)",
+        "(1104gkc, 3-competitive-orange-lemon)",
+        "(1104gkc, 4-masochistic-fiery-ghost)"
+    ],
+    "3601pmf": [
+        "(1-utilitarian-orange-lemon, 3601pmf)",
+        "(2-selfish-green-target, 3601pmf)",
+        "(3-competitive-pink-pintagon, 3601pmf)",
+        "(3601pmf, 4-masochistic-yellow-hourglass)"
+    ],
+    "0456cnr": [
+        "(0456cnr, 1-utilitarian-green-target)",
+        "(0456cnr, 2-selfish-orange-lemon)",
+        "(0456cnr, 3-competitive-purple-circle)",
+        "(0456cnr, 4-masochistic-fiery-ghost)"
+    ],
+    "3158tkb": [
+        "(1-utilitarian-blue-cross, 3158tkb)",
+        "(2-selfish-pink-pintagon, 3158tkb)",
+        "(3-competitive-blueish-bowtie, 3158tkb)",
+        "(3158tkb, 4-masochistic-fiery-ghost)"
+    ],
+    "0937ntn": [
+        "(0937ntn, 1-utilitarian-pink-pintagon)",
+        "(0937ntn, 2-selfish-purple-circle)",
+        "(0937ntn, 3-competitive-white-star)",
+        "(0937ntn, 4-masochistic-blue-cross)"
+    ],
+    "1558bpr": [
+        "(1-utilitarian-pink-pintagon, 1558bpr)",
+        "(1558bpr, 2-selfish-orange-lemon)",
+        "(1558bpr, 3-competitive-green-target)",
+        "(1558bpr, 4-masochistic-yellow-hourglass)"
+    ],
+    "0633itl": [
+        "(0633itl, 1-utilitarian-green-target)",
+        "(0633itl, 2-selfish-purple-circle)",
+        "(0633itl, 3-competitive-blueish-bowtie)",
+        "(0633itl, 4-masochistic-fiery-ghost)"
+    ],
+    "4727fgo": [
+        "(1-utilitarian-yellow-hourglass, 4727fgo)",
+        "(2-selfish-purple-circle, 4727fgo)",
+        "(3-competitive-pink-pintagon, 4727fgo)",
+        "(4-masochistic-orange-lemon, 4727fgo)"
+    ],
+    "5059una": [
+        "(1-utilitarian-purple-circle, 5059una)",
+        "(2-selfish-pink-pintagon, 5059una)",
+        "(3-competitive-orange-lemon, 5059una)",
+        "(4-masochistic-blue-cross, 5059una)"
+    ],
+    "1724bkt": [
+        "(1-utilitarian-pink-pintagon, 1724bkt)",
+        "(1724bkt, 2-selfish-yellow-hourglass)",
+        "(1724bkt, 3-competitive-green-target)",
+        "(1724bkt, 4-masochistic-fiery-ghost)"
+    ],
+    "4347nbx": [
+        "(1-utilitarian-green-target, 4347nbx)",
+        "(2-selfish-white-star, 4347nbx)",
+        "(3-competitive-blue-cross, 4347nbx)",
+        "(4-masochistic-purple-circle, 4347nbx)"
+    ],
+    "2942rsi": [
+        "(1-utilitarian-pink-pintagon, 2942rsi)",
+        "(2-selfish-fiery-ghost, 2942rsi)",
+        "(2942rsi, 3-competitive-yellow-hourglass)",
+        "(2942rsi, 4-masochistic-blueish-bowtie)"
+    ],
+    "4646qjr": [
+        "(1-utilitarian-yellow-hourglass, 4646qjr)",
+        "(2-selfish-pink-pintagon, 4646qjr)",
+        "(3-competitive-orange-lemon, 4646qjr)",
+        "(4-masochistic-fiery-ghost, 4646qjr)"
+    ],
+    "2049zwh": [
+        "(1-utilitarian-white-star, 2049zwh)",
+        "(2-selfish-orange-lemon, 2049zwh)",
+        "(2049zwh, 3-competitive-blue-cross)",
+        "(2049zwh, 4-masochistic-green-target)"
+    ],
+    "1145ugx": [
+        "(1-utilitarian-yellow-hourglass, 1145ugx)",
+        "(1145ugx, 2-selfish-fiery-ghost)",
+        "(1145ugx, 3-competitive-green-target)",
+        "(1145ugx, 4-masochistic-blue-cross)"
+    ],
+    "4038xcm": [
+        "(1-utilitarian-blue-cross, 4038xcm)",
+        "(2-selfish-green-target, 4038xcm)",
+        "(3-competitive-purple-circle, 4038xcm)",
+        "(4-masochistic-yellow-hourglass, 4038xcm)"
+    ],
+    "5408zze": [
+        "(1-utilitarian-yellow-hourglass, 5408zze)",
+        "(2-selfish-pink-pintagon, 5408zze)",
+        "(3-competitive-white-star, 5408zze)",
+        "(4-masochistic-blueish-bowtie, 5408zze)"
+    ],
+    "2650jwz": [
+        "(1-utilitarian-purple-circle, 2650jwz)",
+        "(2-selfish-orange-lemon, 2650jwz)",
+        "(2650jwz, 3-competitive-green-target)",
+        "(2650jwz, 4-masochistic-pink-pintagon)"
+    ]
+}
