@@ -1763,7 +1763,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             models_to_sequential_losses[utility_setting_key]            = ic_prev.get('lvec', [])
             models_to_sequential_params[utility_setting_key]            = ic_prev.get('pvec', [])
             models_to_sequential_losses_and_params[utility_setting_key] = ic_prev.get('plvec', [])
-            minimum_params_and_losses[utility_setting_key]              = ic_prev.get('minvec', {})
+            minimum_params_and_losses[utility_setting_key]              = ic_prev.get('minvec') or {}
             n_data_for_model                                            = ic_prev.get('n_data', 0)
 
             write_mode = general_settings.get('write_mode', 'resume')
@@ -1963,10 +1963,12 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
 
                 "Debugging"
                 "Total_loss_model should equal sum over players of minvec[uuid]['loss']['chooser'/'predictor']"
-                chk = 0.0
-                for player_uuid_for_check, player_loss_data in minimum_params_and_losses[utility_setting_key].items():
-                    chk += float(player_loss_data['loss'].get('chooser', 0.0)) + float(player_loss_data['loss'].get('predictor', 0.0))
-                assert abs(total_loss_model - chk) <= 1e-9, "models_to_sequential_losses inconsistent with minvec aggregation."
+                _minvec_check = minimum_params_and_losses[utility_setting_key]
+                if _minvec_check:
+                    chk = 0.0
+                    for player_uuid_for_check, player_loss_data in _minvec_check.items():
+                        chk += float(player_loss_data['loss'].get('chooser', 0.0)) + float(player_loss_data['loss'].get('predictor', 0.0))
+                    assert abs(total_loss_model - chk) <= 1e-9, "models_to_sequential_losses inconsistent with minvec aggregation."
                 "Debugging"
 
             "Determine minimum model loss found up until the previous time step"
