@@ -1882,6 +1882,9 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                         player_fit_name = f"{file_name_suffix}_{player_uuid}.json"
 
                     plr_file_path = prep.ensure_directory_and_join(base_dir=player_fit_dir, file_name=player_fit_name)
+                    if not os.path.exists(plr_file_path):
+                        print(f"[IC] WARNING: fit file missing for player {player_uuid}, model {file_name_suffix} — skipping player for this iteration.")
+                        continue
                     with open(plr_file_path, "r", encoding="utf-8") as file:
                         player_dyads = json.load(file)
 

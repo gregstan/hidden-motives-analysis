@@ -519,6 +519,12 @@ def prior_grid_from_params(param_vals: Dict[str, Dict[str, Dict[str, float]]], p
                 stds.append(sigma_val)
                 means.append(param_mean)
 
+            "Degenerate k=0 model: no free parameters, so the prior is a point mass at the single"
+            "0-dimensional grid point. scipy multivariate_normal cannot accept empty inputs."
+            if not means:
+                grid_prior[player_uuid][role_name] = {'param_vectors': {(): 1.0}}
+                continue
+
             "2) Validate and correct the covariance matrix"
             if covariation_matrix is not None and covariation_matrix.get(player_uuid, {}).get(role_name) is not None:  
                 cov_matrix = covariation_matrix[player_uuid][role_name]
