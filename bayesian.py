@@ -2678,7 +2678,7 @@ def _worker_fit_one(args: Any):
     except Exception:
         import traceback
         tb_text = traceback.format_exc()
-        traceback.print_exc()
+        print(f"\n[WORKER ERROR] key={key}\n{tb_text}", flush=True)
         try:
             log_dir = file_paths.get("player_fits", ".")
             log_path = os.path.join(log_dir, "worker_errors.log")

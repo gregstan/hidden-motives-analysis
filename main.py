@@ -34,6 +34,11 @@ def main():
     "Ensure all output directories exist — safe on a clean clone or a new machine."
     for _dir_key in ('processed', 'param_data', 'player_fits', 'dyad_data', 'discrete', 'visuals', 'bic_aic'):
         os.makedirs(str(file_paths[_dir_key]), exist_ok=True)
+    for _exper in (0, 1, 2, 3):
+        os.makedirs(os.path.join(str(file_paths['player_fits']), f'experiment_{_exper}'), exist_ok=True)
+        for _role in ('chooser', 'predictor'):
+            os.makedirs(os.path.join(str(file_paths['player_fits']), 'loss_reports', f'experiment_{_exper}', _role), exist_ok=True)
+    os.makedirs(os.path.join(str(file_paths['bic_aic']), 'pairwise_edge_analysis'), exist_ok=True)
 
     "Bootstrap: build core derived files if the registry is absent."
     if not os.path.exists(os.path.join(str(file_paths["processed"]), "all_utility_functions.csv")):
@@ -168,9 +173,7 @@ def main():
 
     if run_code_settings['run_information_criterion_analysis']:
 
-        "Grid-based dynamic updating is not yet stable in the IC pipeline;"
-        "parallelism across 28 workers already gives Rick's machine a ~4-5x speedup."
-        dynamic_updating = False
+        dynamic_updating = mp.cpu_count() >= 10 and general_settings['run_in_parallel']
 
         """
         Warn when a global seed is set alongside multi-start random exploration. On macOS (fork

@@ -655,7 +655,7 @@ utility_settings: UtilitySettings = {
 }
 
 experiment_num = 3
-run_in_parallel = False
+run_in_parallel = True
 track_evolution = False
 create_new_file = False
 update_method = 'grid'
