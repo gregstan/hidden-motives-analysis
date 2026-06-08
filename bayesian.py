@@ -1657,7 +1657,6 @@ def fit_params_by_player(player_uuid: PlayerUUID, param_info: ParamInfo, utility
         player_fit_name = f"{file_paths.get('file_name_suffix','')}_{player_uuid}.json"
 
     plr_file_path = prep.ensure_directory_and_join(base_dir=player_fit_dir, file_name=player_fit_name)
-    print(f"[DBG fit_params_by_player] writing to: {plr_file_path}", flush=True)
 
     "Return cached results if they exist; fall through and re-fit if the JSON is corrupt."
     try:
