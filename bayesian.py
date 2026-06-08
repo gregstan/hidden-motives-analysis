@@ -1057,8 +1057,10 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                 if plr_role in initial_params:  # E.g. initial_params['chooser'] or .predictor.
                     player_est_dict.setdefault(plr_role, {})['params'] = copy.deepcopy(initial_params[plr_role])
 
-            "If role='predictor' and using grid, build initial prior param_vectors for the predictor"
-            if update_method == 'grid' and assigned_role != 'chooser':
+            "If role='predictor' and using grid, build initial prior param_vectors for the predictor."
+            "Skip for k=0 models: no free parameters means no belief distribution to maintain."
+            _non_std_keys = [_k for _k in param_info.get("keys", []) if not _k.endswith('_std')]
+            if update_method == 'grid' and assigned_role != 'chooser' and _non_std_keys:
                 pred_sub = player_est_dict.setdefault('predictor', {})
                 if 'param_vectors' not in pred_sub or 'meta_data' not in pred_sub:
                     this_pred_params = initial_params.get('predictor', {})
