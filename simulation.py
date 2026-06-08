@@ -4595,7 +4595,10 @@ def analyze_update_speed_in_human_on_bot_study(file_paths: Dict[str, Dict[str, s
                 player_dyads: dict = json.load(file)
 
         if player_dyads is None:
-            raise Exception(f"Failed to extract dyads for player {player_uuid}.")        
+            raise Exception(
+                f"Player fit file not found for {player_uuid} (looked at {plr_file_path}). "
+                f"Run 'run_parameter_distribution_results' first to generate player fit files."
+            )
 
         update_speeds_per_counterpart = {}
         for dyad_key, dyad_games in player_dyads.items():

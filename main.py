@@ -8,16 +8,16 @@ from analysis import *
 "=========================================================================================="
 
 run_code_settings: RunCodeSettings = {
-    'run_belief_update_simulation':         True,
-    'run_illustrate_belief_updates':        True,
-    'run_alternative_model_contest':        True,
-    'run_typological_bayesian_models':      True,
+    'run_belief_update_simulation':         False,
+    'run_alternative_model_contest':        False,
+    'run_typological_bayesian_models':      False,
     'run_information_criterion_analysis':   True,
     'run_model_nesting_violation_analysis': True,
     'run_individual_architecture_analysis': True,
     'run_model_recovery_simulation':        True,
     'run_parameter_distribution_results':   True,
     'run_param_recovery_analysis':          True,
+    'run_illustrate_belief_updates':        True,
     'run_inequality_aversion_analysis':     True,
 }
 
@@ -104,65 +104,9 @@ def main():
             df_merged=df_merged, 
         )
         run_update_speed_simulation_regression(
-            general_settings=general_settings, 
+            general_settings=general_settings,
             file_paths=file_paths
         )
-
-        update_speeds = analyze_update_speed_in_human_on_bot_study(
-            general_settings=general_settings, 
-            utility_settings=utility_settings,
-            file_paths=file_paths, 
-        )
-        plot_update_speed_by_counterpart(
-            update_speeds_per_counterpart=update_speeds['update_speeds_per_counterpart'],
-            file_name="visuals/update_speeds_per_avatar.html",
-            figure_layout=figure_layout,
-            export_fig=export_fig, 
-        )
-
-    if run_code_settings['run_illustrate_belief_updates']:
-
-        experiment_num = general_settings.get('experiment_num')
-        if experiment_num not in (0, 1, 2, 3):
-            general_settings['experiment_num'] = 2
-        elif experiment_num != 2:
-            print(f"Much of the visualization code is intended to be run on experiment 2 data. Not "
-                  f"experiment {experiment_num}. Change experiment_num in config.py > general_settings.")
-
-        n_players_experiment_2 = 84
-        player_fits_file_names = []
-        for file_name in os.listdir(os.path.join(file_paths['player_fits'], 'experiment_2')):
-            if file_name.endswith('.json'):
-                player_fits_file_names.append(file_name)
-        if len(player_fits_file_names) < n_players_experiment_2:
-            raise Exception("No data from which to visualize! Must run the code within "
-                            "'run_parameter_distribution_results' before you can visualize Bayesian updates.")
-
-        visualize_bayesian_updates_2d(
-            player_uuid=0,
-            counterpart_uuid=0,
-            player_role='predictor',
-            general_settings=general_settings,
-            utility_settings=utility_settings,
-            figure_layout=figure_layout,
-            file_paths=file_paths,
-            n_rounds=9,
-        )
-
-        visualize_bayesian_updates_3d(
-            dyad_games_or_key=0,
-            figure_layout=figure_layout,
-            file_paths=file_paths,
-            general_settings=general_settings,
-            fix_z_axis=True, player_uuid=2,
-        )
-
-        for participant_number in range(n_players_experiment_2):
-            belief_accuracy_analysis(
-                file_paths=file_paths, participant_num=participant_number,
-                general_settings=general_settings, figure_layout=figure_layout,
-                fitted_by_player=True, compute_optimum_updates=True, 
-            )
 
     if run_code_settings['run_alternative_model_contest']:
 
@@ -206,7 +150,13 @@ def main():
 
     if run_code_settings['run_information_criterion_analysis']:
 
-        gnrl.generate_utility_settings(utility_settings=utility_settings)
+        gnrl.generate_utility_settings(
+            build_equation_function=build_utility_equation, 
+            utility_settings=utility_settings, 
+            general_settings=general_settings, 
+            file_paths=file_paths, 
+            sort_by_k=True
+        )
         gnrl.identify_redundant_utility_functions(
             build_equation_function=build_utility_equation,
             compute_ampd_fn=compute_ampd_matrix,
@@ -430,8 +380,63 @@ def main():
 
         param_correlation_matrix_report(
             general_settings=general_settings, file_paths=file_paths,
-            player_role=player_role, cross_role_correlations=True, 
+            player_role=player_role, cross_role_correlations=True,
             correction_method='holm',
+        )
+
+    if run_code_settings['run_illustrate_belief_updates']:
+
+        experiment_num = general_settings.get('experiment_num')
+        if experiment_num not in (0, 1, 2, 3):
+            general_settings['experiment_num'] = 2
+        elif experiment_num != 2:
+            print(f"Much of the visualization code is intended to be run on experiment 2 data. Not "
+                  f"experiment {experiment_num}. Change experiment_num in config.py > general_settings.")
+
+        n_players_experiment_2 = 84
+        player_fits_file_names = []
+        for file_name in os.listdir(os.path.join(file_paths['player_fits'], 'experiment_2')):
+            if file_name.endswith('.json'):
+                player_fits_file_names.append(file_name)
+        if len(player_fits_file_names) < n_players_experiment_2:
+            raise Exception("No data from which to visualize! Must run the code within "
+                            "'run_parameter_distribution_results' before you can visualize Bayesian updates.")
+
+        visualize_bayesian_updates_2d(
+            player_uuid=0,
+            counterpart_uuid=0,
+            player_role='predictor',
+            general_settings=general_settings,
+            utility_settings=utility_settings,
+            figure_layout=figure_layout,
+            file_paths=file_paths,
+            n_rounds=9,
+        )
+
+        visualize_bayesian_updates_3d(
+            dyad_games_or_key=0,
+            figure_layout=figure_layout,
+            file_paths=file_paths,
+            general_settings=general_settings,
+            fix_z_axis=True, player_uuid=2,
+        )
+
+        for participant_number in range(n_players_experiment_2):
+            belief_accuracy_analysis(
+                file_paths=file_paths, participant_num=participant_number,
+                general_settings=general_settings, figure_layout=figure_layout,
+                fitted_by_player=True, compute_optimum_updates=True, 
+            )
+
+        update_speeds = analyze_update_speed_in_human_on_bot_study(
+            general_settings=general_settings,
+            file_paths=file_paths,
+        )
+        plot_update_speed_by_counterpart(
+            update_speeds_per_counterpart=update_speeds['update_speeds_per_counterpart'],
+            file_name="visuals/update_speeds_per_avatar.html",
+            figure_layout=figure_layout,
+            export_fig=export_fig,
         )
 
     if run_code_settings['run_inequality_aversion_analysis']:
