@@ -577,6 +577,7 @@ def create_simulated_data(n_games: int, params_chooser_range: dict[str, float], 
 
         run_analysis_bayes(histories_data=player_histories, file_paths=file_paths_, param_info=param_info_,
                            utility_settings=utility_settings_, general_settings=general_settings_)
+        
     return player_histories
 
 
@@ -3763,11 +3764,11 @@ def plot_param_recovery_correlation_by_round(
     "belief_label describes the predictor's distributional belief (e.g. mean μ(𝑉𝑖𝑗))."
     "true_label is the scalar ground-truth parameter the belief is compared against."
     param_title_components = {
-        "Vii":     ("Self-interest μ(𝑉𝑖𝑖)",              "𝑉𝑖𝑖"),
-        "Vij":     ("Altruism μ(𝑉𝑖𝑗)",                   "𝑉𝑖𝑗"),
-        "Vii_std": ("Self-interest Std σ(𝑉𝑖𝑖)",           "σ(𝑉𝑖𝑖)"),
-        "Vij_std": ("Altruism Std σ(𝑉𝑖𝑗)",               "σ(𝑉𝑖𝑗)"),
-        "τ":       ("Temperature τ",                       "τ"),
+        "Vii":     ("Self-interest μ(𝑉𝑖𝑖)",     "𝑉𝑖𝑖"),
+        "Vij":     ("Altruism μ(𝑉𝑖𝑗)",          "𝑉𝑖𝑗"),
+        "Vii_std": ("Self-interest Std σ(𝑉𝑖𝑖)", "σ(𝑉𝑖𝑖)"),
+        "Vij_std": ("Altruism Std σ(𝑉𝑖𝑗)",      "σ(𝑉𝑖𝑗)"),
+        "τ":       ("Temperature τ",           "τ"),
     }
 
     "1) Correlations by round."

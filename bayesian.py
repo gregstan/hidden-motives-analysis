@@ -1279,7 +1279,26 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                             choice_func=response,
                         )
 
-                        "Store prior parameter stats."
+                        """
+                        Store prior parameter stats.
+
+                        Three cases for prior_grid_data['prior_array']:
+                          1. 'particles' dict  — particle-filter output; keys are param values.
+                                                 Use _statistics_from_sparse_param_vectors.
+                          2. 'grid_sparse' dict — fallback prior from prior_grid_from_params;
+                                                 keys are grid INDEX tuples, not param values.
+                                                 Must densify via param_vector_to_pmf_array first,
+                                                 then compute_statistics with tickvals.
+                          3. Dense ndarray     — normal grid posterior; use compute_statistics directly.
+
+                        Bug fixed (2026-06-08): the original code only handled case 1 and 3.
+                        Case 2 fell into the else branch and passed a dict to compute_statistics,
+                        causing TypeError: float() argument must be a string or a real number, not 'dict'.
+                        This crash only fires for k=0 (null) models with update_method='grid': the game-0
+                        grid init block is skipped for k=0 (no free params → _non_std_keys empty), so game 1
+                        finds no prev_vectors and takes this fallback path. For k>0 models, game 0 always
+                        stores param_vectors, game 1+ always takes the fast path, and this case never fires.
+                        """
                         if isinstance(prior_grid_data['prior_array'], dict) and prior_grid_data['meta_data'].get('representation') == 'particles':
                             pred_sub['params'] = gnrl._statistics_from_sparse_param_vectors(
                                 param_vectors=prior_grid_data['prior_array'],
@@ -1287,12 +1306,20 @@ def agent(dyad_games: DyadGames, game_idx_start: int, game_idx_stop: int, genera
                                 param_info=param_info
                             )
                         else:
+                            _prior_for_stats = prior_grid_data['prior_array']
+                            if isinstance(_prior_for_stats, dict):
+                                "grid_sparse: densify grid-index dict to ndarray before computing statistics"
+                                _prior_for_stats = param_vector_to_pmf_array(
+                                    param_vectors=_prior_for_stats,
+                                    meta_data=prior_grid_data['meta_data'],
+                                    general_settings=general_settings
+                                )
                             tickvals_array = [
                                 prior_grid_data['meta_data']["tickvals"][key]
                                 for key in prior_grid_data['meta_data']["tickvals"].keys()
                             ]
                             pred_sub['params'] = gnrl.compute_statistics(
-                                joint_pmf=prior_grid_data['prior_array'],
+                                joint_pmf=_prior_for_stats,
                                 grids=tickvals_array,
                                 param_info=param_info
                             )
