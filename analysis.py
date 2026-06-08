@@ -1760,9 +1760,9 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                 with open(ic_results_file_path, "r", encoding="utf-8") as file:
                     ic_prev = json.load(file)
 
-            models_to_sequential_losses[utility_setting_key]            = ic_prev.get('lvec', [])
-            models_to_sequential_params[utility_setting_key]            = ic_prev.get('pvec', [])
-            models_to_sequential_losses_and_params[utility_setting_key] = ic_prev.get('plvec', [])
+            models_to_sequential_losses[utility_setting_key]            = ic_prev.get('lvec') or []
+            models_to_sequential_params[utility_setting_key]            = ic_prev.get('pvec') or []
+            models_to_sequential_losses_and_params[utility_setting_key] = ic_prev.get('plvec') or []
             minimum_params_and_losses[utility_setting_key]              = ic_prev.get('minvec') or {}
             n_data_for_model                                            = ic_prev.get('n_data', 0)
 
