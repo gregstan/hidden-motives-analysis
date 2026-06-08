@@ -1118,9 +1118,10 @@ def typological_model_comparison_fit_individually(best_profiles: list[tuple[floa
 "=========================================================================================="
 
 def information_criterion_analysis(general_settings: Dict[str, Any], utility_settings: Dict[str, bool], file_paths: Dict[str, str],
-                                   param_bds: Dict[str, tuple[int | float, int | float]], dynamic_updating: bool = False, max_iters: int = 1, 
+                                   param_bds: Dict[str, tuple[int | float, int | float]], dynamic_updating: bool = False, max_iters: int = 1,
                                    robustness_epsilon: float = 10, check_for_n_players: int | str = "all", write_mode: WriteMode = "resume",
-                                   utility_setting_varieties: Optional[List[UtilitySettings]] = None) -> Tuple[pd.DataFrame, Dict[str, Dict[Tuple[bool], Dict[str, Any]]]]:
+                                   utility_setting_varieties: Optional[List[UtilitySettings]] = None,
+                                   n_models_print_time_info: Optional[int] = 10) -> Tuple[pd.DataFrame, Dict[str, Dict[Tuple[bool], Dict[str, Any]]]]:
     """
     Computes and compares AIC/BIC across different utility function configurations.
 
@@ -1138,6 +1139,8 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             configurations is used instead of generating all valid configurations via
             gnrl.generate_utility_settings. Each entry must pass gnrl.is_valid_utility_settings or a
             ValueError is raised. Pass None (the default) to run the full comparison across all 505 forms.
+        • n_models_print_time_info: int | None; Print a timing/ETA line every this many models. If None
+            or not a positive integer, no timing lines are printed. Default 10.
 
     Returns:
         • df: pd.DataFrame; Dataframe summarizing the IC metrics (loss, AIC, BIC) for each utility configuration.
@@ -1145,6 +1148,25 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             - "ic_results": Maps each utility config (as a tuple of booleans) to its {n,k,loss,AIC,BIC}.
             - "utility_varieties": Maps the same config tuple to the actual dictionary of settings.
     """
+    def _fmt_duration(seconds: float) -> str:
+        """Format a duration in seconds as 'Xd XXh XXm' or 'XXh XXm' or 'XXm XXs'."""
+        total_seconds = max(0, int(seconds))
+        days,    remainder  = divmod(total_seconds, 86400)
+        hours,   remainder  = divmod(remainder,     3600)
+        minutes, secs       = divmod(remainder,     60)
+        if days > 0:
+            return f"{days}d {hours:02d}h {minutes:02d}m"
+        if hours > 0:
+            return f"{hours:02d}h {minutes:02d}m"
+        return f"{minutes:02d}m {secs:02d}s"
+
+    "Timing state."
+    _ic_start_time         = time.time()
+    _iter_start_time       = _ic_start_time
+    _iter_durations: list  = []
+    _model_start_time      = _ic_start_time
+    _do_time_prints        = isinstance(n_models_print_time_info, int) and n_models_print_time_info >= 1
+
     "Storing terminal printouts in a .txt file"
     ic_terminal_printouts = [
         "This document contains terminal print statements for the information criterion utility function model comparison."
@@ -1707,6 +1729,8 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                 "Pass if I have the file open."
                 pass
 
+        _iter_start_time = time.time()
+
         "Store sum of detal min loss for this iteration"
         sum_delta_minimum_loss_this_iter = 0.0
 
@@ -1860,6 +1884,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                         ic_terminal_printouts.append(warm_start_message)
                         print(warm_start_message)                        
 
+                _model_start_time = time.time()
                 "Run the naive analysis (similar to \"bayes\" approach)."
                 player_histories = run_analysis_bayes(
                     player_uuids=player_uuids if player_subset else None,
@@ -2020,6 +2045,32 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             print(report_str)
             print(equation)
 
+            "Periodic timing / ETA line."
+            if _do_time_prints and (utility_idx + 1) % n_models_print_time_info == 0:
+                _now                  = time.time()
+                _elapsed_total        = _now - _ic_start_time
+                _elapsed_iter         = _now - _iter_start_time
+                _models_done_iter     = utility_idx + 1
+                _models_left_iter     = n_varieties - _models_done_iter
+                _avg_per_model        = _elapsed_iter / _models_done_iter
+                _eta_iter             = _avg_per_model * _models_left_iter
+                _iters_left           = max_iters - iter_idx
+                if _iter_durations:
+                    _avg_iter_dur = sum(_iter_durations) / len(_iter_durations)
+                    _eta_total    = _eta_iter + _iters_left * _avg_iter_dur
+                    _eta_total_str = _fmt_duration(_eta_total)
+                else:
+                    "First iteration — project remaining models + remaining iters at current pace."
+                    _eta_total     = _eta_iter + _iters_left * (_elapsed_iter + _eta_iter)
+                    _eta_total_str = f"~{_fmt_duration(_eta_total)} (rough, 1st iter)"
+                _timing_str = (
+                    f"[IC Timing]  Elapsed — Total: {_fmt_duration(_elapsed_total)},  "
+                    f"Iter: {_fmt_duration(_elapsed_iter)};  "
+                    f"ETA — Iter: {_fmt_duration(_eta_iter)},  Total: {_eta_total_str}"
+                )
+                ic_terminal_printouts.append(_timing_str)
+                print(_timing_str)
+
             "If no data, store null results."
             if n_data_for_model == 0:
                 ic_results = {
@@ -2115,6 +2166,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
 
         "Store sum delta min loss for this iteration"
         sum_delta_minimum_loss_by_iter.append(sum_delta_minimum_loss_this_iter)
+        _iter_durations.append(time.time() - _iter_start_time)
 
         rounded_sds = [round(sum_delta, 6) for sum_delta in sum_delta_minimum_loss_by_iter]
         sum_delta_min_loss_statement = f"Iter {iter_idx}: Sum Δ Min Losses: {rounded_sds}"

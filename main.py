@@ -495,8 +495,9 @@ class _Tee:
 if __name__ == "__main__":
     import multiprocessing as mp
     import sys as _sys
+    import os as _os
     mp.freeze_support()
-    _log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "terminal_output.txt")
+    _log_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "terminal_output.txt")
     with open(_log_path, "w", encoding="utf-8") as _log_file:
         _sys.stdout = _Tee(_sys.__stdout__, _log_file)
         _sys.stderr = _Tee(_sys.__stderr__, _log_file)

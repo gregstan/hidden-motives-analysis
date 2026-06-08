@@ -673,7 +673,7 @@ fit_roles_together = False
 use_initial_params = True
 loss_funct_type = 'log'
 penalty_weight = 0.005
-write_mode = 'overwrite' # NOTE: Switch back to write_mode = 'resume'
+write_mode = 'resume'
 learning_rate = 0.8
 sample_ratio = 0.05
 export_fig = True
