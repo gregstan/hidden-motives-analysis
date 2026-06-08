@@ -2736,14 +2736,10 @@ def run_analysis_bayes(histories_data: Histories, file_paths: FilePaths, param_i
 
     os.makedirs(output_dir, exist_ok=True)
 
-    "Check if the aggregate file already exists"
-    if not create_new_file and os.path.exists(aggregate_path):
-        with open(aggregate_path, "r", encoding='utf-8') as file:
-            histories_data_fitted = json.load(file)
-        if histories_data_fitted:
-            if print_:
-                print(f"Aggregate data loaded from {pretty_path(aggregate_path)}.")
-            return histories_data_fitted
+    "Aggregate early return disabled: individual player files cache themselves inside fit_params_by_player."
+    "A stale aggregate (written with unfitted data when readback failed) would cause the IC to skip all workers"
+    "on subsequent runs, leaving player_fits/ empty. We always dispatch workers; each worker returns instantly"
+    "if its player file already exists (create_new_file=False path in fit_params_by_player)."
 
     if analysis_unit == 'player':
         if not isinstance(histories_data, dict):
@@ -2837,8 +2833,10 @@ def run_analysis_bayes(histories_data: Histories, file_paths: FilePaths, param_i
             file_path = prep._dyad_file_path(dyad_key=key, file_paths=file_paths, 
                                             experiment_num=experiment_num, analysis_mode='bayesian')
         else:
-            file_path = os.path.join(file_paths["player_fits"], f"experiment_{experiment_num}", 
-                                 f'{file_paths["file_name_suffix"]}_' + key + ".json")
+            file_path = prep.ensure_directory_and_join(
+                base_dir=os.path.join(file_paths["player_fits"], f"experiment_{experiment_num}"),
+                file_name=f'{file_paths.get("file_name_suffix", "")}_{key}.json'
+            )
 
         try:
             if os.path.exists(file_path):
