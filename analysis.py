@@ -1639,7 +1639,9 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
 
     "Temperature should be held constant to keep all models on an even footing."
     general_settings['temperature_is_param'] = False
-    general_settings['run_in_parallel'] = True                                       
+    if not general_settings.get('run_in_parallel', True):
+        print("[IC] NOTE: run_in_parallel=False in general_settings is overridden to True for the IC analysis.")
+    general_settings['run_in_parallel'] = True
 
     "Determine which experiment to analyze."
     experiment_num = general_settings.get('experiment_num', 3)

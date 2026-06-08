@@ -477,8 +477,32 @@ def main():
         )
 
 
+class _Tee:
+    """Mirrors writes to both the original stream and a log file simultaneously."""
+    def __init__(self, original_stream, log_file_handle):
+        self._original = original_stream
+        self._log = log_file_handle
+    def write(self, data):
+        self._original.write(data)
+        self._log.write(data)
+    def flush(self):
+        self._original.flush()
+        self._log.flush()
+    def __getattr__(self, attr):
+        return getattr(self._original, attr)
+
+
 if __name__ == "__main__":
     import multiprocessing as mp
+    import sys as _sys
     mp.freeze_support()
-    main()
+    _log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "terminal_output.txt")
+    with open(_log_path, "w", encoding="utf-8") as _log_file:
+        _sys.stdout = _Tee(_sys.__stdout__, _log_file)
+        _sys.stderr = _Tee(_sys.__stderr__, _log_file)
+        try:
+            main()
+        finally:
+            _sys.stdout = _sys.__stdout__
+            _sys.stderr = _sys.__stderr__
     exit()

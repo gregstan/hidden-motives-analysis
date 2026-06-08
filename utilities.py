@@ -1690,13 +1690,18 @@ def generate_utility_settings(
             )
 
     "Core generation path: exhaustively enumerate all valid flag combinations."
-    bool_flags = {key: [False, True] for key in utility_settings.keys()}
-    all_keys = sorted(bool_flags.keys())
-    all_value_combos = it.product(*(bool_flags[k] for k in all_keys))
+    "Use alphabetical key order for the Cartesian product (stable, deterministic enumeration),"
+    "then reconstruct each candidate dict in canonical key order so downstream callers (including"
+    "convert_utility_settings) never see an out-of-order dict and never emit the key-order warning."
+    canonical_key_order = list(utility_settings.keys())
+    bool_flags = {key: [False, True] for key in canonical_key_order}
+    all_keys_alpha = sorted(bool_flags.keys())
+    all_value_combos = it.product(*(bool_flags[k] for k in all_keys_alpha))
 
     valid_combos = []
     for combo in all_value_combos:
-        candidate = dict(zip(all_keys, combo))
+        alpha_candidate = dict(zip(all_keys_alpha, combo))
+        candidate = {canonical_key: alpha_candidate[canonical_key] for canonical_key in canonical_key_order}
         if is_valid_utility_settings(candidate=candidate):
             valid_combos.append(candidate)
 
