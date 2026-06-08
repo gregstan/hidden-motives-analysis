@@ -35,6 +35,24 @@ def main():
     for _dir_key in ('processed', 'param_data', 'player_fits', 'dyad_data', 'discrete', 'visuals', 'bic_aic'):
         os.makedirs(str(file_paths[_dir_key]), exist_ok=True)
 
+    "Bootstrap: build core derived files if the registry is absent."
+    if not os.path.exists(os.path.join(str(file_paths["processed"]), "all_utility_functions.csv")):
+        print("Registry absent — bootstrapping core files from scratch...")
+        model_nesting_adjacency_matrices(
+            general_settings=general_settings,
+            utility_settings=utility_settings,
+            file_paths=file_paths,
+            create_new_file=False,
+        )
+        gnrl.generate_utility_settings(
+            build_equation_function=build_utility_equation,
+            utility_settings=utility_settings,
+            general_settings=general_settings,
+            file_paths=file_paths,
+            create_new_file=True,
+            sort_by_k=True,
+        )
+
     if run_code_settings['run_belief_update_simulation']:
 
         sample_ratios = list(np.round(np.linspace(start=0.05, stop=0.95, num=19), decimals=3))
@@ -150,27 +168,6 @@ def main():
 
     if run_code_settings['run_information_criterion_analysis']:
 
-        gnrl.generate_utility_settings(
-            build_equation_function=build_utility_equation, 
-            utility_settings=utility_settings, 
-            general_settings=general_settings, 
-            file_paths=file_paths, 
-            sort_by_k=True
-        )
-        gnrl.identify_redundant_utility_functions(
-            build_equation_function=build_utility_equation,
-            compute_ampd_fn=compute_ampd_matrix,
-            general_settings=general_settings,
-            utility_settings=utility_settings,
-            file_paths=file_paths,
-            param_bds=param_bds,
-        )
-        gnrl.equation_to_settings(
-            equation_function=build_utility_equation, 
-            utility_settings=utility_settings,
-            file_paths=file_paths, 
-        )
-
         dynamic_updating = mp.cpu_count() >= 10 and general_settings['run_in_parallel']
 
         """
@@ -195,19 +192,42 @@ def main():
             check_for_n_players='all', dynamic_updating=dynamic_updating,
         )
 
+        "Rebuild registry now that IC results exist — merges BIC/AIC columns into all_utility_functions.csv."
+        gnrl.generate_utility_settings(
+            build_equation_function=build_utility_equation,
+            utility_settings=utility_settings,
+            general_settings=general_settings,
+            file_paths=file_paths,
+            sort_by_k=True,
+            create_new_file=True,
+        )
+        gnrl.identify_redundant_utility_functions(
+            build_equation_function=build_utility_equation,
+            compute_ampd_fn=compute_ampd_matrix,
+            general_settings=general_settings,
+            utility_settings=utility_settings,
+            file_paths=file_paths,
+            param_bds=param_bds,
+        )
+        gnrl.equation_to_settings(
+            equation_function=build_utility_equation,
+            utility_settings=utility_settings,
+            file_paths=file_paths,
+        )
+
         plot_ic_scores_delta_bic(
-            figure_layout=figure_layout, file_paths=file_paths, 
+            figure_layout=figure_layout, file_paths=file_paths,
             general_settings=general_settings, include_dropdown=False)
-        plot_ic_robustness_analysis(general_settings=general_settings, 
+        plot_ic_robustness_analysis(general_settings=general_settings,
                                     file_paths=file_paths, figure_layout=figure_layout)
 
         utility_setting_contribution_analysis(
-            general_settings=general_settings, 
+            general_settings=general_settings,
             utility_settings_universe=utility_settings,
-            use_edge_types=("sibling", "parent_child"), 
-            include_non_network_toggles=True, 
-            file_paths=file_paths, 
-            score_col="BIC", 
+            use_edge_types=("sibling", "parent_child"),
+            include_non_network_toggles=True,
+            file_paths=file_paths,
+            score_col="BIC",
         )
 
         extract_rankings_of_canonical_utility_functions(

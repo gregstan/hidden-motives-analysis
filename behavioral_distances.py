@@ -815,7 +815,7 @@ def compute_ampd_matrix(
             exit()
 
     "Load full registry (all models) to build the master index — no general_settings to prevent recursive completeness checks."
-    registry_df = all_utility_functions_dataframe(file_paths=file_paths)
+    registry_df = all_utility_functions_dataframe(file_paths=file_paths, utility_settings=utility_settings)
     all_utility_idxs: List[int] = sorted(registry_df["utility_idx"].astype(int).tolist())
     n_all = len(all_utility_idxs)
 

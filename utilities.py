@@ -1800,16 +1800,17 @@ def all_utility_functions_dataframe(
             registry_csv_needs_resave = True
             print("Registry: added canonical_model column.")
 
-        "--- AMPD distance columns: fill each independently when all-NaN ---"
+        "--- Distance-to-best columns: add missing columns, then fill each independently when all-NaN ---"
+        for _distance_col in ("ampd_to_best", "policy_regret_norm_to_best", "hamming_to_best"):
+            if _distance_col not in loaded_registry_df.columns:
+                loaded_registry_df[_distance_col] = float("nan")
+                registry_csv_needs_resave = True
+                print(f"Registry: added {_distance_col} column.")
+
         bic_data_is_present = "BIC" in loaded_registry_df.columns and loaded_registry_df["BIC"].notna().any()
-        ampd_to_best_is_empty = (
-            "ampd_to_best" in loaded_registry_df.columns
-            and loaded_registry_df["ampd_to_best"].isna().all()
-        )
-        policy_regret_is_empty = (
-            "policy_regret_norm_to_best" in loaded_registry_df.columns
-            and loaded_registry_df["policy_regret_norm_to_best"].isna().all()
-        )
+        ampd_to_best_is_empty = loaded_registry_df["ampd_to_best"].isna().all()
+        policy_regret_is_empty = loaded_registry_df["policy_regret_norm_to_best"].isna().all()
+        hamming_to_best_is_empty = loaded_registry_df["hamming_to_best"].isna().all()
 
         if bic_data_is_present and general_settings is not None:
             best_model_utility_idx = int(loaded_registry_df.loc[loaded_registry_df["BIC"].idxmin(), "utility_idx"])
@@ -1868,6 +1869,31 @@ def all_utility_functions_dataframe(
                     print(f"Registry: populated policy_regret_norm_to_best (best model idx={best_model_utility_idx}).")
                 except Exception as policy_regret_population_error:
                     print(f"Registry: could not populate policy_regret_norm_to_best ({policy_regret_population_error}).")
+
+            if hamming_to_best_is_empty:
+                try:
+                    cond_hamming_matrix_df = compute_conditional_hamming_distance_matrix(
+                        file_paths=file_paths,
+                        utility_settings=utility_settings,
+                        create_new_file=False,
+                    )
+                    cond_hamming_matrix_df.index   = cond_hamming_matrix_df.index.astype(int)
+                    cond_hamming_matrix_df.columns = cond_hamming_matrix_df.columns.astype(int)
+                    loaded_registry_df["hamming_to_best"] = [
+                        float(cond_hamming_matrix_df.loc[utility_idx_value, best_model_utility_idx])
+                        if (
+                            utility_idx_value in cond_hamming_matrix_df.index
+                            and best_model_utility_idx in cond_hamming_matrix_df.columns
+                            and not np.isnan(cond_hamming_matrix_df.loc[utility_idx_value, best_model_utility_idx])
+                        )
+                        else float("nan")
+                        for utility_idx_value in all_utility_idx_values
+                    ]
+                    loaded_registry_df.to_csv(registry_out_path, index=False, encoding="utf-8-sig")
+                    registry_csv_needs_resave = False
+                    print(f"Registry: populated hamming_to_best (best model idx={best_model_utility_idx}).")
+                except Exception as hamming_population_error:
+                    print(f"Registry: could not populate hamming_to_best ({hamming_population_error}).")
 
         if registry_csv_needs_resave:
             loaded_registry_df.to_csv(registry_out_path, index=False, encoding="utf-8-sig")
@@ -1941,51 +1967,74 @@ def all_utility_functions_dataframe(
     registry_df["redundant_with"] = ""
     registry_df["differing_settings"] = ""
 
-    """
-    Compute parent, sibling, and child relations via the same O(n²) pairwise approach used in
-    model_nesting_adjacency_matrices. Single-pivot enumeration with _apply_minimal_dependent_fixes
-    is unreliable here because trailing implications in that function can cascade additional flag
-    changes beyond the intended pivot, causing the direct single-flag neighbor to be missed. The
-    pairwise approach delegates all relation logic to classify_pair_relation, which is the canonical
-    implementation and the source of truth for what constitutes a valid parent/child/sibling pair.
-    """
-    settings_list: List[UtilitySettings] = [
-        {col: bool(registry_row[col]) for col in canonical_flag_order}
-        for _, registry_row in registry_df.iterrows()
-    ]
-    n_models = len(settings_list)
-
-    parents_by_row_index: Dict[int, List[int]] = {row_index: [] for row_index in range(n_models)}
+    n_models = len(registry_df)
+    parents_by_row_index:  Dict[int, List[int]] = {row_index: [] for row_index in range(n_models)}
     siblings_by_row_index: Dict[int, List[int]] = {row_index: [] for row_index in range(n_models)}
     children_by_row_index: Dict[int, List[int]] = {row_index: [] for row_index in range(n_models)}
 
-    for model_row_index in range(n_models):
-        for other_model_row_index in range(model_row_index + 1, n_models):
-            relation_i_to_j, relation_j_to_i, setting_flipped = classify_pair_relation(
-                model_1=settings_list[model_row_index],
-                model_2=settings_list[other_model_row_index],
-                utility_settings=utility_settings,
-                general_settings=general_settings,
-            )
+    "Read nesting relations from model_nesting_data.json when available — avoids a redundant O(n²) computation."
+    _nesting_json_path = os.path.join(file_paths["processed"], "model_nesting_data.json")
+    _used_nesting_json = False
+    if os.path.exists(_nesting_json_path):
+        with open(_nesting_json_path, "r", encoding="utf-8") as _nesting_file:
+            _nesting_data = json.load(_nesting_file)
+        _bit_to_idx: Dict[str, int] = _nesting_data.get("bit_to_idx", {})
+        _idx_to_bit: Dict[str, str] = _nesting_data.get("idx_to_bit", {})
+        if _bit_to_idx and _idx_to_bit:
+            def _nesting_positions_to_utility_idxs(positions: List[int]) -> List[int]:
+                result = []
+                for _pos in positions:
+                    _neighbor_bitstring = _idx_to_bit.get(str(_pos))
+                    _neighbor_uid = bitstring_to_utility_idx.get(_neighbor_bitstring) if _neighbor_bitstring else None
+                    if _neighbor_uid is not None:
+                        result.append(_neighbor_uid)
+                return sorted(result)
+            for _row_index in range(n_models):
+                _row_bitstring = registry_df.iloc[_row_index]["utility_bitstring"]
+                _nesting_pos = _bit_to_idx.get(_row_bitstring)
+                if _nesting_pos is None:
+                    continue
+                parents_by_row_index[_row_index]  = _nesting_positions_to_utility_idxs(
+                    _nesting_data["adjacency_lists"]["parent_of"][_nesting_pos]
+                )
+                siblings_by_row_index[_row_index] = _nesting_positions_to_utility_idxs(
+                    _nesting_data["adjacency_lists"]["sibling_of"][_nesting_pos]
+                )
+                children_by_row_index[_row_index] = _nesting_positions_to_utility_idxs(
+                    _nesting_data["adjacency_lists"]["child_of"][_nesting_pos]
+                )
+            _used_nesting_json = True
+            print("Registry builder: nesting relations read from model_nesting_data.json.")
 
-            "Flipping these mode-level flags produces neither relationship, consistent with model_nesting_adjacency_matrices."
-            if setting_flipped in ("min_max_rawlsian_leontief", "conditional_welfare_mode"):
-                continue
+    if not _used_nesting_json:
+        "Fallback: compute inline when model_nesting_data.json is absent or predates bit_to_idx."
+        settings_list: List[UtilitySettings] = [
+            {col: bool(registry_row[col]) for col in canonical_flag_order}
+            for _, registry_row in registry_df.iterrows()
+        ]
+        for model_row_index in range(n_models):
+            for other_model_row_index in range(model_row_index + 1, n_models):
+                relation_i_to_j, relation_j_to_i, setting_flipped = classify_pair_relation(
+                    model_1=settings_list[model_row_index],
+                    model_2=settings_list[other_model_row_index],
+                    utility_settings=utility_settings,
+                    general_settings=general_settings,
+                )
+                if setting_flipped in ("min_max_rawlsian_leontief", "conditional_welfare_mode"):
+                    continue
+                model_utility_idx       = int(registry_df.iloc[model_row_index]["utility_idx"])
+                other_model_utility_idx = int(registry_df.iloc[other_model_row_index]["utility_idx"])
+                if relation_i_to_j == "parent":
+                    children_by_row_index[model_row_index].append(other_model_utility_idx)
+                    parents_by_row_index[other_model_row_index].append(model_utility_idx)
+                elif relation_i_to_j == "child":
+                    parents_by_row_index[model_row_index].append(other_model_utility_idx)
+                    children_by_row_index[other_model_row_index].append(model_utility_idx)
+                elif relation_i_to_j == "sibling":
+                    siblings_by_row_index[model_row_index].append(other_model_utility_idx)
+                    siblings_by_row_index[other_model_row_index].append(model_utility_idx)
 
-            model_utility_idx = int(registry_df.iloc[model_row_index]["utility_idx"])
-            other_model_utility_idx = int(registry_df.iloc[other_model_row_index]["utility_idx"])
-
-            if relation_i_to_j == "parent":
-                children_by_row_index[model_row_index].append(other_model_utility_idx)
-                parents_by_row_index[other_model_row_index].append(model_utility_idx)
-            elif relation_i_to_j == "child":
-                parents_by_row_index[model_row_index].append(other_model_utility_idx)
-                children_by_row_index[other_model_row_index].append(model_utility_idx)
-            elif relation_i_to_j == "sibling":
-                siblings_by_row_index[model_row_index].append(other_model_utility_idx)
-                siblings_by_row_index[other_model_row_index].append(model_utility_idx)
-
-    registry_df["parents"] = [str(sorted(parents_by_row_index[row_index])) for row_index in range(n_models)]
+    registry_df["parents"]  = [str(sorted(parents_by_row_index[row_index]))  for row_index in range(n_models)]
     registry_df["siblings"] = [str(sorted(siblings_by_row_index[row_index])) for row_index in range(n_models)]
     registry_df["children"] = [str(sorted(children_by_row_index[row_index])) for row_index in range(n_models)]
 
@@ -2006,8 +2055,8 @@ def all_utility_functions_dataframe(
         return str(int(registry_row["utility_idx"]))
     registry_df["canonical_model"] = registry_df.apply(_resolve_canonical_model_name_for_builder, axis=1)
 
-    "Initialize AMPD distance columns as NaN; populated in Stage 3–4."
-    for distance_column_name in ("ampd_to_best", "policy_regret_norm_to_best"):
+    "Initialize distance-to-best columns as NaN; populated on next load when BIC data is present."
+    for distance_column_name in ("ampd_to_best", "policy_regret_norm_to_best", "hamming_to_best"):
         registry_df[distance_column_name] = float("nan")
 
     "Attempt to merge existing IC results from bic_aic/ if the directory and CSV exist."
@@ -2071,7 +2120,7 @@ def all_utility_functions_dataframe(
         "AIC", "BIC", "ΔAIC", "ΔBIC", "AIC_rank", "BIC_rank",
     ]
     family_column_names = ["parents", "siblings", "children"]
-    distance_column_names = ["ampd_to_best", "policy_regret_norm_to_best"]
+    distance_column_names = ["ampd_to_best", "policy_regret_norm_to_best", "hamming_to_best"]
     all_ordered_column_names = (
         ["utility_idx", "utility_bitstring", "k_params"]
         + canonical_flag_order

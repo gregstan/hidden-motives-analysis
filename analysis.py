@@ -4515,15 +4515,25 @@ def model_nesting_adjacency_matrices(general_settings: GeneralSettings, utility_
     "Generate all utility funtion settings"
     utility_setting_varieties = gnrl.generate_utility_settings(utility_settings=utility_settings)
 
+    "Build bitstring ↔ positional-index lookups so all_utility_functions_dataframe can read nesting from this JSON."
+    bit_to_idx: dict[str, int] = {}
+    idx_to_bit: dict[str, str] = {}
+    for _nesting_pos, _nesting_settings in enumerate(utility_setting_varieties):
+        _nesting_bitstring = gnrl.convert_utility_settings(utility_settings=_nesting_settings, into=str)
+        bit_to_idx[_nesting_bitstring] = _nesting_pos
+        idx_to_bit[str(_nesting_pos)] = _nesting_bitstring
+
     "Generate utility function equations for viewing"
     equations = [build_utility_equation(utility_settings=settings) for settings in utility_setting_varieties]
-    
+
     "Dictionary of all data"
     model_nesting_data = {
         'adjacency_lists': {},
-        'adjacency_matrices': {}, 
-        'settings': utility_setting_varieties, 
-        'equations': equations
+        'adjacency_matrices': {},
+        'settings': utility_setting_varieties,
+        'equations': equations,
+        'bit_to_idx': bit_to_idx,
+        'idx_to_bit': idx_to_bit,
     }
 
     "Create empty adjacency matrices for all three types of relations"
