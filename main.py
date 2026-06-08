@@ -168,7 +168,9 @@ def main():
 
     if run_code_settings['run_information_criterion_analysis']:
 
-        dynamic_updating = mp.cpu_count() >= 10 and general_settings['run_in_parallel']
+        "Grid-based dynamic updating is not yet stable in the IC pipeline;"
+        "parallelism across 28 workers already gives Rick's machine a ~4-5x speedup."
+        dynamic_updating = False
 
         """
         Warn when a global seed is set alongside multi-start random exploration. On macOS (fork

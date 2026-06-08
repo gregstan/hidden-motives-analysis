@@ -2677,7 +2677,15 @@ def _worker_fit_one(args: Any):
 
     except Exception:
         import traceback
+        tb_text = traceback.format_exc()
         traceback.print_exc()
+        try:
+            log_dir = file_paths.get("player_fits", ".")
+            log_path = os.path.join(log_dir, "worker_errors.log")
+            with open(log_path, "a", encoding="utf-8") as log_file:
+                log_file.write(f"\n--- worker error for key={key} ---\n{tb_text}\n")
+        except Exception:
+            pass
 
 
 def run_analysis_bayes(histories_data: Histories, file_paths: FilePaths, param_info: ParamInfo, utility_settings: UtilitySettings, 
