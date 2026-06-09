@@ -1298,6 +1298,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             future_iter_phases: list[str],
             fallback_start_total: float,
             fallback_start_iter: float,
+            n_models_skipped_this_iter: int = 0,
         ) -> str:
             """
             Build the full [IC Timing] line with k-weighted, phase-pooled ETA estimates.
@@ -1363,8 +1364,10 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             prior_same_phase = self._completed_iter_durations(phase, exclude_iter=iter_idx)
             is_rough = pct_timed < 0.5 and not prior_same_phase
 
-            "Annotation: always show phase; show coverage and k-adjustment status."
+            "Annotation: always show phase; show coverage, skip count, and k-adjustment status."
             annotation_parts = [phase]
+            if n_models_skipped_this_iter > 0:
+                annotation_parts.append(f"{n_models_skipped_this_iter} resumed")
             if pct_timed < 0.8:
                 annotation_parts.append(f"{pct_timed:.0%} timed")
             if k_means:
@@ -1977,6 +1980,42 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             _iter_phase = "warm_exploit"
         timing_log.record_run_start(iter_idx=iter_idx, phase=_iter_phase, n_models=n_varieties)
 
+        "Pre-scan: find which models are already complete for iter_idx so we can skip them."
+        "Reading each model's IC results file is fast; this lets the ETA exclude skipped models."
+        _will_skip_indices_this_iter: set[int] = set()
+        _resume_write_mode = general_settings.get('write_mode', 'resume')
+        if _resume_write_mode == 'resume':
+            for _scan_vi, _scan_variety in enumerate(utility_setting_varieties):
+                _scan_suffix = prep.create_file_name_suffix(
+                    general_settings=general_settings, utility_settings=_scan_variety
+                )
+                _scan_paths = prep.add_remove_file_name_suffix(
+                    file_paths=copy.deepcopy(base_file_paths),
+                    file_name_suffix=_scan_suffix, add_suffix=True
+                )
+                _scan_ic_path = prep.ensure_directory_and_join(
+                    _scan_paths["bic_aic"], f"IC_Analysis{_scan_suffix}.json"
+                )
+                if os.path.exists(_scan_ic_path):
+                    try:
+                        with open(_scan_ic_path, 'r', encoding='utf-8') as _scan_f:
+                            _scan_lvec_len = len(json.load(_scan_f).get('lvec') or [])
+                        if _scan_lvec_len >= iter_idx:
+                            _will_skip_indices_this_iter.add(_scan_vi)
+                    except (json.JSONDecodeError, OSError):
+                        pass
+            if _will_skip_indices_this_iter:
+                _n_to_fit = n_varieties - len(_will_skip_indices_this_iter)
+                _resume_msg = (
+                    f"[IC Resume] Iter {iter_idx}: {len(_will_skip_indices_this_iter)}/{n_varieties} models "
+                    f"already complete — skipping them, fitting the remaining {_n_to_fit}."
+                )
+                ic_terminal_printouts.append(_resume_msg)
+                print(_resume_msg)
+
+        "Counter for how many models were skipped this iteration (for timing annotation)."
+        _n_skipped_this_iter = 0
+
         "Store sum of detal min loss for this iteration"
         sum_delta_minimum_loss_this_iter = 0.0
 
@@ -2048,13 +2087,22 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                 minimum_params_and_losses[utility_setting_key].clear()
                 n_data_for_model = 0
 
-            "Readonly → skip running a new iteration; just use the seeded values"
-            if write_mode == 'readonly':
-                total_loss_model = ic_prev.get('loss', (
-                    min(models_to_sequential_losses[utility_setting_key])
-                    if models_to_sequential_losses[utility_setting_key]
-                    else float('nan')
-                ))
+            "Resume skip: this model was already fitted for iter_idx in a prior session."
+            _already_fitted_this_iter = utility_idx in _will_skip_indices_this_iter
+
+            "Readonly or resume-skip → use saved values without re-fitting."
+            if write_mode == 'readonly' or _already_fitted_this_iter:
+                if _already_fitted_this_iter and models_to_sequential_losses[utility_setting_key]:
+                    "Use the loss already stored in lvec for this iteration."
+                    total_loss_model = models_to_sequential_losses[utility_setting_key][iter_idx - 1]
+                else:
+                    total_loss_model = ic_prev.get('loss', (
+                        min(models_to_sequential_losses[utility_setting_key])
+                        if models_to_sequential_losses[utility_setting_key]
+                        else float('nan')
+                    ))
+                if _already_fitted_this_iter:
+                    _n_skipped_this_iter += 1
             else:
                 "Read the main processed histories if needed."
                 file_path_histories = prep.ensure_directory_and_join(
@@ -2260,8 +2308,8 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             else:
                 prior_minimum_model_loss = min(models_to_sequential_losses[utility_setting_key])
 
-            "Append loss to loss vector"
-            if general_settings.get('write_mode') in ('resume', 'overwrite'):
+            "Append loss to loss vector — skip if model was already fitted this iteration."
+            if general_settings.get('write_mode') in ('resume', 'overwrite') and not _already_fitted_this_iter:
                 models_to_sequential_losses[utility_setting_key].append(total_loss_model)
 
             "Find miminum model loss up until now and the delta from the last time step"
@@ -2282,8 +2330,8 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             "Add to the sum of delta min losses across all models."
             sum_delta_minimum_loss_this_iter += delta_minimum_model_loss
 
-            "Append params to param vector"
-            if general_settings.get('write_mode') in ('resume', 'overwrite'):
+            "Append params to param vector — skip if model was already fitted this iteration."
+            if general_settings.get('write_mode') in ('resume', 'overwrite') and not _already_fitted_this_iter:
                 models_to_sequential_params[utility_setting_key].append(players_to_params_this_iter)
                 models_to_sequential_losses_and_params[utility_setting_key].append(players_to_params_and_losses_this_iter)
 
@@ -2303,7 +2351,12 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
 
             "Periodic timing / ETA line."
             if _do_time_prints and (utility_idx + 1) % n_models_print_time_info == 0:
-                _pending_ks = _k_params_by_variety[utility_idx + 1:]
+                "Exclude already-fitted (resumed) models from pending_ks so ETA reflects actual work left."
+                _pending_ks = [
+                    _k_params_by_variety[_vi]
+                    for _vi in range(utility_idx + 1, n_varieties)
+                    if _vi not in _will_skip_indices_this_iter
+                ]
                 _future_iter_phases = []
                 for _future_iter_idx in range(iter_idx + 1, max_iters + 1):
                     if _future_iter_idx <= _timing_cold_iters:
@@ -2322,6 +2375,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                     future_iter_phases=_future_iter_phases,
                     fallback_start_total=_ic_start_time,
                     fallback_start_iter=_iter_start_time,
+                    n_models_skipped_this_iter=_n_skipped_this_iter,
                 )
                 ic_terminal_printouts.append(_timing_str)
                 print(_timing_str)
