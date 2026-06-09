@@ -661,7 +661,7 @@ create_new_file = False
 update_method = 'grid'
 analysis_mode = 'bayesian'
 analysis_unit = 'player'
-n_bins_per_dimension = 5
+n_bins_per_dimension = 3
 include_covariance = False
 softmax_temperature = 1.0
 temperature_is_param = True
@@ -707,10 +707,10 @@ general_settings: GeneralSettings = {
     'dark_mode': dark_mode,
     'optimization_policy': {
         'n_random_starts'    : 10,
-        'maxiter_global'     : 1000,
-        'maxiter_local'      : 1000,
-        'maxfun_global'      : 1000,
-        'maxfun_local'       : 1000,
+        'maxiter_global'     : 50,
+        'maxiter_local'      : 50,
+        'maxfun_global'      : 50,
+        'maxfun_local'       : 50,
         'run_trust_constr'   : False,
         'dual_annealing_seed': None,
         'trust_maxiter'      : 600,
