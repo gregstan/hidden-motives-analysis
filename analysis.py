@@ -1120,8 +1120,8 @@ def typological_model_comparison_fit_individually(best_profiles: list[tuple[floa
 def information_criterion_analysis(general_settings: Dict[str, Any], utility_settings: Dict[str, bool], file_paths: Dict[str, str],
                                    param_bds: Dict[str, tuple[int | float, int | float]], dynamic_updating: bool = False, max_iters: int = 1,
                                    robustness_epsilon: float = 10, check_for_n_players: int | str = "all", write_mode: WriteMode = "resume",
-                                   utility_setting_varieties: Optional[List[UtilitySettings]] = None,
-                                   n_models_print_time_info: Optional[int] = 10) -> Tuple[pd.DataFrame, Dict[str, Dict[Tuple[bool], Dict[str, Any]]]]:
+                                   utility_setting_varieties: Optional[List[UtilitySettings]] = None, n_models_print_time_info: Optional[int] = 10
+                                   ) -> Tuple[pd.DataFrame, Dict[str, Dict[Tuple[bool], Dict[str, Any]]]]:
     """
     Computes and compares AIC/BIC across different utility function configurations.
 
@@ -1350,7 +1350,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         
         "List of all models as tuples of boolean flags"
         model_setting_tuples: list[tuple] = [gnrl.convert_utility_settings(
-            utility_settings=settings, into=tuple, sort_alphabetically=True) for settings in model_nesting_data['settings']]
+            utility_settings=settings, into=tuple) for settings in model_nesting_data['settings']]
 
         "Index of the new model in the list of models"
         target_model_settings_idx = next((settings_idx for settings_idx, settings in enumerate(
@@ -1464,7 +1464,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         Returns None ⇒ 'cold' (no warm-starts).
         Simple schedules that do not depend on final horizon.
         """
-        cold_iters = int(warmstart_policy.get("cold_iters", 2))     # No warm-starts for the first K iterations.
+        cold_iters = int(warmstart_policy.get("cold_iters", 4))     # No warm-starts for the first K iterations.
         temp_high  = float(warmstart_policy.get("temperature_high", 1000.0))
         temp_low   = float(warmstart_policy.get("temperature_low", 0.05))
         schedule   = str(warmstart_policy.get("schedule", "binary")).lower()
@@ -4656,7 +4656,7 @@ def model_nesting_adjacency_matrices(general_settings: GeneralSettings, utility_
                 adjacency_equations = [equations[edx] for edx in adjacency_list_model]
                 equation_dict[relation][equation] = adjacency_equations
             for idx, settings in enumerate(settings_list):
-                settings = str(gnrl.convert_utility_settings(settings, tuple, sort_alphabetically=True))
+                settings = str(gnrl.convert_utility_settings(settings, tuple, sort_alphabetically=False))
                 adjacency_list_model = model_nesting_data['adjacency_lists'][relation][idx]
                 adjacent_settings = [settings_list[sdx] for sdx in adjacency_list_model]
                 adjacency_dict[relation][settings] = adjacent_settings
@@ -4666,7 +4666,7 @@ def model_nesting_adjacency_matrices(general_settings: GeneralSettings, utility_
     "Save the data."
     model_nesting_data_compact = copy.deepcopy(model_nesting_data)
     model_nesting_data_compact['settings'] = [
-        (int(setting) for setting in gnrl.convert_utility_settings(utility_settings=settings, into=tuple, sort_alphabetically=True))
+        (int(setting) for setting in gnrl.convert_utility_settings(utility_settings=settings, into=tuple, sort_alphabetically=False))
         for settings in model_nesting_data_compact['settings']
     ]
     with open(model_nesting_file_path, 'w', encoding='utf-8') as file:
