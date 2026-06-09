@@ -1160,6 +1160,225 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             return f"{hours:02d}h {minutes:02d}m"
         return f"{minutes:02d}m {secs:02d}s"
 
+    class _ICTimingLog:
+        """
+        Persists per-model and per-iteration timing to a JSONL file in bic_aic/ so that
+        ETA estimates survive process restarts and disconnections. ETAs are k_params-weighted
+        and pool duration records across all completed iterations of the same phase
+        (cold / warm_explore / warm_exploit) for better calibration.
+
+        File schema — two record types:
+        • {"type": "run_start", "iter": N, "phase": "...", "n_models": M, "ts": float}
+        • {"type": "model_done", "iter": N, "model_key": "...", "k": K,
+            "phase": "...", "start_utc": float, "end_utc": float, "duration": float}
+        """
+
+        def __init__(self, file_path: str) -> None:
+            self._path = file_path
+            self._records: list[dict] = []
+            if os.path.exists(file_path):
+                with open(file_path, 'r', encoding='utf-8') as _timing_file:
+                    for _line in _timing_file:
+                        _line = _line.strip()
+                        if _line:
+                            try:
+                                self._records.append(json.loads(_line))
+                            except json.JSONDecodeError:
+                                pass
+
+        def _append(self, record: dict) -> None:
+            self._records.append(record)
+            try:
+                _dir = os.path.dirname(self._path)
+                if _dir:
+                    os.makedirs(_dir, exist_ok=True)
+                with open(self._path, 'a', encoding='utf-8') as _timing_file:
+                    _timing_file.write(json.dumps(record) + '\n')
+            except (PermissionError, OSError):
+                pass
+
+        def record_run_start(self, iter_idx: int, phase: str, n_models: int) -> None:
+            """Record the start of an iteration. No-op if this iter already has a run_start record."""
+            if not any(r.get('type') == 'run_start' and r.get('iter') == iter_idx
+                       for r in self._records):
+                self._append({'type': 'run_start', 'iter': iter_idx, 'phase': phase,
+                               'n_models': n_models, 'ts': time.time()})
+
+        def record_model_done(self, iter_idx: int, model_key: str, k_params: int,
+                               phase: str, start_utc: float, end_utc: float) -> None:
+            """Record the completion of one model fit."""
+            self._append({'type': 'model_done', 'iter': iter_idx, 'model_key': model_key,
+                           'k': k_params, 'phase': phase,
+                           'start_utc': round(start_utc, 3), 'end_utc': round(end_utc, 3),
+                           'duration': round(end_utc - start_utc, 3)})
+
+        def _first_run_start_ts(self) -> float | None:
+            """Timestamp of the very first run_start record (anchor for total elapsed)."""
+            timestamps = [r['ts'] for r in self._records if r.get('type') == 'run_start']
+            return min(timestamps) if timestamps else None
+
+        def _iter_run_start_ts(self, iter_idx: int) -> float | None:
+            """Timestamp of the run_start record for the given iteration."""
+            for record in self._records:
+                if record.get('type') == 'run_start' and record.get('iter') == iter_idx:
+                    return record['ts']
+            return None
+
+        def _k_mean_durations(self, phase: str) -> dict[int, float]:
+            """
+            Per-k mean fit durations pooled from ALL same-phase model_done records across
+            all iterations. Using all iterations (not just current) gives more data and
+            therefore more precise per-k estimates.
+            """
+            k_duration_lists: dict[int, list[float]] = {}
+            for record in self._records:
+                if record.get('type') != 'model_done' or record.get('phase') != phase:
+                    continue
+                k_val = record.get('k', 0)
+                if k_val not in k_duration_lists:
+                    k_duration_lists[k_val] = []
+                k_duration_lists[k_val].append(record.get('duration', 0.0))
+            return {k_val: sum(durs) / len(durs) for k_val, durs in k_duration_lists.items()}
+
+        def _estimate_duration_for_k(self, k_params: int, k_means: dict[int, float]) -> float | None:
+            """
+            Estimate fit duration for a model with k_params free parameters.
+            Returns None if no data exists at all.
+            For k values not directly observed: interpolates linearly between bracketing
+            known values; extrapolates with linear scaling for out-of-range k.
+            k=0 models are trivially fast — returns 5% of the minimum known mean.
+            """
+            if not k_means:
+                return None
+            if k_params in k_means:
+                return k_means[k_params]
+            if k_params == 0:
+                return min(k_means.values()) * 0.05
+            known_ks = sorted(k_means)
+            if k_params < known_ks[0]:
+                scale = k_params / known_ks[0] if known_ks[0] > 0 else 1.0
+                return k_means[known_ks[0]] * scale
+            if k_params > known_ks[-1]:
+                scale = k_params / known_ks[-1] if known_ks[-1] > 0 else 1.0
+                return k_means[known_ks[-1]] * scale
+            k_lo = max(kk for kk in known_ks if kk < k_params)
+            k_hi = min(kk for kk in known_ks if kk > k_params)
+            interp_frac = (k_params - k_lo) / (k_hi - k_lo)
+            return k_means[k_lo] * (1.0 - interp_frac) + k_means[k_hi] * interp_frac
+
+        def _completed_iter_durations(self, phase: str, exclude_iter: int) -> list[float]:
+            """
+            Wall-clock durations of completed same-phase iterations other than exclude_iter.
+            Duration = (last model_done end_utc in that iter) − (run_start ts for that iter).
+            Only counts iterations where both a run_start and at least one model_done exist.
+            """
+            durations = []
+            iter_start_times = {
+                r['iter']: r['ts'] for r in self._records
+                if r.get('type') == 'run_start' and r.get('phase') == phase
+                and r.get('iter') != exclude_iter
+            }
+            for past_iter_idx, start_ts in iter_start_times.items():
+                model_end_times = [
+                    r['end_utc'] for r in self._records
+                    if r.get('type') == 'model_done' and r.get('iter') == past_iter_idx
+                ]
+                if model_end_times:
+                    durations.append(max(model_end_times) - start_ts)
+            return durations
+
+        def compute_timing_line(
+            self,
+            iter_idx: int,
+            phase: str,
+            utility_idx: int,
+            n_varieties: int,
+            pending_k_params: list[int],
+            max_iters: int,
+            future_iter_phases: list[str],
+            fallback_start_total: float,
+            fallback_start_iter: float,
+        ) -> str:
+            """
+            Build the full [IC Timing] line with k-weighted, phase-pooled ETA estimates.
+
+            Elapsed anchors use persistent run_start timestamps so they survive restarts.
+            Falls back to the process-local _ic_start_time / _iter_start_time when no
+            persistent record exists yet (first run after implementing this feature).
+
+            ETA for remaining iters uses the mean duration of completed same-phase iterations.
+            When no same-phase history exists, falls back to projecting current iter's pace.
+            """
+            now = time.time()
+            models_done_this_iter = utility_idx + 1
+
+            "Use persistent timestamps when available; process-clock as fallback."
+            first_ts     = self._first_run_start_ts()
+            iter_ts      = self._iter_run_start_ts(iter_idx)
+            elapsed_total_secs = now - (first_ts if first_ts is not None else fallback_start_total)
+            elapsed_iter_secs  = now - (iter_ts  if iter_ts  is not None else fallback_start_iter)
+
+            "Per-k mean durations pooled from ALL same-phase iterations."
+            k_means = self._k_mean_durations(phase)
+
+            "How many completed models in this iter have timing records."
+            n_timed_this_iter = sum(
+                1 for r in self._records
+                if r.get('type') == 'model_done' and r.get('iter') == iter_idx
+            )
+            pct_timed = n_timed_this_iter / models_done_this_iter if models_done_this_iter > 0 else 0.0
+
+            "ETA for the models still pending in this iteration."
+            if pending_k_params:
+                if k_means:
+                    eta_iter_secs = sum(
+                        self._estimate_duration_for_k(k_val, k_means) or 0.0
+                        for k_val in pending_k_params
+                    )
+                elif n_timed_this_iter > 0:
+                    timed_recs = [r for r in self._records
+                                  if r.get('type') == 'model_done' and r.get('iter') == iter_idx]
+                    avg_per_model = sum(r['duration'] for r in timed_recs) / len(timed_recs)
+                    eta_iter_secs = avg_per_model * len(pending_k_params)
+                else:
+                    "No timing data yet — fall back to naive elapsed / done extrapolation."
+                    avg_per_model = elapsed_iter_secs / models_done_this_iter if models_done_this_iter > 0 else 0.0
+                    eta_iter_secs = avg_per_model * len(pending_k_params)
+            else:
+                eta_iter_secs = 0.0
+
+            "ETA for remaining iterations, each estimated from same-phase completed-iter averages."
+            eta_future_iters_secs = 0.0
+            for future_phase in future_iter_phases:
+                same_phase_durs = self._completed_iter_durations(future_phase, exclude_iter=iter_idx)
+                if same_phase_durs:
+                    eta_future_iters_secs += sum(same_phase_durs) / len(same_phase_durs)
+                else:
+                    "No completed same-phase history — project from current iter pace."
+                    eta_future_iters_secs += elapsed_iter_secs + eta_iter_secs
+
+            eta_total_secs = eta_iter_secs + eta_future_iters_secs
+
+            "Mark rough when on first cold iter with sparse timing data and no prior same-phase iters."
+            prior_same_phase = self._completed_iter_durations(phase, exclude_iter=iter_idx)
+            is_rough = pct_timed < 0.5 and not prior_same_phase
+
+            "Annotation: always show phase; show coverage and k-adjustment status."
+            annotation_parts = [phase]
+            if pct_timed < 0.8:
+                annotation_parts.append(f"{pct_timed:.0%} timed")
+            if k_means:
+                annotation_parts.append("k-adj")
+            annotation = "  [" + ", ".join(annotation_parts) + "]"
+
+            total_eta_str = ("~" if is_rough else "") + _fmt_duration(eta_total_secs)
+            return (
+                f"[IC Timing]  Elapsed — Total: {_fmt_duration(elapsed_total_secs)},  "
+                f"Iter: {_fmt_duration(elapsed_iter_secs)};  "
+                f"ETA — Iter: {_fmt_duration(eta_iter_secs)},  Total: {total_eta_str}"
+                f"{annotation}"
+            )
+
     "Timing state."
     _ic_start_time         = time.time()
     _iter_start_time       = _ic_start_time
@@ -1697,6 +1916,24 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
 
     n_varieties = len(utility_setting_varieties)
 
+    "Precompute k_params for every utility setting once (used by timing ETA estimates)."
+    _k_params_by_variety = [
+        len(make_param_info(param_bds=param_bds, utility_settings=variety,
+                            general_settings=general_settings,
+                            random_guesses_are_unique=False, guess_seed=None)['keys'])
+        for variety in utility_setting_varieties
+    ]
+
+    "Warmstart phase boundaries, resolved once for timing purposes."
+    _timing_default_warm_pol = {"cold_iters": 2, "explore_iters": 2}
+    _timing_warm_pol = general_settings.get("warmstart_policy", _timing_default_warm_pol)
+    _timing_cold_iters    = int(_timing_warm_pol.get("cold_iters",    2))
+    _timing_explore_iters = int(_timing_warm_pol.get("explore_iters", 2))
+
+    "Persistent timing log — survives restarts; ETAs anchored to first-ever run_start timestamp."
+    _ic_timing_path = os.path.join(base_file_paths["bic_aic"], f"ic_timing_experiment{experiment_num}.jsonl")
+    timing_log = _ICTimingLog(_ic_timing_path)
+
     "Keep track of the best min loss found so far for each model"
     models_to_sequential_losses: Dict[str, List[float]] = {}
     models_to_sequential_params: Dict[str, List[Dict[str, Dict[str, Dict[str, float]]]]] = {}
@@ -1730,6 +1967,15 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                 pass
 
         _iter_start_time = time.time()
+
+        "Iteration phase — three-way distinction used by timing log and warm-start messages."
+        if iter_idx <= _timing_cold_iters:
+            _iter_phase = "cold"
+        elif iter_idx <= _timing_cold_iters + _timing_explore_iters:
+            _iter_phase = "warm_explore"
+        else:
+            _iter_phase = "warm_exploit"
+        timing_log.record_run_start(iter_idx=iter_idx, phase=_iter_phase, n_models=n_varieties)
 
         "Store sum of detal min loss for this iteration"
         sum_delta_minimum_loss_this_iter = 0.0
@@ -1998,6 +2244,16 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                     assert abs(total_loss_model - chk) <= 1e-9, "models_to_sequential_losses inconsistent with minvec aggregation."
                 "Debugging"
 
+                _model_end_time = time.time()
+                timing_log.record_model_done(
+                    iter_idx=iter_idx,
+                    model_key=utility_setting_key,
+                    k_params=k_params,
+                    phase=_iter_phase,
+                    start_utc=_model_start_time,
+                    end_utc=_model_end_time,
+                )
+
             "Determine minimum model loss found up until the previous time step"
             if len(models_to_sequential_losses[utility_setting_key]) == 0:
                 prior_minimum_model_loss = float('inf')
@@ -2047,26 +2303,25 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
 
             "Periodic timing / ETA line."
             if _do_time_prints and (utility_idx + 1) % n_models_print_time_info == 0:
-                _now                  = time.time()
-                _elapsed_total        = _now - _ic_start_time
-                _elapsed_iter         = _now - _iter_start_time
-                _models_done_iter     = utility_idx + 1
-                _models_left_iter     = n_varieties - _models_done_iter
-                _avg_per_model        = _elapsed_iter / _models_done_iter
-                _eta_iter             = _avg_per_model * _models_left_iter
-                _iters_left           = max_iters - iter_idx
-                if _iter_durations:
-                    _avg_iter_dur = sum(_iter_durations) / len(_iter_durations)
-                    _eta_total    = _eta_iter + _iters_left * _avg_iter_dur
-                    _eta_total_str = _fmt_duration(_eta_total)
-                else:
-                    "First iteration — project remaining models + remaining iters at current pace."
-                    _eta_total     = _eta_iter + _iters_left * (_elapsed_iter + _eta_iter)
-                    _eta_total_str = f"~{_fmt_duration(_eta_total)} (rough, 1st iter)"
-                _timing_str = (
-                    f"[IC Timing]  Elapsed — Total: {_fmt_duration(_elapsed_total)},  "
-                    f"Iter: {_fmt_duration(_elapsed_iter)};  "
-                    f"ETA — Iter: {_fmt_duration(_eta_iter)},  Total: {_eta_total_str}"
+                _pending_ks = _k_params_by_variety[utility_idx + 1:]
+                _future_iter_phases = []
+                for _future_iter_idx in range(iter_idx + 1, max_iters + 1):
+                    if _future_iter_idx <= _timing_cold_iters:
+                        _future_iter_phases.append("cold")
+                    elif _future_iter_idx <= _timing_cold_iters + _timing_explore_iters:
+                        _future_iter_phases.append("warm_explore")
+                    else:
+                        _future_iter_phases.append("warm_exploit")
+                _timing_str = timing_log.compute_timing_line(
+                    iter_idx=iter_idx,
+                    phase=_iter_phase,
+                    utility_idx=utility_idx,
+                    n_varieties=n_varieties,
+                    pending_k_params=_pending_ks,
+                    max_iters=max_iters,
+                    future_iter_phases=_future_iter_phases,
+                    fallback_start_total=_ic_start_time,
+                    fallback_start_iter=_iter_start_time,
                 )
                 ic_terminal_printouts.append(_timing_str)
                 print(_timing_str)
