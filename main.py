@@ -11,8 +11,8 @@ run_code_settings: RunCodeSettings = {
     'run_belief_update_simulation':         False,
     'run_alternative_model_contest':        False,
     'run_typological_bayesian_models':      False,
-    'run_information_criterion_analysis':   True,
     'run_model_nesting_violation_analysis': True,
+    'run_information_criterion_analysis':   True,
     'run_individual_architecture_analysis': True,
     'run_model_recovery_simulation':        True,
     'run_parameter_distribution_results':   True,
@@ -41,8 +41,15 @@ def main():
     os.makedirs(os.path.join(str(file_paths['bic_aic']), 'pairwise_edge_analysis'), exist_ok=True)
 
     "Bootstrap: build core derived files if the registry is absent."
-    if not os.path.exists(os.path.join(str(file_paths["processed"]), "all_utility_functions.csv")):
+    _registry_path   = os.path.join(str(file_paths["processed"]), "all_utility_functions.csv")
+    _redundancy_path = os.path.join(str(file_paths["processed"]), "redundant_utility_functions.csv")
+
+    if not os.path.exists(_registry_path):
         print("Registry absent — bootstrapping core files from scratch...")
+
+        "Verifying that there are no nesting violations is an important first step"
+        run_code_settings['run_model_nesting_violation_analysis'] = True
+
         model_nesting_adjacency_matrices(
             general_settings=general_settings,
             utility_settings=utility_settings,
@@ -56,6 +63,87 @@ def main():
             file_paths=file_paths,
             create_new_file=True,
             sort_by_k=True,
+        )
+
+    "AMPD, Hamming, and behavioral redundancy are computed here — before any IC run — so the"
+    "model universe is fully verified before fitting begins. Each is idempotent with"
+    "create_new_file=False: a cache hit is instant; only absent files trigger real computation."
+    "The redundancy report regenerates whenever it is missing so that is_valid_utility_settings"
+    "changes (e.g. pruning inert reference_dependent_utility models) are caught immediately."
+    if not os.path.exists(_redundancy_path):
+        compute_ampd_matrix(
+            general_settings=general_settings,
+            file_paths=file_paths,
+            param_bds=param_bds,
+            utility_settings=utility_settings,
+            create_new_file=False,
+        )
+        compute_conditional_hamming_distance_matrix(
+            file_paths=file_paths,
+            utility_settings=utility_settings,
+            create_new_file=False,
+        )
+        gnrl.identify_redundant_utility_functions(
+            build_equation_function=build_utility_equation,
+            compute_ampd_fn=compute_ampd_matrix,
+            general_settings=general_settings,
+            utility_settings=utility_settings,
+            file_paths=file_paths,
+            param_bds=param_bds,
+        )
+
+    if run_code_settings['run_model_nesting_violation_analysis']:
+
+        model_nesting_adjacency_matrices(
+            general_settings=general_settings, 
+            utility_settings=utility_settings,
+            file_paths=file_paths, 
+            equation_form=True, 
+        )
+        gnrl.summarize_nesting_relationship_counts(
+            model_nesting_adjacency_matrices=model_nesting_adjacency_matrices, 
+            general_settings=general_settings, 
+            utility_settings=utility_settings, 
+            file_paths=file_paths,
+        )
+        gnrl.equation_to_settings(
+            equation_function=build_utility_equation, 
+            utility_settings=utility_settings,
+            file_paths=file_paths, 
+        )
+        gnrl.test_utility_functions(build_utility_equation=build_utility_equation,
+                                    general_settings=general_settings,
+                                    utility_settings=utility_settings,
+                                    setting_to_flip='include_social_comparison')
+
+        verify_same_inputs_same_outputs_for_children_and_parents(
+            general_settings=general_settings,
+            utility_settings=utility_settings,
+            player_role_to_fit="chooser",
+            numeric_tolerance=1e-3,
+            file_paths=file_paths,
+            param_bds=param_bds,
+            fit_for_n_players=1,
+            random_seed=None,
+            verbose=True,
+        )
+
+        run_child_parent_probability_equivalence_smoketest(
+            utility_settings=utility_settings,
+            file_paths=file_paths,
+            param_bds=param_bds,
+            rand_payoff_idx=True,
+            random_seed=None,
+            tolerance=1e-12,
+            verbose=True,
+            n_trials=12,
+        )
+
+        verify_utility_vs_string_equation(
+            utility_function=utility, utility_function_str=build_utility_equation,
+            utility_settings=utility_settings, param_bds=param_bds, n_games=625,
+            random_seed=None, exhaustive_if_large=True, file_paths=file_paths,
+            comparison_tol=1e-6, decimals=6, verbose=True,
         )
 
     if run_code_settings['run_belief_update_simulation']:
@@ -203,8 +291,8 @@ def main():
             utility_settings=utility_settings,
             general_settings=general_settings,
             file_paths=file_paths,
-            sort_by_k=True,
             create_new_file=True,
+            sort_by_k=True,
         )
         gnrl.identify_redundant_utility_functions(
             build_equation_function=build_utility_equation,
@@ -237,60 +325,6 @@ def main():
 
         extract_rankings_of_canonical_utility_functions(
             file_paths=file_paths, rank_col="BIC"
-        )
-
-    if run_code_settings['run_model_nesting_violation_analysis']:
-
-        model_nesting_adjacency_matrices(
-            general_settings=general_settings, 
-            utility_settings=utility_settings,
-            file_paths=file_paths, 
-            equation_form=True, 
-        )
-        gnrl.summarize_nesting_relationship_counts(
-            model_nesting_adjacency_matrices=model_nesting_adjacency_matrices, 
-            general_settings=general_settings, 
-            utility_settings=utility_settings, 
-            file_paths=file_paths,
-        )
-        gnrl.equation_to_settings(
-            equation_function=build_utility_equation, 
-            utility_settings=utility_settings,
-            file_paths=file_paths, 
-        )
-        gnrl.test_utility_functions(build_utility_equation=build_utility_equation,
-                                    general_settings=general_settings,
-                                    utility_settings=utility_settings,
-                                    setting_to_flip='include_social_comparison')
-
-        verify_same_inputs_same_outputs_for_children_and_parents(
-            general_settings=general_settings,
-            utility_settings=utility_settings,
-            player_role_to_fit="chooser",
-            numeric_tolerance=1e-3,
-            file_paths=file_paths,
-            param_bds=param_bds,
-            fit_for_n_players=1,
-            random_seed=None,
-            verbose=True,
-        )
-
-        run_child_parent_probability_equivalence_smoketest(
-            utility_settings=utility_settings,
-            file_paths=file_paths,
-            param_bds=param_bds,
-            rand_payoff_idx=True,
-            random_seed=None,
-            tolerance=1e-12,
-            verbose=True,
-            n_trials=12,
-        )
-
-        verify_utility_vs_string_equation(
-            utility_function=utility, utility_function_str=build_utility_equation,
-            utility_settings=utility_settings, param_bds=param_bds, n_games=625,
-            random_seed=None, exhaustive_if_large=True, file_paths=file_paths,
-            comparison_tol=1e-6, decimals=6, verbose=True,
         )
 
     if run_code_settings['run_individual_architecture_analysis']:
