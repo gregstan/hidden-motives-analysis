@@ -2044,7 +2044,7 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                 utility_settings=utility_setting_variety, general_settings=general_settings, 
                 random_guesses_are_unique=True, guess_seed=None)
 
-            k_params = len(param_info['keys'])  # Number of free parameters.
+            k_params = gnrl.count_free_parameters(utility_settings=utility_setting_variety, general_settings=general_settings)
             utility_setting_key = str(gnrl.convert_utility_settings(utility_settings=utility_setting_variety, into=tuple)) 
 
             "Adding model key to dict so it can be mapped to losses vector"

@@ -1652,13 +1652,23 @@ def plot_ic_scores_delta_bic(figure_layout: dict, file_paths: dict, general_sett
             "Sort by rank so alternating ay offsets spread upward/downward along the curve."
             _annotation_data.sort(key=lambda d: d['rank'])
             _ay_cycle = [-90, 90, -130, 130, -60, 110]
+            "Spread text boxes horizontally so they fan outward from the data cluster."
+            "Lower-rank (left-side) annotations get negative ax; higher-rank get positive ax."
+            "With 6 annotations the pattern is: far-left, left, near-left, near-right, right, far-right."
+            _n_ann = len(_annotation_data)
+            def _spread_ax(idx, n_total):
+                "Map sorted index 0..n-1 to ax values spanning -200..+200 symmetrically."
+                if n_total <= 1:
+                    return 0
+                fraction = idx / (n_total - 1)       # 0.0 at leftmost, 1.0 at rightmost
+                return int(-200 + fraction * 400)     # linear from -200 to +200
 
             _plotly_annotations = []
             for _i, _ann in enumerate(_annotation_data):
                 _short = _short_labels.get(_ann['name'], _ann['name'].split('(')[0].strip())
                 _text  = f"{_short}<br><b>Rank: {_ann['rank']}</b>"
                 _ay    = _ay_cycle[_i % len(_ay_cycle)]
-                _ax    = 40 if _ay < 0 else -40
+                _ax    = _spread_ax(_i, _n_ann)
                 _plotly_annotations.append(dict(
                     x=_ann['rank'],
                     y=_ann['delta_bic'],
