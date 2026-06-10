@@ -2593,7 +2593,10 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         model_comparison_df(df=df)
 
         "Check the scree slope if sum_delta_min is below epsilon"
-        if iter_idx > 1:
+        "Only count toward early stopping once the warm phase has begun — cold iterations"
+        "share the same dual_annealing_seed and trivially produce ΔMinLoss=0, which would"
+        "otherwise fire early stopping before any warm-start refinement has run."
+        if iter_idx > _timing_cold_iters:
             if sum_delta_minimum_loss_this_iter < robustness_epsilon:
                 consecutive_small_improvements += 1
             else:
