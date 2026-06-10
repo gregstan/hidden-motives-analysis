@@ -258,7 +258,9 @@ def main():
             utility_settings=utility_settings,
             file_paths=file_paths, 
         )
-        gnrl.test_utility_functions(utility_settings=utility_settings, 
+        gnrl.test_utility_functions(build_utility_equation=build_utility_equation,
+                                    general_settings=general_settings,
+                                    utility_settings=utility_settings,
                                     setting_to_flip='include_social_comparison')
 
         verify_same_inputs_same_outputs_for_children_and_parents(

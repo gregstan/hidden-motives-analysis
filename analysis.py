@@ -1866,6 +1866,19 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
             "global RNG state will be restored when the IC completes."
         )
 
+    "Separately guard dual_annealing_seed regardless of use_seeds — a fixed annealing seed"
+    "causes every IC iteration to explore identical trajectories, making warm-start iterations"
+    "trivially produce ΔMinLoss=0 and triggering early stopping prematurely."
+    _da_seed = general_settings.get('optimization_policy', {}).get('dual_annealing_seed')
+    if max_iters > 1 and _da_seed is not None:
+        general_settings['optimization_policy']['dual_annealing_seed'] = None
+        print(
+            f"[IC WARNING] dual_annealing_seed={_da_seed!r} was set but max_iters={max_iters} > 1. "
+            "A fixed annealing seed makes every IC iteration explore the same optimization trajectory, "
+            "defeating the purpose of multi-iteration robustness analysis. "
+            "dual_annealing_seed has been forced to None for this run."
+        )
+
     "Remove suffix from file names if any."
     base_file_paths = prep.add_remove_file_name_suffix(
         file_paths=base_file_paths, file_name_suffix=None, add_suffix=False
