@@ -389,7 +389,7 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
         Left panel: The interpolated prior probability mass grid over (Vᵢᵢ, Vᵢⱼ), with
                     sparse probability sample points overlaid as a scatter.
         Right panel: The likelihood surface over (Vᵢᵢ, Vᵢⱼ) computed from the current
-                     game’s payoff structure, with the observed choice marked in red.
+                     game's payoff structure, with the observed choice marked in red.
 
     A Plotly slider lets the viewer step through games without re-rendering. The prior shown
     for game k is the posterior from game k-1, so the progression illustrates sequential
@@ -406,7 +406,7 @@ def visualize_bayesian_updates_3d(dyad_games_or_key: int | DyadGames, player_uui
         • file_paths: FilePaths
             Directory paths used for loading dyad data and (optionally) exporting the figure.
         • general_settings: GeneralSettings
-            Must include ‘update_method’, ‘experiment_num’, and ‘export_fig’.
+            Must include 'update_method', 'experiment_num', and 'export_fig'.
         • fix_z_axis: bool
             If True, sets the z-axis and color range of the left (prior) panel to [0, global_max],
             where global_max is the maximum probability across all games. If False, the z-axis
@@ -1435,47 +1435,44 @@ def plot_ic_scores_delta_bic(figure_layout: dict, file_paths: dict, general_sett
 
     Notes:
         1) Dots are sized ~1.8x larger than the project default and include a subtle outline.
-        2) When coloring by 𝑘, a colorbar labeled “𝑘” is displayed on the right. Boolean columns,
+        2) When coloring by 𝑘, a colorbar labeled "𝑘" is displayed on the right. Boolean columns,
             if toggled, appear as separate True/False scatter traces with a horizontal legend
             placed below the chart. Each Boolean option name is converted into a more readable
-            label (e.g., “Ref-Dependent Utility” instead of “reference_dependent_utility”).
+            label (e.g., "Ref-Dependent Utility" instead of "reference_dependent_utility").
         3) The figure title includes 𝑛 (the maximum n_data from the CSV) and references ΔBIC.
-        4) Hover text shows each model’s rank, ΔBIC, number of parameters, and its utility equation.
+        4) Hover text shows each model's rank, ΔBIC, number of parameters, and its utility equation.
     """
 
-    "1) Determine which CSV to load"
+    "1) Determine which CSV to load."
     experiment_num = general_settings.get("experiment_num", 3)
-    csv_file = os.path.join(
+    ic_scores_csv_path = os.path.join(
         file_paths["bic_aic"],
         f"All_Utility_Forms_IC_Analysis_Experiment{experiment_num}.csv"
     )
-    if not os.path.exists(csv_file):
-        raise FileNotFoundError(f"Could not locate file: {csv_file}")
+    if not os.path.exists(ic_scores_csv_path):
+        raise FileNotFoundError(f"Could not locate file: {ic_scores_csv_path}")
 
-    "2) Load DataFrame, check columns"
-    df = pd.read_csv(csv_file)
-    required_cols = ["ΔBIC", "k_params", "equation", "n_data"]
-    for col in required_cols:
-        if col not in df.columns:
-            raise ValueError(f"Missing required column '{col}' in {csv_file}")
+    "2) Load DataFrame and check required columns."
+    ic_scores_dataframe = pd.read_csv(ic_scores_csv_path)
+    required_column_names = ["ΔBIC", "k_params", "equation", "n_data"]
+    for column_name in required_column_names:
+        if column_name not in ic_scores_dataframe.columns:
+            raise ValueError(f"Missing required column '{column_name}' in {ic_scores_csv_path}")
 
-    "3) Sort by ΔBIC ascending and compute model rank"
-    df.sort_values(by="ΔBIC", ascending=True, inplace=True)
-    df.reset_index(drop=True, inplace=True)
-    df["model_rank"] = df.index + 1  # Rank from 1..N.
+    "3) Sort by ΔBIC ascending and assign integer model rank."
+    ic_scores_dataframe.sort_values(by="ΔBIC", ascending=True, inplace=True)
+    ic_scores_dataframe.reset_index(drop=True, inplace=True)
+    ic_scores_dataframe["model_rank"] = ic_scores_dataframe.index + 1  # Rank from 1..N.
+    n_observations = int(ic_scores_dataframe["n_data"].max())
 
-    "Assume all rows share the same n_data or use the max"
-    n_data = int(df["n_data"].max())
+    "4) Identify Boolean columns present in the dataframe."
+    bool_column_names = [
+        column_name for column_name in ic_scores_dataframe.columns
+        if ic_scores_dataframe[column_name].dtype == bool or ic_scores_dataframe[column_name].dtype == "bool"
+    ]
 
-    "4) Identify boolean columns"
-    bool_cols = []
-    for col in df.columns:
-        if df[col].dtype == bool or df[col].dtype == "bool":
-            bool_cols.append(col)
-
-    "5) Create a readable label map for these columns"
-    "(Customize as needed)"
-    bool_label_map = {
+    "5) Build a readable label map for Boolean column names shown in the dropdown."
+    bool_column_readable_labels = {
         'conditional_welfare_mode':       "Conditional Welfare Mode",
         'reference_dependent_altruism':   "Ref-Dependent Altruism",
         'min_max_rawlsian_leontief':      "Min-Max (Rawls/Leontief)",
@@ -1492,106 +1489,109 @@ def plot_ic_scores_delta_bic(figure_layout: dict, file_paths: dict, general_sett
         'include_altruism_term':          "Include Altruism Term"
     }
 
-    "6) Build a single color-scale trace for k_params"
-    k_min = df["k_params"].min()
-    k_max = df["k_params"].max()
-
-    "Marker size (scaled ~1.8x)"
+    "6) Build a single color-scale trace for k_params."
+    base_hue = figure_layout.get('base_hue', 200)
+    k_params_min = ic_scores_dataframe["k_params"].min()
+    k_params_max = ic_scores_dataframe["k_params"].max()
     default_marker_size = int(figure_layout.get("markersize", 12) * 2)
+    marker_outline_color = _hsla(hue=0, saturation_percent=0, lightness_percent=0, alpha=0.5)
 
-    trace_kparams = go.Scatter(
-        x=df["model_rank"],
-        y=df["ΔBIC"],
+    trace_k_params = go.Scatter(
+        x=ic_scores_dataframe["model_rank"],
+        y=ic_scores_dataframe["ΔBIC"],
         mode="markers",
         name="Models by 𝑘",
-        visible=True,  # Default.
-        showlegend=False,  # No legend for the continuous color scale.
+        visible=True,
+        showlegend=False,
         hovertemplate=(
             "Rank: %{x}; 𝑘 Params: %{customdata[0]}; ΔBIC: %{y:.3f}<br>"
             "Equation: %{customdata[1]}<extra></extra>"
         ),
-        customdata=df[["k_params", "equation"]],
+        customdata=ic_scores_dataframe[["k_params", "equation"]],
         marker=dict(
             size=default_marker_size,
-            color=df["k_params"],
+            color=ic_scores_dataframe["k_params"],
             colorscale="Viridis",
-            cmin=k_min,
-            cmax=k_max,
-            showscale=True,  # Show colorbar.
-            colorbar=dict(
-                title="𝑘",  # Fancy k.
-                x=1.02
-            ),
-            line=dict(width=1.5, color="hsla(0, 50%, 0%, 0.5)")
+            cmin=k_params_min,
+            cmax=k_params_max,
+            showscale=True,
+            colorbar=dict(title="𝑘", x=1.02),
+            line=dict(width=1.5, color=marker_outline_color)
         )
     )
 
-    data_traces = [trace_kparams]
+    data_traces = [trace_k_params]
 
-    "7) For each boolean col, create 2 separate scatter traces: True & False"
-    "These traces are invisible by default; dropdown selections show them and hide the k_params trace."
-    hue_true  = "hsla(0, 80%, 40%, 7.0)"     # Red.
-    hue_false = "hsla(180, 80%, 40%, 7.0)"   # Cyan.
-    bool_trace_map = {}
-    current_trace_index = 1
+    """
+    7) For each Boolean column, create two separate scatter traces (True and False). These traces
+    are invisible by default; the dropdown menu shows a True+False pair and hides the k_params trace.
+    """
+    color_true_marker  = _hsla(hue=base_hue,       saturation_percent=80, lightness_percent=40, alpha=0.7)
+    color_false_marker = _hsla(hue=base_hue + 180, saturation_percent=80, lightness_percent=40, alpha=0.7)
+    bool_column_trace_indices = {}
+    next_trace_index = 1
 
-    for bcol in bool_cols:
-        label_ = bool_label_map.get(bcol, bcol)
+    for bool_column_name in bool_column_names:
+        readable_label = bool_column_readable_labels.get(bool_column_name, bool_column_name)
 
-        df_true  = df[df[bcol] == True ]
-        df_false = df[df[bcol] == False]
+        dataframe_true  = ic_scores_dataframe[ic_scores_dataframe[bool_column_name] == True]
+        dataframe_false = ic_scores_dataframe[ic_scores_dataframe[bool_column_name] == False]
 
-        tr_true = go.Scatter(
-            x=df_true["model_rank"],
-            y=df_true["ΔBIC"],
+        trace_true = go.Scatter(
+            x=dataframe_true["model_rank"],
+            y=dataframe_true["ΔBIC"],
             mode="markers",
-            name=f"{label_} = True",
+            name=f"{readable_label} = True",
             visible=False,
-            legendgroup=bcol,
+            legendgroup=bool_column_name,
             showlegend=True,
             hovertemplate=(
                 "Rank: %{x}; 𝑘 Params: %{customdata[0]}; ΔBIC: %{y:.3f}<br>"
                 "Equation: %{customdata[1]}<extra></extra>"
             ),
-            customdata=df_true[["k_params", "equation"]],
-            marker=dict(
-                size=default_marker_size, 
-                opacity=0.7, color=hue_true, showscale=False,
-                line=dict(width=1.5, color="hsla(0, 50%, 0%, 0.5)")
-            )
-        )
-        tr_false = go.Scatter(
-            x=df_false["model_rank"],
-            y=df_false["ΔBIC"],
-            mode="markers",
-            name=f"{label_} = False",
-            visible=False,
-            legendgroup=bcol,
-            showlegend=True,
-            hovertemplate=(
-                "Rank: %{x}; 𝑘 Params: %{customdata[0]}; ΔBIC: %{y:.3f}<br>"
-                "Equation: %{customdata[1]}<extra></extra>"
-            ),
-            customdata=df_false[["k_params", "equation"]],
+            customdata=dataframe_true[["k_params", "equation"]],
             marker=dict(
                 size=default_marker_size,
-                opacity=0.7, color=hue_false, showscale=False,
-                line=dict(width=1.5, color="hsla(0, 50%, 0%, 0.5)")
+                opacity=0.7,
+                color=color_true_marker,
+                showscale=False,
+                line=dict(width=1.5, color=marker_outline_color)
+            )
+        )
+        trace_false = go.Scatter(
+            x=dataframe_false["model_rank"],
+            y=dataframe_false["ΔBIC"],
+            mode="markers",
+            name=f"{readable_label} = False",
+            visible=False,
+            legendgroup=bool_column_name,
+            showlegend=True,
+            hovertemplate=(
+                "Rank: %{x}; 𝑘 Params: %{customdata[0]}; ΔBIC: %{y:.3f}<br>"
+                "Equation: %{customdata[1]}<extra></extra>"
+            ),
+            customdata=dataframe_false[["k_params", "equation"]],
+            marker=dict(
+                size=default_marker_size,
+                opacity=0.7,
+                color=color_false_marker,
+                showscale=False,
+                line=dict(width=1.5, color=marker_outline_color)
             )
         )
 
-        data_traces.append(tr_true)
-        data_traces.append(tr_false)
+        data_traces.append(trace_true)
+        data_traces.append(trace_false)
 
-        bool_trace_map[bcol] = (current_trace_index, current_trace_index + 1)
-        current_trace_index += 2
+        bool_column_trace_indices[bool_column_name] = (next_trace_index, next_trace_index + 1)
+        next_trace_index += 2
 
     fig = go.Figure(data=data_traces)
 
-    "8) Overall layout and styling"
+    "8) Apply overall layout and axis styling."
     fig.update_layout(
         template=figure_layout.get("template", "plotly_dark"),
-        title=f"IC Scores (ΔBIC) for All Utility Functional Forms; 𝑛 = {n_data} Data Points",
+        title=f"IC Scores (ΔBIC) for All Utility Functional Forms; 𝑛 = {n_observations} Data Points",
         titlefont_size=figure_layout['titlefont_size'],
         font=figure_layout.get("font", {}),
         hoverlabel=figure_layout.get("hoverlabel", {}),
@@ -1611,134 +1611,136 @@ def plot_ic_scores_delta_bic(figure_layout: dict, file_paths: dict, general_sett
         )
     )
 
-    "9) Canonical model annotations"
+    "9) Add arrow annotations for the six canonical social-preference models."
     if annotate_canonical_models:
-        import json as _json
-        from pathlib import Path as _Path
+        import json
+        from pathlib import Path
 
-        _root = _Path(str(file_paths['bic_aic'])).parent
-        _json_path = _root / 'canonical_utility_settings.json'
+        project_root_path    = Path(str(file_paths['bic_aic'])).parent
+        canonical_json_path  = project_root_path / 'canonical_utility_settings.json'
 
-        _short_labels = {
-            'Fehr–Schmidt (1999) inequity aversion':     'Fehr-Schmidt<br>Inequity Aversion',
-            'Bolton–Ockenfels ERC (2000)':               'Bolton-Ockenfels ERC',
-            'Charness–Rabin (2002) conditional welfare': 'Charness-Rabin<br>Cond. Welfare',
-            'Andreoni–Miller (2002) CES (warm glow)':    'Andreoni-Miller CES',
+        canonical_short_label_map = {
+            'Fehr–Schmidt (1999) inequity aversion':       'Fehr-Schmidt<br>Inequity Aversion',
+            'Bolton–Ockenfels ERC (2000)':                 'Bolton-Ockenfels ERC',
+            'Charness–Rabin (2002) conditional welfare':   'Charness-Rabin<br>Cond. Welfare',
+            'Andreoni–Miller (2002) CES (warm glow)':      'Andreoni-Miller CES',
             'Engelmann–Strobel (2004) maximin‑efficiency': 'Engelmann-Strobel<br>Maximin-Eff.',
-            'Messick–McClintock (1968) SVO linear':      'Messick-McClintock<br>SVO Linear',
+            'Messick–McClintock (1968) SVO linear':        'Messick-McClintock<br>SVO Linear',
         }
 
-        if _json_path.exists():
-            with open(_json_path, 'r', encoding='utf-8') as _f:
-                _canonical_specs = _json.load(_f)
+        if canonical_json_path.exists():
+            with open(canonical_json_path, 'r', encoding='utf-8') as canonical_json_file:
+                canonical_model_specs = json.load(canonical_json_file)
 
-            _annotation_data = []
-            for _name, _spec in _canonical_specs.items():
-                _mask = pd.Series([True] * len(df), index=df.index)
-                for _flag, _val in _spec.items():
-                    if _flag in df.columns:
-                        _mask = _mask & (df[_flag].astype(bool) == bool(_val))
-                _matched = df[_mask]
-                if len(_matched) == 0:
-                    print(f"Warning: canonical model '{_name}' not found in IC CSV — skipping annotation.")
+            annotation_data_list = []
+            for canonical_model_name, canonical_model_spec in canonical_model_specs.items():
+                row_mask = pd.Series([True] * len(ic_scores_dataframe), index=ic_scores_dataframe.index)
+                for flag_name, expected_flag_value in canonical_model_spec.items():
+                    if flag_name in ic_scores_dataframe.columns:
+                        row_mask = row_mask & (ic_scores_dataframe[flag_name].astype(bool) == bool(expected_flag_value))
+                matched_rows = ic_scores_dataframe[row_mask]
+                if len(matched_rows) == 0:
+                    print(f"Warning: canonical model '{canonical_model_name}' not found in IC CSV — skipping annotation.")
                     continue
-                _row = _matched.iloc[0]
-                _annotation_data.append({
-                    'name': _name,
-                    'rank': int(_row['model_rank']),
-                    'delta_bic': float(_row['ΔBIC']),
+                matched_row = matched_rows.iloc[0]
+                annotation_data_list.append({
+                    'name':      canonical_model_name,
+                    'rank':      int(matched_row['model_rank']),
+                    'delta_bic': float(matched_row['ΔBIC']),
                 })
 
-            "Sort by rank so alternating ay offsets spread upward/downward along the curve."
-            _annotation_data.sort(key=lambda d: d['rank'])
-            _ay_cycle = [-90, 90, -130, 130, -60, 110]
-            "Spread text boxes horizontally so they fan outward from the data cluster."
-            "Lower-rank (left-side) annotations get negative ax; higher-rank get positive ax."
-            "With 6 annotations the pattern is: far-left, left, near-left, near-right, right, far-right."
-            _n_ann = len(_annotation_data)
-            def _spread_ax(idx, n_total):
-                "Map sorted index 0..n-1 to ax values spanning -200..+200 symmetrically."
-                if n_total <= 1:
-                    return 0
-                fraction = idx / (n_total - 1)       # 0.0 at leftmost, 1.0 at rightmost
-                return int(-200 + fraction * 400)     # linear from -200 to +200
+            "Sort by rank so the ay-offset cycle assigns above/below positions in left-to-right order."
+            annotation_data_list.sort(key=lambda entry: entry['rank'])
+            ay_offset_cycle = [-40, 120, -150, 130, -120, 60]
 
-            _plotly_annotations = []
-            for _i, _ann in enumerate(_annotation_data):
-                _short = _short_labels.get(_ann['name'], _ann['name'].split('(')[0].strip())
-                _text  = f"{_short}<br><b>Rank: {_ann['rank']}</b>"
-                _ay    = _ay_cycle[_i % len(_ay_cycle)]
-                _ax    = _spread_ax(_i, _n_ann)
-                _plotly_annotations.append(dict(
-                    x=_ann['rank'],
-                    y=_ann['delta_bic'],
-                    text=_text,
+            """
+            Spread annotation text boxes horizontally so labels fan outward from the data cluster.
+            Lower-rank annotations (left side of the scatter) get negative ax offsets; higher-rank
+            annotations get positive ax offsets. With 6 annotations the pattern runs symmetrically
+            from far-left through center to far-right.
+            """
+            n_annotations = len(annotation_data_list)
+            def _compute_annotation_ax_offset(annotation_index: int, n_annotations_total: int) -> int:
+                "Map sorted index 0..n-1 to ax pixel offsets spanning −200..+200 symmetrically."
+                if n_annotations_total <= 1:
+                    return 0
+                fraction = annotation_index / (n_annotations_total - 1)  # 0.0 at leftmost, 1.0 at rightmost.
+                return int(-200 + fraction * 400)                          # Linear from −200 to +200.
+
+            annotation_font_color   = _hsla(hue=0,   saturation_percent=0,  lightness_percent=100, alpha=1.0)
+            annotation_bg_color     = _hsla(hue=240, saturation_percent=9,  lightness_percent=22,  alpha=0.88)
+            annotation_border_color = _hsla(hue=240, saturation_percent=15, lightness_percent=75,  alpha=0.6)
+
+            plotly_annotations = []
+            for annotation_index, annotation_entry in enumerate(annotation_data_list):
+                short_label     = canonical_short_label_map.get(annotation_entry['name'], annotation_entry['name'].split('(')[0].strip())
+                annotation_text = f"{short_label}<br><b>Rank: {annotation_entry['rank']}</b>"
+                ay_offset       = ay_offset_cycle[annotation_index % len(ay_offset_cycle)]
+                ax_offset       = _compute_annotation_ax_offset(
+                    annotation_index=annotation_index,
+                    n_annotations_total=n_annotations,
+                )
+                plotly_annotations.append(dict(
+                    x=annotation_entry['rank'],
+                    y=annotation_entry['delta_bic'],
+                    text=annotation_text,
                     showarrow=True,
                     arrowhead=2,
                     arrowsize=1,
                     arrowwidth=1.5,
-                    ax=_ax,
-                    ay=_ay,
-                    font=dict(size=22, color='white'),
-                    bgcolor='rgba(50,50,60,0.88)',
-                    bordercolor='rgba(180,180,200,0.6)',
+                    ax=ax_offset,
+                    ay=ay_offset,
+                    font=dict(size=22, color=annotation_font_color),
+                    bgcolor=annotation_bg_color,
+                    bordercolor=annotation_border_color,
                     borderwidth=1,
                     borderpad=4,
                     align='left',
                 ))
 
-            if _plotly_annotations:
-                fig.update_layout(annotations=_plotly_annotations)
+            if plotly_annotations:
+                fig.update_layout(annotations=plotly_annotations)
         else:
-            print(f"Warning: {pretty_path(_json_path)} not found — canonical annotations skipped.")
+            print(f"Warning: {pretty_path(str(canonical_json_path))} not found — canonical annotations skipped.")
 
-    "10) If no dropdown is wanted, hide all Boolean traces"
+    "10) If no dropdown is wanted, hide all Boolean traces and write to the bic_aic directory."
     if not include_dropdown:
-        for idx in range(1, len(data_traces)):
-            fig.data[idx].visible = False
-
-        "The single trace for k_params is visible, so the color scale carries the encoding."
-        out_path = os.path.join(file_paths["bic_aic"], "ic_scores_scatter.html")
-        fig.write_html(out_path)
-        print(f"Saved scatter plot to '{pretty_path(out_path)}' [No Dropdown Mode].")
+        for trace_index in range(1, len(data_traces)):
+            fig.data[trace_index].visible = False
+        output_html_path = os.path.join(file_paths["bic_aic"], "ic_scores_scatter.html")
+        fig.write_html(output_html_path)
+        print(f"Saved scatter plot to '{pretty_path(output_html_path)}' [No Dropdown Mode].")
         return fig
 
-    "10) Build a dropdown to toggle coloring"
-    n_traces_total = len(data_traces)
+    "11) Build a dropdown menu to toggle coloring between k_params and each Boolean setting."
+    n_total_traces = len(data_traces)
     def all_invisible():
-        return [False] * n_traces_total
+        return [False] * n_total_traces
 
-    "Option A: \"Color by k_params\""
-    kparams_vis = all_invisible()
-    kparams_vis[0] = True  # The first trace is the continuous color-scale.
-    "Boolean traces start hidden."
+    k_params_visibility = all_invisible()
+    k_params_visibility[0] = True  # The first trace carries the continuous k_params color scale.
 
-    buttons = []
-    "First button => color by k_params"
-    buttons.append(dict(
+    dropdown_buttons = [dict(
         label="Color by 𝑘",
         method="update",
         args=[
-            {"visible": kparams_vis},  # Sets the visible array.
-            {"title": f"IC Scores (ΔBIC) for All Utility Functional Forms; 𝑛 = {n_data} Data Points (Colored by 𝑘)"}
+            {"visible": k_params_visibility},
+            {"title": f"IC Scores (ΔBIC) for All Utility Functional Forms; 𝑛 = {n_observations} Data Points (Colored by 𝑘)"}
         ]
-    ))
+    )]
 
-    "Additional buttons => each boolean col"
-    for bcol in bool_cols:
-        label_ = bool_label_map.get(bcol, bcol)
-        "The pair of traces for this col"
-        idx_true, idx_false = bool_trace_map[bcol]
-        vis_arr = all_invisible()
-        vis_arr[idx_true] = True
-        vis_arr[idx_false] = True
-
-        buttons.append(dict(
-            label=f"Color by {label_}",
+    for bool_column_name in bool_column_names:
+        readable_label = bool_column_readable_labels.get(bool_column_name, bool_column_name)
+        trace_index_true, trace_index_false = bool_column_trace_indices[bool_column_name]
+        visibility_array = all_invisible()
+        visibility_array[trace_index_true]  = True
+        visibility_array[trace_index_false] = True
+        dropdown_buttons.append(dict(
+            label=f"Color by {readable_label}",
             method="update",
             args=[
-                {"visible": vis_arr},
-                {"title": f"IC Scores (ΔBIC) for All Utility Functional Forms; 𝑛 = {n_data} Data Points (Colored by {label_})"}
+                {"visible": visibility_array},
+                {"title": f"IC Scores (ΔBIC) for All Utility Functional Forms; 𝑛 = {n_observations} Data Points (Colored by {readable_label})"}
             ]
         ))
 
@@ -1751,15 +1753,14 @@ def plot_ic_scores_delta_bic(figure_layout: dict, file_paths: dict, general_sett
             xanchor="left",
             yanchor="top",
             pad=dict(r=10, t=10),
-            buttons=buttons
+            buttons=dropdown_buttons
         )]
     )
 
-    "11) Write out HTML and return figure"
-    out_path = os.path.join(file_paths["visuals"], "ic_scores_scatter.html")
-    print(f"Saved scatter plot to '{pretty_path(out_path)}' [Dropdown Mode].")
-    fig.write_html(out_path)
-    
+    "12) Write HTML to the visuals directory and return the figure."
+    output_html_path = os.path.join(file_paths["visuals"], "ic_scores_scatter.html")
+    print(f"Saved scatter plot to '{pretty_path(output_html_path)}' [Dropdown Mode].")
+    fig.write_html(output_html_path)
     return fig
 
 
@@ -2337,7 +2338,7 @@ def plot_architecture_compression_curve(
         fig.write_html(out_path, config={'responsive': True})
 
 
-def _wrap_equation_for_hover(eq: str, max_len: int = 55) -> str:
+def _wrap_equation_for_hover(equation_string: str, max_len: int = 55) -> str:
     """
     Break a long equation string across multiple lines for Plotly hover text.
 
@@ -2347,42 +2348,42 @@ def _wrap_equation_for_hover(eq: str, max_len: int = 55) -> str:
     unchanged.
 
     Arguments:
-        • eq: str — the equation string (Unicode math notation).
+        • equation_string: str — the equation string (Unicode math notation).
         • max_len: int — character threshold below which no wrapping occurs.
 
     Returns:
         • str — HTML-safe string with <br> line breaks for Plotly hover.
     """
-    if len(eq) <= max_len:
-        return eq
+    if len(equation_string) <= max_len:
+        return equation_string
 
-    depth = 0
+    paren_depth = 0
     split_positions = []
-    for i, ch in enumerate(eq):
-        if ch in ('(', '[', '{'):
-            depth += 1
-        elif ch in (')', ']', '}'):
-            depth -= 1
-        elif depth == 0 and ch in ('+', '-') and i > 0:
-            j = i - 1
-            while j >= 0 and eq[j] == ' ':
-                j -= 1
-            if j >= 0 and eq[j] not in ('=', '(', '[', '{', '+', '-'):
-                split_positions.append(i)
+    for char_index, char in enumerate(equation_string):
+        if char in ('(', '[', '{'):
+            paren_depth += 1
+        elif char in (')', ']', '}'):
+            paren_depth -= 1
+        elif paren_depth == 0 and char in ('+', '-') and char_index > 0:
+            preceding_index = char_index - 1
+            while preceding_index >= 0 and equation_string[preceding_index] == ' ':
+                preceding_index -= 1
+            if preceding_index >= 0 and equation_string[preceding_index] not in ('=', '(', '[', '{', '+', '-'):
+                split_positions.append(char_index)
 
     if not split_positions:
-        return eq
+        return equation_string
 
     segments = []
-    prev = 0
-    for sp in split_positions:
-        segments.append(eq[prev:sp + 1].strip())
-        prev = sp + 1
-    segments.append(eq[prev:].strip())
+    segment_start = 0
+    for split_position in split_positions:
+        segments.append(equation_string[segment_start:split_position + 1].strip())
+        segment_start = split_position + 1
+    segments.append(equation_string[segment_start:].strip())
 
     indent = "&nbsp;" * 4
-    lines = [segments[0]] + [indent + seg for seg in segments[1:] if seg]
-    return "<br>".join(lines)
+    wrapped_lines = [segments[0]] + [indent + segment for segment in segments[1:] if segment]
+    return "<br>".join(wrapped_lines)
 
 
 def plot_param_recovery_by_k(
