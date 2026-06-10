@@ -151,6 +151,15 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
     pay1al, pay2al = payAj, payBj
     pay1sc, pay2sc = payAj, payAi
 
+    if (utility_settings['reference_dependent_utility']
+            and utility_settings['single_payoffs_not_differences']
+            and utility_settings['use_exponential_parameters']
+            and not utility_settings.get('apply_exponents_to_payoffs', False)):
+        "Shift single payoffs by the reference so the exponent wraps the shift: (πᵢ − ref)^γ."
+        "payBi and payBj are already set to 3 (reference point) above."
+        pay1si = payAi - payBi
+        pay1al = payAj - payBj
+
     if utility_settings.get('apply_exponents_to_payoffs') and utility_settings['use_exponential_parameters']:
         pay1si, pay2si = pay1si ** exp1, pay2si ** exp1
         pay1al, pay2al = pay1al ** exp2, pay2al ** exp2
@@ -186,8 +195,7 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
         "Altruism term"
         altruism = utility_term(payoff_1=pay1al, payoff_2=pay2al, 
                                 weight_1=weight_1_al, weight_2=0, 
-                                # exponent=exp2 if utility_settings['include_altruism_term'] else exp1, 
-                                exponent=exp2 if utility_settings['uniform_exponential_parameter'] else exp1, 
+                                exponent=exp1 if utility_settings['uniform_exponential_parameter'] else exp2,
                                 use_exponential_parameters=utility_settings['use_exponential_parameters'], 
                                 single_payoffs_not_differences=utility_settings['single_payoffs_not_differences'], 
                                 payoff_ratios_not_differences=utility_settings['payoff_ratios_not_differences'],
@@ -201,9 +209,15 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
     elif utility_settings.get('min_max_rawlsian_leontief'):
         "Decide bases and the remaining exponents to apply to the bases."
         if utility_settings['single_payoffs_not_differences']:
-            "Single-payoff flavor ignores reference-dependence"
-            basei = payAi
-            basej = payAj
+            if (utility_settings['reference_dependent_utility']
+                    and utility_settings['use_exponential_parameters']
+                    and not utility_settings.get('apply_exponents_to_payoffs', False)):
+                "Reference-shifted single payoffs: (πᵢ − ref)^γ. payBi=3 already set above."
+                basei = payAi - payBi
+                basej = payAj - payBj
+            else:
+                basei = payAi
+                basej = payAj
             exp_i = exp1
             exp_j = (exp1 if utility_settings['uniform_exponential_parameter'] else exp2)
 
@@ -852,8 +866,13 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A",
                 payAj, payBj = f"{payAj}^γ₂", f"{payBj}^γ₂"
 
         if one_pay:
-            basei = f"{payAi}"
-            basej = f"{payAj}"
+            if ref_dep:
+                "Reference-shifted single payoffs: (πᵢ − 3)^γ. The ReLU split below handles negative bases."
+                basei = f"{payAi} - {payBi}"
+                basej = f"{payAj} - {payBj}"
+            else:
+                basei = f"{payAi}"
+                basej = f"{payAj}"
         elif pay_rats:
             basei = f"{payAi} / ({payAi} + {payBi}) - 1/2"
             basej = f"{payAj} / ({payAj} + {payBj}) - 1/2"
@@ -881,13 +900,13 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A",
             "Parenthesis form"
             expr_with_pow = re.sub(
                 r"\(\s*([^\)]+?)\s*\)\s*\^γ([₁₂₃])",
-                lambda m: f"({m.group(1)}^γ{m.group(2)}" if one_pay else f"(max({m.group(1)}, 0)^γ{m.group(2)} - max(-({m.group(1)}), 0)^γ{m.group(2)})",
+                lambda m: f"({m.group(1)}^γ{m.group(2)}" if (one_pay and not ref_dep) else f"(max({m.group(1)}, 0)^γ{m.group(2)} - max(-({m.group(1)}), 0)^γ{m.group(2)})",
                 expr_with_pow
             )
             "Bracket form"
             expr_with_pow = re.sub(
                 r"\[\s*([^\]]+?)\s*\]\s*\^γ([₁₂₃])",
-                lambda m: f"({m.group(1)}^γ{m.group(2)}" if one_pay else f"(max({m.group(1)}, 0)^γ{m.group(2)} - max(-({m.group(1)}), 0)^γ{m.group(2)})",
+                lambda m: f"({m.group(1)}^γ{m.group(2)}" if (one_pay and not ref_dep) else f"(max({m.group(1)}, 0)^γ{m.group(2)} - max(-({m.group(1)}), 0)^γ{m.group(2)})",
                 expr_with_pow
             )
             return expr_with_pow
