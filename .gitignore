@@ -248,6 +248,10 @@ simulations/loss_reports/
 private/
 rick_ssh_setup.md
 
+# Terminal output scratch files
+terminal_output.txt
+terminal_outputs.txt
+
 # Deprecated / dead code — kept locally for safety but not part of the shared codebase
 deprecated.py
 deprecated/
