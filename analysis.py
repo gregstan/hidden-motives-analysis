@@ -1399,21 +1399,20 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         Computes a single 'normalized average parameter variance' across all runs, participants, and roles.
 
         Arguments:
-        ----------
-        • param_info : Dict[str, Any]
-            Must have 'keys' (list of parameter names) and 'bounds' (list of (low, high) tuples).
-            e.g. param_info['keys'] = ['Vᵢᵢ','Vᵢⱼ','αᵢⱼ','βᵢⱼ','γ1','τ']
-                    param_info['bounds'] = [(0,1),(-1,1),... etc.]
+            • param_info : Dict[str, Any]
+                Must have 'keys' (list of parameter names) and 'bounds' (list of (low, high) tuples).
+                e.g. param_info['keys'] = ['Vᵢᵢ','Vᵢⱼ','αᵢⱼ','βᵢⱼ','γ1','τ']
+                        param_info['bounds'] = [(0,1),(-1,1),... etc.]
 
-        • param_runs : List[Dict[str, Dict[str, Dict[str,float]]]]
-            Each element corresponds to a single iteration's "players_to_params_this_iter".
-            For iteration i, param_runs[i] is a dict:
-                {
-                    player_uuid_1: {"chooser": {...}, "predictor": {...}},
-                    player_uuid_2: {"chooser": {...}, "predictor": {...}},
-                    ...
-                }
-            Inside each "..." is a mapping param_key -> param_value.
+            • param_runs : List[Dict[str, Dict[str, Dict[str,float]]]]
+                Each element corresponds to a single iteration's "players_to_params_this_iter".
+                For iteration idx, param_runs[idx] is a dict:
+                    {
+                        player_uuid_1: {"chooser": {...}, "predictor": {...}},
+                        player_uuid_2: {"chooser": {...}, "predictor": {...}},
+                        ...
+                    }
+                Inside each "..." is a mapping param_key -> param_value.
 
         Returns:
             • A single float in [0,1] (roughly). 
@@ -3517,6 +3516,9 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
     "Load the IC table"
     ic_path = os.path.join(file_paths["bic_aic"], file_paths["file_names"]["information_criterion"])
     ic_dataframe = pd.read_csv(ic_path)
+    "Migrate IC CSVs written before the ea8bb43 single→uniform rename so row_to_tuple can find the column."
+    if 'single_exponential_parameter' in ic_dataframe.columns and 'uniform_exponential_parameter' not in ic_dataframe.columns:
+        ic_dataframe = ic_dataframe.rename(columns={'single_exponential_parameter': 'uniform_exponential_parameter'})
 
     general_settings = copy.deepcopy(general_settings)
     general_settings['confidence_weighted'] = False
@@ -4268,6 +4270,101 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
     "Keep only valid ones if generator does not guarantee validity"
     if hasattr(gnrl, "is_valid_utility_settings"):
         all_settings = [candidate_utility_settings for candidate_utility_settings in all_settings if gnrl.is_valid_utility_settings(candidate_utility_settings)]
+
+    "---------- (1b) Parameter-vs-equation symbol audit ---------------------------"
+    def _audit_param_vs_equation_symbols(
+        all_settings_list: list,
+        utility_function_str: Callable,
+        param_bds_local: dict,
+        verbose_audit: bool = True,
+    ) -> pd.DataFrame:
+        """
+        Checks that every parameter returned by parameter_keys_for_utility_settings appears
+        in the equation string produced by build_utility_equation, and vice versa.
+
+        For each utility setting:
+          1. Call parameter_keys_for_utility_settings to get the authoritative key list.
+          2. Call utility_function_str to get the equation string.
+          3. Extract all parameter symbols present in that string.
+          4. Normalize γ₁/γ₂/γ₃ (Unicode subscripts) → γ1/γ2/γ3 (digit suffix) so the
+             two representations can be compared directly.
+          5. Report models where counter_params ≠ eq_params.
+
+        Two mismatch types:
+          • hidden  – in counter_params but NOT in equation (fitted but invisible)
+          • phantom – in equation but NOT in counter_params (shown but not fitted)
+        """
+        "All param symbols that can appear in equation strings, in Unicode subscript form."
+        _all_eq_symbols = ['Vᵢᵢ', 'λᵢᵢ', 'Vᵢⱼ', 'λᵢⱼ', 'αᵢⱼ', 'βᵢⱼ', 'γ₁', 'γ₂', 'γ₃']
+        "Map Unicode-subscript γ symbols to the digit-suffix keys used in parameter_keys_for_utility_settings."
+        _eq_to_key = {'γ₁': 'γ1', 'γ₂': 'γ2', 'γ₃': 'γ3'}
+
+        mismatch_rows = []
+        for audit_settings in all_settings_list:
+            "Get the canonical parameter key list (mean params only, no _std/_cov)."
+            raw_keys = parameter_keys_for_utility_settings(
+                utility_settings=audit_settings, general_settings=None
+            )
+            counter_params = set(key for key in raw_keys
+                                  if not key.endswith('_std') and not key.endswith('_cov'))
+
+            "Build the equation string and extract which symbols are present."
+            audit_equation = utility_function_str(utility_settings=audit_settings)
+            eq_params = set(
+                _eq_to_key.get(sym, sym)
+                for sym in _all_eq_symbols
+                if sym in audit_equation
+            )
+
+            hidden  = counter_params - eq_params   # in counter but missing from equation
+            phantom = eq_params - counter_params   # in equation but not in counter
+
+            if hidden or phantom:
+                eq_str_short = audit_equation[len("Uᵢ(A) = "):]  # strip prefix for width
+                mismatch_rows.append({
+                    'equation': eq_str_short,
+                    'counter_params': sorted(counter_params),
+                    'eq_params':      sorted(eq_params),
+                    'hidden':         sorted(hidden),
+                    'phantom':        sorted(phantom),
+                })
+
+        audit_df = pd.DataFrame(mismatch_rows)
+
+        if verbose_audit:
+            n_total   = len(all_settings_list)
+            n_mismatch = len(mismatch_rows)
+            print(f"\n[Param-vs-Equation Audit]  {n_mismatch} / {n_total} models have symbol mismatches")
+            if n_mismatch > 0:
+                hidden_counts  = {}
+                phantom_counts = {}
+                for audit_row in mismatch_rows:
+                    for hidden_sym in audit_row['hidden']:
+                        hidden_counts[hidden_sym]  = hidden_counts.get(hidden_sym, 0) + 1
+                    for phantom_sym in audit_row['phantom']:
+                        phantom_counts[phantom_sym] = phantom_counts.get(phantom_sym, 0) + 1
+                if hidden_counts:
+                    print("  hidden params (counted but not shown in equation):")
+                    for param_sym, count in sorted(hidden_counts.items(), key=lambda x: -x[1]):
+                        print(f"    {param_sym:8s}  {count} models")
+                if phantom_counts:
+                    print("  phantom params (shown in equation but not counted):")
+                    for param_sym, count in sorted(phantom_counts.items(), key=lambda x: -x[1]):
+                        print(f"    {param_sym:8s}  {count} models")
+                print("  First 10 mismatching equations:")
+                for audit_row in mismatch_rows[:10]:
+                    print(f"    counter={audit_row['counter_params']}  eq={audit_row['eq_params']}")
+                    print(f"      hidden={audit_row['hidden']}  phantom={audit_row['phantom']}")
+                    print(f"      {audit_row['equation'][:120]}")
+
+        return audit_df
+
+    _audit_df = _audit_param_vs_equation_symbols(
+        all_settings_list=all_settings,
+        utility_function_str=utility_function_str,
+        param_bds_local=param_bds,
+        verbose_audit=verbose,
+    )
 
     "---------- (2) Payoff generation ---------------------------------------------"
     def _all_payoff_tuples():

@@ -769,8 +769,15 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A",
         group1 = f"{operator1}{weight1}{base1}{exponent}"
         group2 = f"{operator2}{weight2}{base2}{exponent}"
 
-        "Use both groups if negativity parameters are included."
-        if (loss_av and not (term_type == "self-interest" and fix_self)) or (la_socc and term_type == "social_comparison"):
+        """
+        Bug fix: when fix_self_interest_parameter=True AND use_negativity_parameters=True,
+        λᵢᵢ IS a free fitted parameter (model.py line ~303: weight_2=λᵢᵢ if use_neg else 0).
+        The old guard `not (term_type == 'self-interest' and fix_self)` was silently dropping
+        the '-λᵢᵢ × max(πᵢᴮ - πᵢᴬ, 0)' group2, making the equation show k-1 visible params
+        even though λᵢᵢ is counted in k and actively fitted. Removed the guard so group2
+        appears when loss_av=True, regardless of fix_self.
+        """
+        if loss_av or (la_socc and term_type == "social_comparison"):
             return group1 + group2
         else:
             return group1
