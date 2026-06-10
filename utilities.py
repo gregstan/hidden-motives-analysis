@@ -1391,11 +1391,34 @@ def is_valid_utility_settings(candidate: UtilitySettings, provide_explanation: b
         if candidate['payoff_ratios_not_differences']:
             explanation += "payoffs cannot be expressed as ratios."
             return explanation if provide_explanation else False
-        if candidate['reference_dependent_utility']:
-            explanation += "payoffs cannot be reference dependent."
+        if candidate['reference_dependent_utility'] and not (
+            candidate['use_exponential_parameters'] and not candidate['apply_exponents_to_payoffs']
+        ):
+            explanation += "payoffs cannot be reference dependent unless the exponent wraps the shifted payoff (use_exponential_parameters=True, apply_exponents_to_payoffs=False)."
             return explanation if provide_explanation else False
         if candidate['apply_exponents_to_payoffs']:
             explanation += "exponents cannot be applied before a transformation that never occurs."
+            return explanation if provide_explanation else False
+
+    if candidate['reference_dependent_utility']:
+        "Subtracting a constant reference from all payoffs shifts U(A) and U(B) equally, so it"
+        "cancels in softmax(U(A) − U(B)) — behaviourally inert. Non-trivial only when:"
+        "  (a) payoff_ratios_not_differences=True: reference appears in denominator, cannot cancel;"
+        "  (b) single_payoffs_not_differences=True + use_exponential_parameters=True +"
+        "      apply_exponents_to_payoffs=False: exponent (πᵢ−ref)^γ wraps the shift, breaking additivity."
+        _wrapped_by_exponent = (
+            candidate['single_payoffs_not_differences']
+            and candidate['use_exponential_parameters']
+            and not candidate['apply_exponents_to_payoffs']
+        )
+        if not candidate['payoff_ratios_not_differences'] and not _wrapped_by_exponent:
+            explanation = (
+                "reference_dependent_utility=True is behaviourally inert in the payoff-difference "
+                "form: the constant reference shift cancels in softmax(U(A) − U(B)). "
+                "Valid only when payoff_ratios_not_differences=True (reference in denominator cannot "
+                "cancel) or when single_payoffs_not_differences=True with use_exponential_parameters=True "
+                "and apply_exponents_to_payoffs=False (exponent wraps the shifted payoff)."
+            )
             return explanation if provide_explanation else False
 
     if candidate['conditional_welfare_mode'] and candidate['min_max_rawlsian_leontief']:
