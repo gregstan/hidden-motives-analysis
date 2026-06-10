@@ -3221,7 +3221,7 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
 
     Arguments:
         • general_settings: Global settings dict (experiment_num, softmax_temperature, etc.).
-        • file_paths: File path mapping (must include 'bic_aic' and 'file_names' → 'information_criterion').
+        • file_paths: File path mapping (must include 'processed' for the model registry and 'bic_aic' for the output CSV).
         • param_bds: The global ParameterBounds with all keys (means and _std).
         • utility_settings: The canonical utility settings dict; flag order is derived from its keys.
         • player_role_to_fit: 'predictor' (default) or 'chooser'.
@@ -3489,8 +3489,10 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
         all_pairs: list[dict[str, Any]] = []
 
         "Iterates children in ascending k so checks move from simpler to richer models."
+        "BIC/loss are present when IC results have been merged in; sort by whatever is available."
         if 'k_params' in ic_dataframe.columns:
-            ic_dataframe_sorted = ic_dataframe.sort_values(['k_params', 'BIC', 'loss'], ascending=[True, True, True])
+            sort_columns = ['k_params'] + [col for col in ('BIC', 'loss') if col in ic_dataframe.columns]
+            ic_dataframe_sorted = ic_dataframe.sort_values(sort_columns, ascending=[True] * len(sort_columns))
         else:
             ic_dataframe_sorted = ic_dataframe.copy()
 
@@ -3529,12 +3531,12 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
 
         return all_pairs
 
-    "Load the IC table"
-    ic_path = os.path.join(file_paths["bic_aic"], file_paths["file_names"]["information_criterion"])
-    ic_dataframe = pd.read_csv(ic_path)
-    "Migrate IC CSVs written before the ea8bb43 single→uniform rename so row_to_tuple can find the column."
-    if 'single_exponential_parameter' in ic_dataframe.columns and 'uniform_exponential_parameter' not in ic_dataframe.columns:
-        ic_dataframe = ic_dataframe.rename(columns={'single_exponential_parameter': 'uniform_exponential_parameter'})
+    "Load the model universe from the canonical registry — source of truth for valid models,"
+    "independent of IC results so this function runs correctly before any IC analysis has run."
+    ic_dataframe = gnrl.all_utility_functions_dataframe(
+        file_paths=file_paths,
+        utility_settings=utility_settings,
+    )
 
     general_settings = copy.deepcopy(general_settings)
     general_settings['confidence_weighted'] = False

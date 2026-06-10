@@ -24,6 +24,61 @@ run_code_settings: RunCodeSettings = {
 def main():
     """Execute main code."""
 
+    # model_nesting_adjacency_matrices(
+    #     general_settings=general_settings, 
+    #     utility_settings=utility_settings,
+    #     file_paths=file_paths, 
+    #     create_new_file=True,
+    #     equation_form=True, 
+    # )
+    # gnrl.summarize_nesting_relationship_counts(
+    #     model_nesting_adjacency_matrices=model_nesting_adjacency_matrices, 
+    #     general_settings=general_settings, 
+    #     utility_settings=utility_settings, 
+    #     create_new_file=True,
+    #     file_paths=file_paths,
+    # )
+    # gnrl.equation_to_settings(
+    #     equation_function=build_utility_equation, 
+    #     utility_settings=utility_settings,
+    #     file_paths=file_paths, 
+    # )
+    # gnrl.test_utility_functions(build_utility_equation=build_utility_equation,
+    #                             general_settings=general_settings,
+    #                             utility_settings=utility_settings,
+    #                             setting_to_flip='include_social_comparison')
+
+    # verify_same_inputs_same_outputs_for_children_and_parents(
+    #     general_settings=general_settings,
+    #     utility_settings=utility_settings,
+    #     player_role_to_fit="chooser",
+    #     numeric_tolerance=1e-3,
+    #     file_paths=file_paths,
+    #     create_new_file=True,
+    #     param_bds=param_bds,
+    #     fit_for_n_players=1,
+    #     random_seed=None,
+    #     verbose=True,
+    # )
+
+    # run_child_parent_probability_equivalence_smoketest(
+    #     utility_settings=utility_settings,
+    #     file_paths=file_paths,
+    #     param_bds=param_bds,
+    #     rand_payoff_idx=True,
+    #     random_seed=None,
+    #     tolerance=1e-12,
+    #     verbose=True,
+    #     n_trials=12,
+    # )
+
+    verify_utility_vs_string_equation(
+        utility_function=utility, utility_function_str=build_utility_equation,
+        utility_settings=utility_settings, param_bds=param_bds, n_games=625,
+        random_seed=None, exhaustive_if_large=True, file_paths=file_paths,
+        comparison_tol=1e-6, decimals=6, verbose=True,
+    )
+    exit()
     "Apply master random seed when reproducibility mode is enabled."
     _master_seed = general_settings.get('random_seeds', {}).get('seed', None)
     if _master_seed is not None:
@@ -44,33 +99,12 @@ def main():
     _registry_path   = os.path.join(str(file_paths["processed"]), "all_utility_functions.csv")
     _redundancy_path = os.path.join(str(file_paths["processed"]), "redundant_utility_functions.csv")
 
-    if not os.path.exists(_registry_path):
+    if not os.path.exists(_registry_path) or not os.path.exists(_redundancy_path):
         print("Registry absent — bootstrapping core files from scratch...")
 
         "Verifying that there are no nesting violations is an important first step"
         run_code_settings['run_model_nesting_violation_analysis'] = True
 
-        model_nesting_adjacency_matrices(
-            general_settings=general_settings,
-            utility_settings=utility_settings,
-            file_paths=file_paths,
-            create_new_file=False,
-        )
-        gnrl.generate_utility_settings(
-            build_equation_function=build_utility_equation,
-            utility_settings=utility_settings,
-            general_settings=general_settings,
-            file_paths=file_paths,
-            create_new_file=True,
-            sort_by_k=True,
-        )
-
-    "AMPD, Hamming, and behavioral redundancy are computed here — before any IC run — so the"
-    "model universe is fully verified before fitting begins. Each is idempotent with"
-    "create_new_file=False: a cache hit is instant; only absent files trigger real computation."
-    "The redundancy report regenerates whenever it is missing so that is_valid_utility_settings"
-    "changes (e.g. pruning inert reference_dependent_utility models) are caught immediately."
-    if not os.path.exists(_redundancy_path):
         compute_ampd_matrix(
             general_settings=general_settings,
             file_paths=file_paths,
@@ -91,6 +125,20 @@ def main():
             file_paths=file_paths,
             param_bds=param_bds,
         )
+        model_nesting_adjacency_matrices(
+            general_settings=general_settings,
+            utility_settings=utility_settings,
+            file_paths=file_paths,
+            create_new_file=True,
+        )
+        gnrl.generate_utility_settings(
+            build_equation_function=build_utility_equation,
+            utility_settings=utility_settings,
+            general_settings=general_settings,
+            file_paths=file_paths,
+            create_new_file=True,
+            sort_by_k=True,
+        )
 
     if run_code_settings['run_model_nesting_violation_analysis']:
 
@@ -98,6 +146,7 @@ def main():
             general_settings=general_settings, 
             utility_settings=utility_settings,
             file_paths=file_paths, 
+            create_new_file=False,
             equation_form=True, 
         )
         gnrl.summarize_nesting_relationship_counts(

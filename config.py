@@ -260,8 +260,8 @@ class RunCodeSettings(TypedDict):
     run_information_criterion_analysis: bool
     run_model_nesting_violation_analysis: bool
     run_parameter_distribution_results: bool
-    run_inequality_aversion_analysis: bool
     run_individual_architecture_analysis: bool
+    run_inequality_aversion_analysis: bool
     run_model_recovery_simulation: bool
     run_param_recovery_analysis: bool
 
