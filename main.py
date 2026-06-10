@@ -24,36 +24,6 @@ run_code_settings: RunCodeSettings = {
 def main():
     """Execute main code."""
 
-    verify_same_inputs_same_outputs_for_children_and_parents(
-        general_settings=general_settings,
-        utility_settings=utility_settings,
-        player_role_to_fit="chooser",
-        numeric_tolerance=1e-3,
-        file_paths=file_paths,
-        param_bds=param_bds,
-        fit_for_n_players=1,
-        random_seed=None,
-        verbose=True,
-    )
-
-    run_child_parent_probability_equivalence_smoketest(
-        utility_settings=utility_settings,
-        file_paths=file_paths,
-        param_bds=param_bds,
-        rand_payoff_idx=True,
-        random_seed=None,
-        tolerance=1e-12,
-        verbose=True,
-        n_trials=12,
-    )
-
-    verify_utility_vs_string_equation(
-        utility_function=utility, utility_function_str=build_utility_equation,
-        utility_settings=utility_settings, param_bds=param_bds, n_games=625,
-        random_seed=None, exhaustive_if_large=True, file_paths=file_paths,
-        comparison_tol=1e-6, decimals=6, verbose=True,
-    )
-    exit()
     "Apply master random seed when reproducibility mode is enabled."
     _master_seed = general_settings.get('random_seeds', {}).get('seed', None)
     if _master_seed is not None:

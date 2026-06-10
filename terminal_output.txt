@@ -52,34 +52,40 @@
 [Prob-Sanity] 811/819 pairs matched within tol=1e-12.
 [Prob-Sanity] Wrote: ...hidden-motives-analysis\processed\child_parent_prob_equivalence.csv
 First few non-matching pairs (inspect equations and changed flag):
-  child_idx=94 → parent_idx=95 | changed=use_exponential_parameters | max|Δp|=1.363e-02
-  child_idx=231 → parent_idx=232 | changed=use_exponential_parameters | max|Δp|=4.039e-03
-  child_idx=233 → parent_idx=234 | changed=use_exponential_parameters | max|Δp|=6.265e-03
-  child_idx=287 → parent_idx=288 | changed=use_exponential_parameters | max|Δp|=6.058e-03
-  child_idx=92 → parent_idx=93 | changed=use_exponential_parameters | max|Δp|=2.557e-03
-  child_idx=199 → parent_idx=200 | changed=use_exponential_parameters | max|Δp|=1.550e-02
-  child_idx=289 → parent_idx=290 | changed=use_exponential_parameters | max|Δp|=2.455e-03
-  child_idx=197 → parent_idx=198 | changed=use_exponential_parameters | max|Δp|=2.242e-03
-{'OK': 787, 'STRBUILD': 19, 'NESTEQUA-STRBUILD': 7, 'NESTCODE-NESTEQUA': 4, 'NESTCODE-NESTEQUA-STRBUILD': 2}
+  child_idx=197 → parent_idx=198 | changed=use_exponential_parameters | max|Δp|=2.692e-03
+  child_idx=233 → parent_idx=234 | changed=use_exponential_parameters | max|Δp|=1.312e-02
+  child_idx=289 → parent_idx=290 | changed=use_exponential_parameters | max|Δp|=1.468e-02
+  child_idx=94 → parent_idx=95 | changed=use_exponential_parameters | max|Δp|=2.629e-02
+  child_idx=287 → parent_idx=288 | changed=use_exponential_parameters | max|Δp|=4.307e-03
+  child_idx=199 → parent_idx=200 | changed=use_exponential_parameters | max|Δp|=1.992e-03
+  child_idx=231 → parent_idx=232 | changed=use_exponential_parameters | max|Δp|=5.250e-03
+  child_idx=92 → parent_idx=93 | changed=use_exponential_parameters | max|Δp|=2.617e-02
+{'OK': 787, 'STRBUILD': 18, 'NESTEQUA-STRBUILD': 9, 'NESTCODE-NESTEQUA': 3, 'NESTCODE-NESTEQUA-STRBUILD': 2}
 
 Parent and child equations with STRBUILD/NESTEQUA-STRBUILD diagnosis:
-Parent (198): Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ + Vᵢⱼ(πⱼᴬ - πⱼᴮ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
-Child  (197): Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ) + Vᵢⱼ(πⱼᴬ - πⱼᴮ) - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)²
+Parent (200): Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ + Vᵢⱼ(πⱼᴬ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
+Child  (199): Uᵢ(A) = Vᵢᵢ(πᵢᴬ) + Vᵢⱼ(πⱼᴬ) - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)²
 
-Parent (93): Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
-Child  (232): Uᵢ(A) = (πᵢᴬ - πᵢᴮ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
+Parent (232): Uᵢ(A) = (πᵢᴬ - πᵢᴮ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
+Child  (231): Uᵢ(A) = πᵢᴬ - πᵢᴮ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)²
 
 Parent (198): Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ + Vᵢⱼ(πⱼᴬ - πⱼᴮ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
 Child  (288): Uᵢ(A) = (πᵢᴬ - πᵢᴮ)^γ₁ + Vᵢⱼ(πⱼᴬ - πⱼᴮ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
 
-Parent (288): Uᵢ(A) = (πᵢᴬ - πᵢᴮ)^γ₁ + Vᵢⱼ(πⱼᴬ - πⱼᴮ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
-Child  (232): Uᵢ(A) = (πᵢᴬ - πᵢᴮ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
+Parent (200): Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ + Vᵢⱼ(πⱼᴬ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
+Child  (290): Uᵢ(A) = (πᵢᴬ)^γ₁ + Vᵢⱼ(πⱼᴬ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
 
-Parent (290): Uᵢ(A) = (πᵢᴬ)^γ₁ + Vᵢⱼ(πⱼᴬ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
-Child  (234): Uᵢ(A) = (πᵢᴬ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
+Parent (195): Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ + Vᵢⱼ(πⱼᴬ - πⱼᴮ)^γ₂ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₃
+Child  (90): Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₃
 
-Parent (496): Uᵢ(A) = Vᵢᵢ × (πᵢᴬ^γ₁ - 3^γ₁) + Vᵢⱼ × (πⱼᴬ^γ₁ - 3^γ₁) if πᵢᴬ^γ₁ ≥ 3 else λᵢᵢ × (πᵢᴬ^γ₁ - 3^γ₁) + λᵢⱼ × (πⱼᴬ^γ₁ - 3^γ₁)
-Child  (484): Uᵢ(A) = Vᵢᵢ × (πᵢᴬ^γ₁ - 3^γ₁) + (1 - Vᵢᵢ) × (πⱼᴬ^γ₁ - 3^γ₁) if πᵢᴬ^γ₁ ≥ 3 else λᵢᵢ × (πᵢᴬ^γ₁ - 3^γ₁) + (1 - λᵢᵢ) × (πⱼᴬ^γ₁ - 3^γ₁)
+Parent (196): Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ + Vᵢⱼ(πⱼᴬ)^γ₂ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₃
+Child  (91): Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₃
+
+Parent (200): Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ + Vᵢⱼ(πⱼᴬ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
+Child  (95): Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
+
+Parent (494): Uᵢ(A) = Vᵢᵢ × (πᵢᴬ^γ₁ - πᵢᴮ^γ₁) + Vᵢⱼ × (πⱼᴬ^γ₁ - πⱼᴮ^γ₁) if πᵢᴬ^γ₁ ≥ 3 else λᵢᵢ × (πᵢᴬ^γ₁ - πᵢᴮ^γ₁) + λᵢⱼ × (πⱼᴬ^γ₁ - πⱼᴮ^γ₁)
+Child  (483): Uᵢ(A) = Vᵢᵢ × (πᵢᴬ^γ₁ - πᵢᴮ^γ₁) + (1 - Vᵢᵢ) × (πⱼᴬ^γ₁ - πⱼᴮ^γ₁) if πᵢᴬ^γ₁ ≥ 3 else λᵢᵢ × (πᵢᴬ^γ₁ - πᵢᴮ^γ₁) + (1 - λᵢᵢ) × (πⱼᴬ^γ₁ - πⱼᴮ^γ₁)
 
 Parent (73): Uᵢ(A) = Vᵢⱼ × max((πᵢᴬ^γ₁, (πⱼᴬ^γ₂)
 Child  (77): Uᵢ(A) = Vᵢⱼ × max((πᵢᴬ^γ₁, (πⱼᴬ^γ₁)
@@ -93,17 +99,14 @@ Child  (185): Uᵢ(A) = Vᵢⱼ × min((πᵢᴬ^γ₁, (πⱼᴬ^γ₁)
 Parent (90): Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₃
 Child  (93): Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
 
-Parent (195): Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ + Vᵢⱼ(πⱼᴬ - πⱼᴮ)^γ₂ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₃
-Child  (198): Uᵢ(A) = Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ + Vᵢⱼ(πⱼᴬ - πⱼᴮ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
+Parent (91): Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₃
+Child  (95): Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
 
-Parent (377): Uᵢ(A) = Vᵢⱼ × max(πᵢᴬ^γ₁ - πᵢᴮ^γ₁, πⱼᴬ^γ₂ - πⱼᴮ^γ₂)
-Child  (378): Uᵢ(A) = Vᵢⱼ × max(πᵢᴬ^γ₁ - πᵢᴮ^γ₁, πⱼᴬ^γ₁ - πⱼᴮ^γ₁)
+Parent (196): Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ + Vᵢⱼ(πⱼᴬ)^γ₂ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₃
+Child  (200): Uᵢ(A) = Vᵢᵢ(πᵢᴬ)^γ₁ + Vᵢⱼ(πⱼᴬ)^γ₁ - αᵢⱼ × (πᵢᴬ/(πᵢᴬ + πⱼᴬ) - 1/2)^γ₁
 
 Parent (379): Uᵢ(A) = Vᵢⱼ × max(πᵢᴬ^γ₁ - 3^γ₁, πⱼᴬ^γ₂ - 3^γ₂)
 Child  (380): Uᵢ(A) = Vᵢⱼ × max(πᵢᴬ^γ₁ - 3^γ₁, πⱼᴬ^γ₁ - 3^γ₁)
-
-Parent (381): Uᵢ(A) = Vᵢⱼ × max(πᵢᴬ^γ₁ / (πᵢᴬ^γ₁ + πᵢᴮ^γ₁) - 1/2, πⱼᴬ^γ₂ / (πⱼᴬ^γ₂ + πⱼᴮ^γ₂) - 1/2)
-Child  (382): Uᵢ(A) = Vᵢⱼ × max(πᵢᴬ^γ₁ / (πᵢᴬ^γ₁ + πᵢᴮ^γ₁) - 1/2, πⱼᴬ^γ₁ / (πⱼᴬ^γ₁ + πⱼᴮ^γ₁) - 1/2)
 
 Parent (383): Uᵢ(A) = Vᵢⱼ × max(πᵢᴬ^γ₁ / (πᵢᴬ^γ₁ + 3^γ₁) - 1/2, πⱼᴬ^γ₂ / (πⱼᴬ^γ₂ + 3^γ₂) - 1/2)
 Child  (384): Uᵢ(A) = Vᵢⱼ × max(πᵢᴬ^γ₁ / (πᵢᴬ^γ₁ + 3^γ₁) - 1/2, πⱼᴬ^γ₁ / (πⱼᴬ^γ₁ + 3^γ₁) - 1/2)
@@ -117,17 +120,17 @@ Child  (404): Uᵢ(A) = min(Vᵢᵢ × (πᵢᴬ^γ₁ - 3^γ₁), Vᵢⱼ × (�
 Parent (405): Uᵢ(A) = min(Vᵢᵢ × (πᵢᴬ^γ₁ / (πᵢᴬ^γ₁ + πᵢᴮ^γ₁) - 1/2), Vᵢⱼ × (πⱼᴬ^γ₂ / (πⱼᴬ^γ₂ + πⱼᴮ^γ₂) - 1/2))
 Child  (406): Uᵢ(A) = min(Vᵢᵢ × (πᵢᴬ^γ₁ / (πᵢᴬ^γ₁ + πᵢᴮ^γ₁) - 1/2), Vᵢⱼ × (πⱼᴬ^γ₁ / (πⱼᴬ^γ₁ + πⱼᴮ^γ₁) - 1/2))
 
+Parent (407): Uᵢ(A) = min(Vᵢᵢ × (πᵢᴬ^γ₁ / (πᵢᴬ^γ₁ + 3^γ₁) - 1/2), Vᵢⱼ × (πⱼᴬ^γ₂ / (πⱼᴬ^γ₂ + 3^γ₂) - 1/2))
+Child  (408): Uᵢ(A) = min(Vᵢᵢ × (πᵢᴬ^γ₁ / (πᵢᴬ^γ₁ + 3^γ₁) - 1/2), Vᵢⱼ × (πⱼᴬ^γ₁ / (πⱼᴬ^γ₁ + 3^γ₁) - 1/2))
+
 Parent (433): Uᵢ(A) = Vᵢⱼ × min(πᵢᴬ^γ₁ - πᵢᴮ^γ₁, πⱼᴬ^γ₂ - πⱼᴮ^γ₂)
 Child  (434): Uᵢ(A) = Vᵢⱼ × min(πᵢᴬ^γ₁ - πᵢᴮ^γ₁, πⱼᴬ^γ₁ - πⱼᴮ^γ₁)
 
-Parent (435): Uᵢ(A) = Vᵢⱼ × min(πᵢᴬ^γ₁ - 3^γ₁, πⱼᴬ^γ₂ - 3^γ₂)
-Child  (436): Uᵢ(A) = Vᵢⱼ × min(πᵢᴬ^γ₁ - 3^γ₁, πⱼᴬ^γ₁ - 3^γ₁)
-
-Parent (437): Uᵢ(A) = Vᵢⱼ × min(πᵢᴬ^γ₁ / (πᵢᴬ^γ₁ + πᵢᴮ^γ₁) - 1/2, πⱼᴬ^γ₂ / (πⱼᴬ^γ₂ + πⱼᴮ^γ₂) - 1/2)
-Child  (438): Uᵢ(A) = Vᵢⱼ × min(πᵢᴬ^γ₁ / (πᵢᴬ^γ₁ + πᵢᴮ^γ₁) - 1/2, πⱼᴬ^γ₁ / (πⱼᴬ^γ₁ + πⱼᴮ^γ₁) - 1/2)
-
 Parent (493): Uᵢ(A) = Vᵢᵢ × (πᵢᴬ^γ₁ - πᵢᴮ^γ₁) + Vᵢⱼ × (πⱼᴬ^γ₂ - πⱼᴮ^γ₂) if πᵢᴬ^γ₁ ≥ 3 else λᵢᵢ × (πᵢᴬ^γ₁ - πᵢᴮ^γ₁) + λᵢⱼ × (πⱼᴬ^γ₂ - πⱼᴮ^γ₂)
 Child  (494): Uᵢ(A) = Vᵢᵢ × (πᵢᴬ^γ₁ - πᵢᴮ^γ₁) + Vᵢⱼ × (πⱼᴬ^γ₁ - πⱼᴮ^γ₁) if πᵢᴬ^γ₁ ≥ 3 else λᵢᵢ × (πᵢᴬ^γ₁ - πᵢᴮ^γ₁) + λᵢⱼ × (πⱼᴬ^γ₁ - πⱼᴮ^γ₁)
+
+Parent (503): Uᵢ(A) = Vᵢᵢ × [πᵢᴬ^γ₁ / (πᵢᴬ^γ₁ + 3^γ₁) - 1/2] + Vᵢⱼ × [πⱼᴬ^γ₂ / (πⱼᴬ^γ₂ + 3^γ₂) - 1/2] if πᵢᴬ^γ₁ ≥ 3 else λᵢᵢ × [πᵢᴬ^γ₁ / (πᵢᴬ^γ₁ + 3^γ₁) - 1/2] + λᵢⱼ × [πⱼᴬ^γ₂ / (πⱼᴬ^γ₂ + 3^γ₂) - 1/2]
+Child  (504): Uᵢ(A) = Vᵢᵢ × [πᵢᴬ^γ₁ / (πᵢᴬ^γ₁ + 3^γ₁) - 1/2] + Vᵢⱼ × [πⱼᴬ^γ₁ / (πⱼᴬ^γ₁ + 3^γ₁) - 1/2] if πᵢᴬ^γ₁ ≥ 3 else λᵢᵢ × [πᵢᴬ^γ₁ / (πᵢᴬ^γ₁ + 3^γ₁) - 1/2] + λᵢⱼ × [πⱼᴬ^γ₁ / (πⱼᴬ^γ₁ + 3^γ₁) - 1/2]
 
 Parent (21): Uᵢ(A) = max(Vᵢᵢ × ((πᵢᴬ^γ₁), Vᵢⱼ × ((πⱼᴬ^γ₁))
 Child  (20): Uᵢ(A) = max(Vᵢᵢ × (πᵢᴬ), Vᵢⱼ × (πⱼᴬ))
@@ -142,65 +145,32 @@ Parent (185): Uᵢ(A) = Vᵢⱼ × min((πᵢᴬ^γ₁, (πⱼᴬ^γ₁)
 Child  (184): Uᵢ(A) = Vᵢⱼ × min(πᵢᴬ, πⱼᴬ)
 
 
-[Param-vs-Equation Audit]  28 / 603 models have symbol mismatches
-  phantom params (shown in equation but not counted):
-    γ2        28 models
-  First 10 mismatching equations:
-    counter=['Vᵢᵢ', 'αᵢⱼ', 'γ1', 'γ3']  eq=['Vᵢᵢ', 'αᵢⱼ', 'γ1', 'γ2', 'γ3']
-      hidden=[]  phantom=['γ2']
-      Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ + (1 - Vᵢᵢ)(πⱼᴬ - πⱼᴮ)^γ₂ - αᵢⱼ × (max(πⱼᴬ - πᵢᴬ, 0)^γ₃ + max(πᵢᴬ - πⱼᴬ, 0)^γ₃)
-    counter=['Vᵢᵢ', 'αᵢⱼ', 'γ1', 'γ3']  eq=['Vᵢᵢ', 'αᵢⱼ', 'γ1', 'γ2', 'γ3']
-      hidden=[]  phantom=['γ2']
-      Vᵢᵢ(πᵢᴬ)^γ₁ + (1 - Vᵢᵢ)(πⱼᴬ)^γ₂ - αᵢⱼ × (max(πⱼᴬ - πᵢᴬ, 0)^γ₃ + max(πᵢᴬ - πⱼᴬ, 0)^γ₃)
-    counter=['Vᵢᵢ', 'αᵢⱼ', 'γ1', 'γ3']  eq=['Vᵢᵢ', 'αᵢⱼ', 'γ1', 'γ2', 'γ3']
-      hidden=[]  phantom=['γ2']
-      Vᵢᵢ(πᵢᴬ - 3)^γ₁ + (1 - Vᵢᵢ)(πⱼᴬ - 3)^γ₂ - αᵢⱼ × (max(πⱼᴬ - πᵢᴬ, 0)^γ₃ + max(πᵢᴬ - πⱼᴬ, 0)^γ₃)
-    counter=['Vᵢᵢ', 'αᵢⱼ', 'γ1', 'γ3']  eq=['Vᵢᵢ', 'αᵢⱼ', 'γ1', 'γ2', 'γ3']
-      hidden=[]  phantom=['γ2']
-      Vᵢᵢ[πᵢᴬ / (πᵢᴬ + πᵢᴮ) - 1/2]^γ₁ + (1 - Vᵢᵢ)[πⱼᴬ / (πⱼᴬ + πⱼᴮ) - 1/2]^γ₂ - αᵢⱼ × (max([πⱼᴬ / (πᵢᴬ + πⱼᴬ) - 1/2], 0)^γ₃ + 
-    counter=['Vᵢᵢ', 'αᵢⱼ', 'γ1', 'γ3']  eq=['Vᵢᵢ', 'αᵢⱼ', 'γ1', 'γ2', 'γ3']
-      hidden=[]  phantom=['γ2']
-      Vᵢᵢ[πᵢᴬ / (πᵢᴬ + 3) - 1/2]^γ₁ + (1 - Vᵢᵢ)[πⱼᴬ / (πⱼᴬ + 3) - 1/2]^γ₂ - αᵢⱼ × (max([πⱼᴬ / (πᵢᴬ + πⱼᴬ) - 1/2], 0)^γ₃ + max(
-    counter=['Vᵢᵢ', 'αᵢⱼ', 'βᵢⱼ', 'γ1', 'γ3']  eq=['Vᵢᵢ', 'αᵢⱼ', 'βᵢⱼ', 'γ1', 'γ2', 'γ3']
-      hidden=[]  phantom=['γ2']
-      Vᵢᵢ(πᵢᴬ - πᵢᴮ)^γ₁ + (1 - Vᵢᵢ)(πⱼᴬ - πⱼᴮ)^γ₂ - αᵢⱼ × max(πⱼᴬ - πᵢᴬ, 0)^γ₃ - βᵢⱼ × max(πᵢᴬ - πⱼᴬ, 0)^γ₃
-    counter=['Vᵢᵢ', 'αᵢⱼ', 'βᵢⱼ', 'γ1', 'γ3', 'λᵢᵢ']  eq=['Vᵢᵢ', 'αᵢⱼ', 'βᵢⱼ', 'γ1', 'γ2', 'γ3', 'λᵢᵢ']
-      hidden=[]  phantom=['γ2']
-      Vᵢᵢ × max(πᵢᴬ - πᵢᴮ, 0)^γ₁ - λᵢᵢ × max(πᵢᴮ - πᵢᴬ, 0)^γ₁ + (1 - Vᵢᵢ) × max(πⱼᴬ - πⱼᴮ, 0)^γ₂ - (1 - λᵢᵢ) × max(πⱼᴮ - πⱼᴬ, 
-    counter=['Vᵢᵢ', 'αᵢⱼ', 'βᵢⱼ', 'γ1', 'γ3']  eq=['Vᵢᵢ', 'αᵢⱼ', 'βᵢⱼ', 'γ1', 'γ2', 'γ3']
-      hidden=[]  phantom=['γ2']
-      Vᵢᵢ(πᵢᴬ)^γ₁ + (1 - Vᵢᵢ)(πⱼᴬ)^γ₂ - αᵢⱼ × max(πⱼᴬ - πᵢᴬ, 0)^γ₃ - βᵢⱼ × max(πᵢᴬ - πⱼᴬ, 0)^γ₃
-    counter=['Vᵢᵢ', 'αᵢⱼ', 'βᵢⱼ', 'γ1', 'γ3']  eq=['Vᵢᵢ', 'αᵢⱼ', 'βᵢⱼ', 'γ1', 'γ2', 'γ3']
-      hidden=[]  phantom=['γ2']
-      Vᵢᵢ(πᵢᴬ - 3)^γ₁ + (1 - Vᵢᵢ)(πⱼᴬ - 3)^γ₂ - αᵢⱼ × max(πⱼᴬ - πᵢᴬ, 0)^γ₃ - βᵢⱼ × max(πᵢᴬ - πⱼᴬ, 0)^γ₃
-    counter=['Vᵢᵢ', 'αᵢⱼ', 'βᵢⱼ', 'γ1', 'γ3', 'λᵢᵢ']  eq=['Vᵢᵢ', 'αᵢⱼ', 'βᵢⱼ', 'γ1', 'γ2', 'γ3', 'λᵢᵢ']
-      hidden=[]  phantom=['γ2']
-      Vᵢᵢ × max(πᵢᴬ - 3, 0)^γ₁ - λᵢᵢ × max(3 - πᵢᴬ, 0)^γ₁ + (1 - Vᵢᵢ) × max(πⱼᴬ - 3, 0)^γ₂ - (1 - λᵢᵢ) × max(3 - πⱼᴬ, 0)^γ₂ - 
-[Verify] Utility families to test: 603
+[Param-vs-Equation Audit]  0 / 620 models have symbol mismatches
+[Verify] Utility families to test: 620
 [Verify] Payoff tuples: 625 exhaustive grid
-[Verify] Rows: 376875  |  matches: 346038  |  mismatches: 30837
+[Verify] Rows: 387500  |  matches: 356537  |  mismatches: 30963
 [Verify] Flags with highest mismatch rates (top 8):
                            flag  value  total  mismatch_rate
-      min_max_rawlsian_leontief   True  51875       0.344578
+      min_max_rawlsian_leontief   True  51875       0.354217
 include_relative_income_penalty   True  16250       0.246154
-   reference_dependent_altruism   True  23125       0.186681
- single_payoffs_not_differences   True  48750       0.151282
-       conditional_welfare_mode   True  46250       0.148368
-  uniform_exponential_parameter  False 108125       0.140809
-     apply_exponents_to_payoffs   True 122500       0.132751
-      include_social_comparison  False 163750       0.114424
+ single_payoffs_not_differences   True  49375       0.149367
+   reference_dependent_altruism   True  23125       0.149362
+  uniform_exponential_parameter  False 118750       0.136539
+       conditional_welfare_mode   True  46250       0.134876
+     apply_exponents_to_payoffs   True 127500       0.126573
+     use_exponential_parameters   True 290625       0.106539
 [Verify] First mismatches (preview):
  utility_idx  payoff_idx  utility_Δ  conditional_welfare_mode  reference_dependent_altruism  min_max_rawlsian_leontief  include_welfare_efficiency_term  include_relative_income_penalty
-         390         476 -17.239271                      True                          True                      False                            False                            False
-         390         477 -17.239271                      True                          True                      False                            False                            False
-         390         478 -17.239271                      True                          True                      False                            False                            False
-         390         479 -17.239271                      True                          True                      False                            False                            False
-         390         480 -17.239271                      True                          True                      False                            False                            False
-         390         481 -17.239271                      True                          True                      False                            False                            False
-         390         482 -17.239271                      True                          True                      False                            False                            False
-         390         483 -17.239271                      True                          True                      False                            False                            False
-         390         484 -17.239271                      True                          True                      False                            False                            False
-         390         485 -17.239271                      True                          True                      False                            False                            False
+         605         200  26.283508                      True                         False                      False                            False                            False
+         605         199  26.139296                      True                         False                      False                            False                            False
+         605         225  26.120235                      True                         False                      False                            False                            False
+         605         198  25.976022                      True                         False                      False                            False                            False
+         605         224  25.976022                      True                         False                      False                            False                            False
+         605         250  25.976022                      True                         False                      False                            False                            False
+         605         249  25.831809                      True                         False                      False                            False                            False
+         605         223  25.812748                      True                         False                      False                            False                            False
+         605         197  25.783013                      True                         False                      False                            False                            False
+         605         248  25.668536                      True                         False                      False                            False                            False
 [Verify] Wrote detailed CSV to: ...hidden-motives-analysis\processed\utility_vs_string_verification.csv
 [Verify] Wrote per-utility summary to: ...hidden-motives-analysis\processed\utility_vs_string_summary.csv
-Equations that always match: {True: 521, False: 82}.
+Equations that always match: {True: 541, False: 79}.

@@ -1508,17 +1508,6 @@ def is_valid_utility_settings(candidate: UtilitySettings, provide_explanation: b
         "which conflicts with the tie requirement for include_altruism_term=True."
         "No explicit check needed here; this comment documents why."
 
-        if (candidate['use_exponential_parameters']
-                and not candidate['uniform_exponential_parameter']
-                and not candidate['include_social_comparison']
-                and not candidate.get('include_relative_income_penalty', False)):
-            explanation += (
-                "uniform_exponential_parameter=False is redundant when tie=True with no social "
-                "comparison and no RIP: γ₂ is never added to the parameter list (Vᵢⱼ is absent), "
-                "so the model is numerically identical to uniform_exponential_parameter=True."
-            )
-            return explanation if provide_explanation else False
-
         artificially_limit_combinations = False
         if artificially_limit_combinations:
             """Option A: restrict tie to single-payoff forms only. Theoretical motivation: the A&M CES

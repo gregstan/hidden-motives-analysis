@@ -356,6 +356,14 @@ def parameter_keys_for_utility_settings(utility_settings: UtilitySettings, gener
                     param_keys_ = copy.deepcopy(param_keys)
                     if utility_settings['fix_self_interest_parameter']:
                         param_keys_ = ['Vᵢᵢ'] + param_keys_
+                    """
+                    Option A fix: for tied altruism (weight = 1-Vᵢᵢ), γ₂ is a genuinely free
+                    exponent parameter even though Vᵢⱼ is absent from param_keys. Inject Vᵢⱼ
+                    as a placeholder into the local copy so the enumeration below assigns γ₂
+                    to the altruism slot. This placeholder is never appended to the real param_keys.
+                    """
+                    if utility_settings.get('tie_self_interest_and_altruism', False) and 'Vᵢⱼ' not in param_keys_:
+                        param_keys_.append('Vᵢⱼ')
                     param_keys += [
                         f'γ{idx + 1}'
                         for idx, key in enumerate(negativity_params.keys())
