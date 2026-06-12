@@ -4469,6 +4469,7 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
         Vii = _get(params, "Vᵢᵢ", "Vii", default=1.0)
         Vij = _get(params, "Vᵢⱼ", "Vij", default=0.0)
         Eps = _get(params, "αᵢⱼ", "αij", default=0.0)
+        Bet = _get(params, "βᵢⱼ", "βij", default=0.0)
 
         g1  = _get(params, "γ₁", "γ1", default=1.0)
         g2  = _get(params, "γ₂", "γ2", default=g1 if utility_settings.get("uniform_exponential_parameter", False) else g1)
@@ -4496,8 +4497,9 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
         "Terms"
         si_weight = 1.0 if utility_settings.get("fix_self_interest_parameter", False) else Vii
         self_interest = si_weight * _signed_pow(si_base, g1)
-        altruism      = Vij * _signed_pow(al_base, g2)
-        social_comp   = (-Eps) * (max(envy, 0.0) ** g3) + ( Eps) * (max(guilt, 0.0) ** g3)
+        al_weight = (1.0 - si_weight) if utility_settings.get("tie_self_interest_and_altruism", False) else Vij
+        altruism      = al_weight * _signed_pow(al_base, g2)
+        social_comp   = (-Eps) * (max(envy, 0.0) ** g3) + (-Bet) * (max(guilt, 0.0) ** g3)
 
         return round(self_interest + altruism + social_comp, decimals_local)
 

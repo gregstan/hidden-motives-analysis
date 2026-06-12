@@ -160,7 +160,8 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
         pay1si = payAi - payBi
         pay1al = payAj - payBj
 
-    if utility_settings.get('apply_exponents_to_payoffs') and utility_settings['use_exponential_parameters']:
+    if (utility_settings.get('apply_exponents_to_payoffs') and utility_settings['use_exponential_parameters']
+            and not utility_settings.get('min_max_rawlsian_leontief')):
         pay1si, pay2si = pay1si ** exp1, pay2si ** exp1
         pay1al, pay2al = pay1al ** exp2, pay2al ** exp2
         pay1sc, pay2sc = pay1sc ** exp3, pay2sc ** exp3
@@ -817,6 +818,10 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A",
 
     if con_welf:
 
+        "Save raw payoff symbols before exponentiation — the ahead/behind condition uses raw payoffs."
+        cond_self_sym = payAi
+        cond_altr_sym = payAj
+
         if pay_expo:
             payAi, payBi = f"{payAi}^γ₁", f"{payBi}^γ₁"
             if one_exp:
@@ -852,9 +857,10 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A",
             behind_altr = f"(1 - λᵢᵢ)" + base_altr
 
         if ref_alt:
-            payAj = "3" 
+            payAj = "3"
+            cond_altr_sym = "3"
 
-        return f"{utility_}{ahead_self} + {ahead_altr} if {payAi} ≥ {payAj} else {behind_self} + {behind_altr}"
+        return f"{utility_}{ahead_self} + {ahead_altr} if {cond_self_sym} ≥ {cond_altr_sym} else {behind_self} + {behind_altr}"
        
     elif min_max:
 
@@ -900,13 +906,13 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A",
             "Parenthesis form"
             expr_with_pow = re.sub(
                 r"\(\s*([^\)]+?)\s*\)\s*\^γ([₁₂₃])",
-                lambda m: f"({m.group(1)}^γ{m.group(2)}" if (one_pay and not ref_dep) else f"(max({m.group(1)}, 0)^γ{m.group(2)} - max(-({m.group(1)}), 0)^γ{m.group(2)})",
+                lambda m: f"{m.group(1)}^γ{m.group(2)}" if (one_pay and not ref_dep) else f"(max({m.group(1)}, 0)^γ{m.group(2)} - max(-({m.group(1)}), 0)^γ{m.group(2)})",
                 expr_with_pow
             )
             "Bracket form"
             expr_with_pow = re.sub(
                 r"\[\s*([^\]]+?)\s*\]\s*\^γ([₁₂₃])",
-                lambda m: f"({m.group(1)}^γ{m.group(2)}" if (one_pay and not ref_dep) else f"(max({m.group(1)}, 0)^γ{m.group(2)} - max(-({m.group(1)}), 0)^γ{m.group(2)})",
+                lambda m: f"{m.group(1)}^γ{m.group(2)}" if (one_pay and not ref_dep) else f"(max({m.group(1)}, 0)^γ{m.group(2)} - max(-({m.group(1)}), 0)^γ{m.group(2)})",
                 expr_with_pow
             )
             return expr_with_pow
