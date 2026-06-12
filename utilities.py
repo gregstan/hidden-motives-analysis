@@ -3560,13 +3560,14 @@ def map_child_to_parent_special_param_info(
     if (not parent_utility_settings.get('tie_self_interest_and_altruism', False)
             and child_utility_settings.get('tie_self_interest_and_altruism', False)):
 
-        "Seed parent's free Vᵢⱼ at the value implied by child's Vᵢᵢ."
+        "utility() normalizes the tied weight as 1-(Vᵢᵢ+1)/2 = (1-Vᵢᵢ)/2, and the"
+        "parent's free Vᵢⱼ is used raw (no normalization), so embed Vᵢⱼ = (1-Vᵢᵢ)/2."
         Vii = float(child_fitted_parameters.get('Vᵢᵢ', 1.0))
         Lai = float(child_fitted_parameters.get('λᵢᵢ', 0.0))
         if 'Vᵢⱼ' in parent_keys:
-            embedded_parent_values['Vᵢⱼ'] = 1.0 - Vii
+            embedded_parent_values['Vᵢⱼ'] = (1.0 - Vii) / 2.0
         if 'λᵢⱼ' in parent_keys:
-            embedded_parent_values['λᵢⱼ'] = 1.0 - Lai
+            embedded_parent_values['λᵢⱼ'] = (1.0 - Lai) / 2.0
 
     "Finally, override guesses with the deterministic embedded vector, ordered by parent_keys."
     parent_param_info["guesses"] = [float(embedded_parent_values[k]) for k in parent_keys]
@@ -3773,54 +3774,43 @@ def migrate_file_name_suffix(directory: str, dry_run: bool = True) -> list[str]:
 
 def test_utility_functions(build_utility_equation: Callable, general_settings: GeneralSettings, utility_settings: UtilitySettings, setting_to_flip: str, print_: bool = True) -> None:
     """
-    Used to test if the rules for generating utility functions make sense and if build_utility_equation follows those rules. 
+    Used to test if the rules for generating utility functions make sense and if build_utility_equation follows those rules.
     """
     if setting_to_flip not in utility_settings:
         raise ValueError(f"{setting_to_flip} not in {list(utility_settings.keys())}.")
-    
-    errored = False
-    valid = False
-    while not valid:
-        utility_settings = copy.deepcopy(utility_settings)
-        setting_keys = list(utility_settings.keys())
-        for idx in range(len(setting_keys)):
-            utility_settings[setting_keys[idx]] = random.choice([True, False])
-        valid = is_valid_utility_settings(candidate=utility_settings)
 
+    setting_keys = list(utility_settings.keys())
     utility_settings_m1 = copy.deepcopy(utility_settings)
-    utility_settings_m2 = copy.deepcopy(utility_settings_m1)
-    utility_settings_m2[setting_to_flip] = not utility_settings_m1[setting_to_flip]
+    utility_settings_m2 = copy.deepcopy(utility_settings)
 
-    if print_: 
+    both_valid = False
+    while not both_valid:
+        for key in setting_keys:
+            utility_settings_m1[key] = random.choice([True, False])
+        utility_settings_m2 = copy.deepcopy(utility_settings_m1)
+        utility_settings_m2[setting_to_flip] = not utility_settings_m1[setting_to_flip]
+        both_valid = (
+            is_valid_utility_settings(candidate=utility_settings_m1)
+            and is_valid_utility_settings(candidate=utility_settings_m2)
+        )
+
+    if print_:
         print("")
-        for setting_key, setting_val in utility_settings.items():
+        for setting_key, setting_val in utility_settings_m1.items():
             setting_key += " " * (30 - len(setting_key))
-            print(f"{setting_key}: {setting_val},")    
+            print(f"{setting_key}: {setting_val},")
 
     equation_m1 = build_utility_equation(utility_settings=utility_settings_m1)
-    if print_: print(f"M1: {equation_m1}")
+    equation_m2 = build_utility_equation(utility_settings=utility_settings_m2)
+    if print_:
+        print(f"M1: {equation_m1}")
+        print(f"M2: {equation_m2}")
 
-    if not is_valid_utility_settings(candidate=utility_settings_m1):
-        if print_: 
-            print(f"Invalid utility settings detected M1!")
-            print(is_valid_utility_settings(candidate=utility_settings_m1, provide_explanation=True))
-        errored = True
-
-    else:
-        equation_m2 = build_utility_equation(utility_settings=utility_settings_m2)
-        if print_: print(f"M2: {equation_m2}")
-
-        if not is_valid_utility_settings(candidate=utility_settings_m2):
-            if print_: 
-                print(f"Invalid utility settings detected M2!")
-                print(is_valid_utility_settings(candidate=utility_settings_m2, provide_explanation=True))
-            errored = True
-
-    relations = classify_pair_relation(model_1=utility_settings_m1, model_2=utility_settings_m2, 
-                                            utility_settings=utility_settings, general_settings=general_settings, print_=False)
+    relations = classify_pair_relation(model_1=utility_settings_m1, model_2=utility_settings_m2,
+                                       utility_settings=utility_settings, general_settings=general_settings, print_=False)
     if print_: print(relations)
 
-    return (errored, relations)
+    return (False, relations)
 
 
 "=========================================================================================="

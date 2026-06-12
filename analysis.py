@@ -3367,6 +3367,16 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
             if 'Vᵢᵢ' in parent_param_keys:
                 parent_parameters['Vᵢᵢ'] = 1.0
 
+        elif changed_utility_setting == "tie_self_interest_and_altruism":
+            "Parent untied Vᵢⱼ from Vᵢᵢ. utility() normalizes the tied weight as (1 - (Vᵢᵢ+1)/2),"
+            "so the parent's free Vᵢⱼ (used raw) must equal (1 - Vᵢᵢ) / 2 to reproduce the child."
+            child_vii = float(child_parameter_dict.get('Vᵢᵢ', 1.0))
+            child_lii = float(child_parameter_dict.get('λᵢᵢ', 0.0))
+            if 'Vᵢⱼ' in parent_param_keys:
+                parent_parameters['Vᵢⱼ'] = (1.0 - child_vii) / 2.0
+            if 'λᵢⱼ' in parent_param_keys:
+                parent_parameters['λᵢⱼ'] = (1.0 - child_lii) / 2.0
+
         "3) Any remaining parent keys not touched yet get a benign default:"
         for parameter_key in parent_param_keys:
             if parameter_key not in parent_parameters:

@@ -365,10 +365,9 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
     total = self_interest + altruism + social_comp
 
     if utility_settings.get('include_relative_income_penalty'):
-        "ERC-style relative income penalty: -αᵢⱼ × (σᵢᴬ − 1/2)² where σᵢᴬ = πᵢᴬ/(πᵢᴬ+πⱼᴬ)."
-        "Bolton & Ockenfels (2000) eq.(2) uses (σᵢ − 1/n)², not linear. γ₁ applies to SI term"
-        "like all other use_exponential_parameters models; γ₃ applies to the RIP exponent in"
-        "the (use_exp=True, single_exp=False) case."
+        "RIP: -αᵢⱼ × |σᵢᴬ − 1/2| where σᵢᴬ = πᵢᴬ/(πᵢᴬ+πⱼᴬ). When use_exponential_parameters=True,"
+        "γ₁ generalizes this to |σ-1/2|^γ₁ (uniform) or |σ-1/2|^γ₃ (non-uniform). γ=1 (absolute"
+        "deviation, linear) is the no-exponent special case, ensuring consistent nesting."
 
         """
         REMOVED (2026-05-27): 'Canonical ERC' override that stripped γ₁ from the SI term and
@@ -396,9 +395,7 @@ def utility(payoffs: dict[str, int], params: dict[str, float], utility_settings:
             # both directions of inequality subtract from utility symmetrically.
             _penalty = -αᵢⱼ * abs(_dev) ** _exp_rip
         else:
-            # CHANGED (2026-05-27): was -αᵢⱼ * _dev (linear, asymmetric).
-            # Bolton & Ockenfels (2000) eq.(2) squares the deviation: (σᵢ − 1/2)².
-            _penalty = -αᵢⱼ * _dev ** 2
+            _penalty = -αᵢⱼ * abs(_dev)
         if separate_terms:
             return {'self_interest': float(self_interest), 'altruism': float(altruism),
                     'social_comp': float(social_comp + _penalty)}
@@ -954,15 +951,8 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A",
 
     rip_str = ""
     if inc_rip:
-        # CHANGED (2026-05-27): (F,*) case was "" (no exponent shown, implied linear).
-        # Now shows "²" to match Bolton & Ockenfels (2000) eq.(2) squared deviation form.
         exp_tag = ("^γ₁" if one_exp else "^γ₃") if use_exp else ""
-        # |...|^γ generalizes Bolton & Ockenfels (σ-1/2)² — absolute deviation raised to γ.
-        # The ² case keeps the bar-free squared form since (x)² ≡ |x|² by symmetry.
-        if use_exp:
-            rip_str = f" - αᵢⱼ × |{payAi}/({payAi} + {payAj}) - 1/2|{exp_tag}"
-        else:
-            rip_str = f" - αᵢⱼ × ({payAi}/({payAi} + {payAj}) - 1/2)²"
+        rip_str = f" - αᵢⱼ × |{payAi}/({payAi} + {payAj}) - 1/2|{exp_tag}"
 
     """
     REMOVED (2026-05-27): 'Canonical ERC' override that temporarily set use_exp=False when
