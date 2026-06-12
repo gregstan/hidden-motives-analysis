@@ -3722,7 +3722,297 @@ def verify_same_inputs_same_outputs_for_children_and_parents(general_settings: d
     return results_dataframe
 
 
-def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[str, Any], file_paths: dict[str, Any], param_bds: dict[str, tuple[float, float]], 
+"=== Shared helpers for pretty-equation string evaluation ===================="
+"Used by verify_utility_vs_string_equation and run_child_parent_probability_equivalence_smoketest."
+
+
+def _is_token_char(ch: str) -> bool:
+    return ch not in " \t\r\n,^*/+-()"
+
+
+def _find_left_operand(expr: str, caret_index: int) -> tuple[int, int]:
+    scan_index = caret_index - 1
+    while scan_index >= 0 and expr[scan_index].isspace():
+        scan_index -= 1
+    if scan_index >= 0 and expr[scan_index] == ")":
+        depth = 1
+        scan_index -= 1
+        while scan_index >= 0 and depth > 0:
+            if expr[scan_index] == ")":
+                depth += 1
+            elif expr[scan_index] == "(":
+                depth -= 1
+            scan_index -= 1
+        start_index = scan_index + 1
+        end_index = caret_index
+        "Include function name if present (e.g., max(...))"
+        name_end = start_index
+        name_start = name_end - 1
+        while name_start >= 0 and expr[name_start].isalpha():
+            name_start -= 1
+        name_start += 1
+        if name_start < name_end and expr[name_end] == "(":
+            start_index = name_start
+        return start_index, end_index
+    "Bare token"
+    token_end = scan_index + 1
+    token_start = scan_index
+    while token_start >= 0 and _is_token_char(expr[token_start]):
+        token_start -= 1
+    token_start += 1
+    return token_start, token_end
+
+
+def _find_right_operand(expr: str, caret_index: int) -> tuple[int, int]:
+    scan_index = caret_index + 1
+    n_chars = len(expr)
+    while scan_index < n_chars and expr[scan_index].isspace():
+        scan_index += 1
+    if scan_index < n_chars and expr[scan_index] == "(":
+        depth = 1
+        scan_index += 1
+        while scan_index < n_chars and depth > 0:
+            if expr[scan_index] == "(":
+                depth += 1
+            elif expr[scan_index] == ")":
+                depth -= 1
+            scan_index += 1
+        return caret_index + 1, scan_index
+    "Bare token exponent"
+    token_start = scan_index
+    while scan_index < n_chars and _is_token_char(expr[scan_index]):
+        scan_index += 1
+    return token_start, scan_index
+
+
+def _replace_powers(expr: str) -> str:
+    out = expr
+    while "^" in out:
+        caret_index = out.find("^")
+        base_start, base_end = _find_left_operand(out, caret_index)
+        exp_start, exp_end = _find_right_operand(out, caret_index)
+        base_txt = out[base_start:base_end].strip()
+        exp_txt = out[exp_start:exp_end].strip()
+        out = out[:base_start] + f"pow_signed({base_txt}, {exp_txt})" + out[exp_end:]
+    return out
+
+
+def _normalize_for_eval(rhs_text: str) -> str:
+    normalized = (rhs_text
+        .replace(" ", " ")
+        .replace("−", "-").replace("–", "-").replace("—", "-")
+        .replace("≥", ">=").replace("≤", "<=").replace("≠", "!=")
+        .replace("×", "*").replace("·", "*").replace("⋅", "*")
+    )
+    normalized = normalized.replace("²", "**2")
+    normalized = normalized.replace("[", "(").replace("]", ")")
+    # |expr| absolute-value bars (used in RIP strings like |σ-1/2|^γ) → abs(expr).
+    # Must run before _replace_powers so abs(...)^γ evaluates symmetrically.
+    normalized = re.sub(r"\|([^|]+)\|", r"abs(\1)", normalized)
+    "Implicit multiplication"
+    normalized = re.sub(r"(?<![A-Za-z0-9_])(\-?\d+(?:\.\d+)?)\s*\(", r"\1*(", normalized)
+    normalized = normalized.replace(")(", ")*(")
+    normalized = re.sub(r"\)\s*(\-?\d+(?:\.\d+)?)", r")*\1", normalized)
+    return _replace_powers(normalized)
+
+
+def _pow_signed(base_value: float, exponent_value: float) -> float:
+    "Sign-preserving power: sign(base)*|base|^exp. Matches utility_term ReLU-split for all γ."
+    base_value = float(base_value); exponent_value = float(exponent_value)
+    if base_value == 0.0:
+        return 0.0
+    return (abs(base_value) ** exponent_value) * (1.0 if base_value >= 0.0 else -1.0)
+
+
+def _direct_eval_ratio_refdep_negsc(
+    utility_settings: dict[str, bool],
+    params: dict[str, float],
+    payoffs: dict[str, float],
+    decimals_local: int = 6,
+) -> float:
+    """
+    Direct numeric evaluator for the family:
+        • NOT conditional_welfare_mode
+        • NOT min_max_rawlsian_leontief
+        • use_exponential_parameters = True
+        • payoff_ratios_not_differences = True
+        • reference_dependent_utility = True
+        • use_negativity_parameters = False (for SI & AL)
+        • negativity_social_comparison = True
+        • include_social_comparison = True
+        • include_altruism_term = True
+        • single_payoffs_not_differences = False
+        • apply_exponents_to_payoffs = False
+
+    Mirrors utility() semantics exactly:
+        - Self & altruism: centered ratios, sign-preserving exponent on the base
+        - SC with negativity: -α*max(envy,0)^γ + α*max(guilt,0)^γ
+        - Reference constant '3' is NOT exponentiated
+    """
+    "Read params (accept either γ1/γ₂/γ₃ or γ₁/γ₂/γ₃ spellings)"
+    def _get(param_dict: dict, *names: str, default: float) -> float:
+        for name in names:
+            if name in param_dict:
+                return float(param_dict[name])
+        return float(default)
+
+    Vii = _get(params, "Vᵢᵢ", "Vii", default=1.0)
+    Vij = _get(params, "Vᵢⱼ", "Vij", default=0.0)
+    Eps = _get(params, "αᵢⱼ", "αij", default=0.0)
+    Bet = _get(params, "βᵢⱼ", "βij", default=0.0)
+
+    g1  = _get(params, "γ₁", "γ1", default=1.0)
+    g2  = _get(params, "γ₂", "γ2", default=g1 if utility_settings.get("uniform_exponential_parameter", False) else g1)
+    if not utility_settings.get("uniform_exponential_parameter", False):
+        g2 = _get(params, "γ₂", "γ2", default=g1)
+    g3  = _get(params, "γ₃", "γ3", default=g1)
+
+    "Payoffs"
+    Ai = float(payoffs["As"]); Aj = float(payoffs["Ao"])
+    "Reference-dependent utility ⇒ compare to 3 for single-agent ratios"
+    ref_const = 3.0
+
+    "Sign-preserving power for centered ratios (matches code semantics)"
+    def _signed_pow(base_value: float, gamma_exponent: float) -> float:
+        if base_value == 0.0:
+            return 0.0
+        return (abs(base_value) ** gamma_exponent) * (1.0 if base_value >= 0.0 else -1.0)
+
+    "Bases"
+    si_base = Ai / (Ai + ref_const) - 0.5
+    al_base = Aj / (Aj + ref_const) - 0.5
+    envy    = Aj / (Ai + Aj) - 0.5
+    guilt   = Ai / (Ai + Aj) - 0.5
+
+    "Terms"
+    si_weight = 1.0 if utility_settings.get("fix_self_interest_parameter", False) else Vii
+    self_interest = si_weight * _signed_pow(si_base, g1)
+    al_weight = (1.0 - si_weight) if utility_settings.get("tie_self_interest_and_altruism", False) else Vij
+    altruism      = al_weight * _signed_pow(al_base, g2)
+    social_comp   = (-Eps) * (max(envy, 0.0) ** g3) + (-Bet) * (max(guilt, 0.0) ** g3)
+
+    return round(self_interest + altruism + social_comp, decimals_local)
+
+
+def _evaluate_equation_numeric(
+    equation_string: str,
+    params: dict[str, float],
+    payoffs: dict[str, float],
+    utility_settings: dict[str, bool],
+    param_overrides: dict[str, float] | None = None,
+    decimals_local: int = 6,
+) -> tuple[float | None, str]:
+    """
+    Evaluate the RHS of the pretty equation after substituting 'params' and 'payoffs'.
+    'param_overrides' (if provided) override parameter values *before* substitution.
+    Returns (value_or_None, status_text). Status empty string on success.
+    Accepts payoffs with 'As'/'Ao'/'Bs'/'Bo' keys or 'payoff_A_chooser'-style keys.
+    """
+    payoff_key_map_eval = {
+        "payoff_A_chooser":   "As",
+        "payoff_A_predictor": "Ao",
+        "payoff_B_chooser":   "Bs",
+        "payoff_B_predictor": "Bo",
+    }
+    payoffs = {payoff_key_map_eval[payoff_key] if "payoff" in payoff_key else payoff_key: payoff_value for payoff_key, payoff_value in payoffs.items()}
+
+    "1) Build replacements"
+    gamma_pretty = {"γ1": "γ₁", "γ2": "γ₂", "γ3": "γ₃"}
+    params_pretty = {gamma_pretty.get(param_key, param_key): param_value for param_key, param_value in params.items()}
+    "Map aliases that might appear"
+    alias_to_pretty = {
+        "Vii": "Vᵢᵢ", "Λii": "λᵢᵢ", "Vij": "Vᵢⱼ", "Λij": "λᵢⱼ",
+        "αij": "αᵢⱼ", "βij": "βᵢⱼ",
+        "γ1": "γ₁", "γ2": "γ₂", "γ3": "γ₃",
+    }
+    for alias_key, pretty_key in alias_to_pretty.items():
+        if alias_key in params and pretty_key not in params_pretty:
+            params_pretty[pretty_key] = params[alias_key]
+
+    "Apply overrides *before* substitution (so numeric values in the string reflect the override)"
+    if param_overrides:
+        for raw_param_key, param_value in param_overrides.items():
+            param_key = gamma_pretty.get(raw_param_key, raw_param_key)  # Allow γ1 vs γ₁ in overrides.
+            params_pretty[param_key] = param_value
+
+    "Gamma fallbacks inherit γ₁ (like utility())"
+    gamma1_value = None
+    for k_try in ("γ₁", "γ1"):
+        if k_try in params_pretty:
+            gamma1_value = float(params_pretty[k_try]); break
+    if gamma1_value is None: gamma1_value = 1.0
+
+    "Conditional-welfare normalization is intentionally skipped here; the utility() call above also uses normalize_conditional_welfare_params=False, keeping both paths consistent."
+    payoff_symbol_map = {"As": "πᵢᴬ", "Ao": "πⱼᴬ", "Bs": "πᵢᴮ", "Bo": "πⱼᴮ"}
+    payoffs_pretty_map = {payoff_symbol_map[payoff_key]: payoff_value for payoff_key, payoff_value in payoffs.items()}
+
+    "2) Extract RHS"
+    if "=" not in equation_string:
+        return None, "EVAL ERROR: no '=' in equation"
+    _, rhs_original = equation_string.split("=", 1)
+    rhs_original = rhs_original.strip()
+
+    "3) Perform substitutions (payoffs first, then params)"
+    rhs_filled = rhs_original
+    for sym, val in payoffs_pretty_map.items():
+        rhs_filled = rhs_filled.replace(sym, str(val))
+    for sym, val in params_pretty.items():
+        rhs_filled = rhs_filled.replace(sym, str(val))
+
+    "Replace any remaining canonical symbols with *utility()* defaults"
+    defaults = {
+        "Vᵢᵢ": 1.0, "λᵢᵢ": 0.0, "Vᵢⱼ": 0.0, "λᵢⱼ": 0.0, "αᵢⱼ": 0.0, "βᵢⱼ": 0.0,
+        "γ₁": gamma1_value, "γ₂": gamma1_value, "γ₃": gamma1_value,
+        "Vii": 1.0, "Λii": 0.0, "Vij": 0.0, "Λij": 0.0, "αij": 0.0, "βij": 0.0,
+        "γ1": gamma1_value, "γ2": gamma1_value, "γ3": gamma1_value,
+    }
+    for sym, val in defaults.items():
+        if sym in rhs_filled:
+            rhs_filled = rhs_filled.replace(sym, str(val))
+
+    "--- Stubborn-case direct evaluator short-circuit ---"
+    utility_settings_for_eval = utility_settings
+    is_stubborn = (
+        (not utility_settings_for_eval.get("conditional_welfare_mode", False))
+        and (not utility_settings_for_eval.get("min_max_rawlsian_leontief", False))
+        and utility_settings_for_eval.get("use_exponential_parameters", False)
+        and utility_settings_for_eval.get("payoff_ratios_not_differences", False)
+        and utility_settings_for_eval.get("reference_dependent_utility", False)
+        and (not utility_settings_for_eval.get("use_negativity_parameters", False))
+        and utility_settings_for_eval.get("negativity_social_comparison", False)
+        and utility_settings_for_eval.get("include_social_comparison", False) is not False
+        and utility_settings_for_eval.get("include_altruism_term", False) is not False
+        and (not utility_settings_for_eval.get("single_payoffs_not_differences", False))
+        and (not utility_settings_for_eval.get("apply_exponents_to_payoffs", False))
+    )
+    if is_stubborn:
+        try:
+            "Honor overrides (used to isolate components in verification)"
+            params_for_direct = dict(params)
+            if param_overrides:
+                params_for_direct.update(param_overrides)
+            direct_val = _direct_eval_ratio_refdep_negsc(
+                utility_settings=utility_settings_for_eval,
+                params=params_for_direct,
+                payoffs=payoffs,
+                decimals_local=decimals_local,
+            )
+            return direct_val, ""  # Short-circuit: trust direct evaluation.
+        except Exception as _err_direct:
+            "Fall through to the generic string-eval path if something unexpected happens"
+            pass
+
+    "4) Normalize to Python and eval"
+    python_rhs = _normalize_for_eval(rhs_filled)
+    safe_env = {"__builtins__": {}, "max": max, "min": min, "abs": abs, "pow_signed": _pow_signed}
+    try:
+        value = float(eval(python_rhs, safe_env, {}))
+        return round(value, decimals_local), ""
+    except Exception as err:
+        return None, f"EVAL ERROR: {type(err).__name__}: {err}"
+
+
+def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[str, Any], file_paths: dict[str, Any], param_bds: dict[str, tuple[float, float]],
                                                        n_trials: int = 12, rand_payoff_idx: bool = False, random_seed: int | None = None, tolerance: float = 1e-10, verbose: bool = True) -> pd.DataFrame:
     """
     Verifies nesting by comparing *choice probabilities* of each child with the
@@ -3870,16 +4160,12 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
             if symbol in filled_equation:
                 filled_equation = filled_equation.replace(symbol, str(default_val))
 
-        lhs, rhs = filled_equation.split("=", 1)
-        rhs = gnrl.canon_sc_both_ways(rhs.strip(), mode="twoterm")
-        filled_equation = lhs + "= " + rhs
+        "Evaluate using the module-level shared helper"
+        str_numeric, eval_status = _evaluate_equation_numeric(equation, params, payoffs_eval, utility_settings_dict, decimals_local=decimals)
+        if eval_status:
+            return f"{filled_equation}  [{eval_status}]"
 
-        "Evaluate using the shared helper"
-        value_str, status = gnrl.eval_pretty_equation_rhs(rhs, decimals=decimals, sc_mode="twoterm")
-        if status:
-            return f"{filled_equation}  [{status}]"
-
-        rhs_value_rounded = float(value_str)
+        rhs_value_rounded = float(str_numeric)
         status_tag = "" if abs(rhs_value_rounded - true_value_rounded) <= comparison_tol \
                     else f"  [FAIL: ≠ {rhs_value_rounded:.{decimals}f}]"
         return f"{filled_equation}{status_tag}"
@@ -3910,80 +4196,6 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
             util_components[new_key] = util_components.pop(old_key)
         return {key: round(val, 6) for key, val in util_components.items()}
         
-    def _evaluate_equation_numeric(equation_string: str, params: dict[str, float], utility_settings: UtilitySettings, payoffs: dict[str, float], 
-                                   param_overrides: dict[str, float] | None = None, decimals_local: int = 6, ) -> tuple[float | None, str]:
-        """
-        Evaluate the RHS of the pretty equation after substituting 'params' and 'payoffs'.
-        'param_overrides' (if provided) override parameter values *before* substitution.
-        Returns (value_or_None, status_text). Status empty string on success.
-        """
-        payoff_key_map_eval = {
-            "payoff_A_chooser":   "As",
-            "payoff_A_predictor": "Ao",
-            "payoff_B_chooser":   "Bs",
-            "payoff_B_predictor": "Bo",
-        }
-        payoffs = {payoff_key_map_eval[payoff_key] if "payoff" in payoff_key else payoff_key: payoff_value for payoff_key, payoff_value in payoffs.items()}
-
-        "1) Build replacements"
-        gamma_pretty = {"γ1": "γ₁", "γ2": "γ₂", "γ3": "γ₃"}
-        params_pretty = {gamma_pretty.get(param_key, param_key): param_value for param_key, param_value in params.items()}
-        "Map aliases that might appear"
-        alias_to_pretty = {
-            "Vii": "Vᵢᵢ", "Λii": "λᵢᵢ", "Vij": "Vᵢⱼ", "Λij": "λᵢⱼ",
-            "αij": "αᵢⱼ", "βij": "βᵢⱼ",
-            "γ1": "γ₁", "γ2": "γ₂", "γ3": "γ₃",
-        }
-        for alias_key, pretty_key in alias_to_pretty.items():
-            if alias_key in params and pretty_key not in params_pretty:
-                params_pretty[pretty_key] = params[alias_key]
-
-        "Apply overrides *before* substitution (so numeric values in the string reflect the override)"
-        if param_overrides:
-            for raw_param_key, param_value in param_overrides.items():
-                param_key = gamma_pretty.get(raw_param_key, raw_param_key)  # Allow γ1 vs γ₁ in overrides.
-                params_pretty[param_key] = param_value
-
-        "Gamma fallbacks inherit γ₁ (like utility())"
-        gamma1_value = None
-        for k_try in ("γ₁", "γ1"):
-            if k_try in params_pretty:
-                gamma1_value = float(params_pretty[k_try]); break
-        if gamma1_value is None: gamma1_value = 1.0
-
-        payoff_symbol_map = {"As": "πᵢᴬ", "Ao": "πⱼᴬ", "Bs": "πᵢᴮ", "Bo": "πⱼᴮ"}
-        payoffs_pretty_map = {payoff_symbol_map[payoff_key]: payoff_value for payoff_key, payoff_value in payoffs.items()}
-
-        "2) Extract RHS"
-        if "=" not in equation_string:
-            return None, "EVAL ERROR: no '=' in equation"
-        _, rhs_original = equation_string.split("=", 1)
-        rhs_original = rhs_original.strip()
-
-        "3) Perform substitutions (payoffs first, then params)"
-        rhs_filled = rhs_original
-        for sym, val in payoffs_pretty_map.items():
-            rhs_filled = rhs_filled.replace(sym, str(val))
-        for sym, val in params_pretty.items():
-            rhs_filled = rhs_filled.replace(sym, str(val))
-
-        "Replace any remaining canonical symbols with *utility()* defaults"
-        defaults = {
-            "Vᵢᵢ": 1.0, "λᵢᵢ": 0.0, "Vᵢⱼ": 0.0, "λᵢⱼ": 0.0, "αᵢⱼ": 0.0, "βᵢⱼ": 0.0,
-            "γ₁": gamma1_value, "γ₂": gamma1_value, "γ₃": gamma1_value,
-            "Vii": 1.0, "Λii": 0.0, "Vij": 0.0, "Λij": 0.0, "αij": 0.0, "βij": 0.0,
-            "γ1": gamma1_value, "γ2": gamma1_value, "γ3": gamma1_value,
-        }
-
-        for sym, val in defaults.items():
-            if sym in rhs_filled:
-                rhs_filled = rhs_filled.replace(sym, str(val))
-
-        "Canonicalize and evaluate via generalist helpers"
-        rhs_filled = gnrl.canon_sc_both_ways(rhs_filled, mode="twoterm")
-        value, status = gnrl.eval_pretty_equation_rhs(rhs_filled, decimals=decimals_local, sc_mode="twoterm")
-        return value, status
-
     "--- Build pairs from adjacency lists -------------------------------------"
     "Use the canonical universe and equation strings, matching IC analysis."
     adj = model_nesting_adjacency_matrices(
@@ -4426,280 +4638,6 @@ def verify_utility_vs_string_equation(utility_function: Callable, utility_functi
                 sampled_value = min(max(round(sampled_value, 2), lower_bound), upper_bound)
             means[param_key] = float(sampled_value)
         return means
-
-    "---------- (4) Pretty-equation evaluation (numeric) --------------------------"
-    """
-    Numerically evaluate utility_function_str(...) after substituting payoffs and parameters.
-    Normalization handles unicode operators, '^' to pow_signed conversion, implicit
-    multiplication, and γ₂/γ₃ fallback to γ₁.
-    """
-    "--- INSERT C1: direct evaluator for the stubborn ratio+refdep+negSC family ----"
-    def _direct_eval_ratio_refdep_negsc(
-        utility_settings: dict[str, bool],
-        params: dict[str, float],
-        payoffs: dict[str, float],
-        decimals_local: int = 6,
-    ) -> float:
-        """
-        Direct numeric evaluator for the family:
-            • NOT conditional_welfare_mode
-            • NOT min_max_rawlsian_leontief
-            • use_exponential_parameters = True
-            • payoff_ratios_not_differences = True
-            • reference_dependent_utility = True
-            • use_negativity_parameters = False (for SI & AL)
-            • negativity_social_comparison = True
-            • include_social_comparison = True
-            • include_altruism_term = True
-            • single_payoffs_not_differences = False
-            • apply_exponents_to_payoffs = False
-
-        Mirrors utility() semantics exactly:
-            - Self & altruism: centered ratios, sign-preserving exponent on the base
-            - SC with negativity: -α*max(envy,0)^γ + α*max(guilt,0)^γ
-            - Reference constant '3' is NOT exponentiated
-        """
-        "Read params (accept either γ1/γ₂/γ₃ or γ₁/γ₂/γ₃ spellings)"
-        def _get(param_dict: dict, *names: str, default: float) -> float:
-            for name in names:
-                if name in param_dict:
-                    return float(param_dict[name])
-            return float(default)
-
-        Vii = _get(params, "Vᵢᵢ", "Vii", default=1.0)
-        Vij = _get(params, "Vᵢⱼ", "Vij", default=0.0)
-        Eps = _get(params, "αᵢⱼ", "αij", default=0.0)
-        Bet = _get(params, "βᵢⱼ", "βij", default=0.0)
-
-        g1  = _get(params, "γ₁", "γ1", default=1.0)
-        g2  = _get(params, "γ₂", "γ2", default=g1 if utility_settings.get("uniform_exponential_parameter", False) else g1)
-        if not utility_settings.get("uniform_exponential_parameter", False):
-            g2 = _get(params, "γ₂", "γ2", default=g1)
-        g3  = _get(params, "γ₃", "γ3", default=g1)
-
-        "Payoffs"
-        Ai = float(payoffs["As"]); Aj = float(payoffs["Ao"])
-        "Reference-dependent utility ⇒ compare to 3 for single-agent ratios"
-        ref_const = 3.0
-
-        "Sign-preserving power for centered ratios (matches code semantics)"
-        def _signed_pow(base_value: float, gamma_exponent: float) -> float:
-            if base_value == 0.0:
-                return 0.0
-            return (abs(base_value) ** gamma_exponent) * (1.0 if base_value >= 0.0 else -1.0)
-
-        "Bases"
-        si_base = Ai / (Ai + ref_const) - 0.5
-        al_base = Aj / (Aj + ref_const) - 0.5
-        envy    = Aj / (Ai + Aj) - 0.5
-        guilt   = Ai / (Ai + Aj) - 0.5
-
-        "Terms"
-        si_weight = 1.0 if utility_settings.get("fix_self_interest_parameter", False) else Vii
-        self_interest = si_weight * _signed_pow(si_base, g1)
-        al_weight = (1.0 - si_weight) if utility_settings.get("tie_self_interest_and_altruism", False) else Vij
-        altruism      = al_weight * _signed_pow(al_base, g2)
-        social_comp   = (-Eps) * (max(envy, 0.0) ** g3) + (-Bet) * (max(guilt, 0.0) ** g3)
-
-        return round(self_interest + altruism + social_comp, decimals_local)
-
-    def _is_token_char(ch: str) -> bool:
-        return ch not in " \t\r\n,^*/+-()"
-
-    def _find_left_operand(expr: str, caret_index: int) -> tuple[int, int]:
-        scan_index = caret_index - 1
-        while scan_index >= 0 and expr[scan_index].isspace():
-            scan_index -= 1
-        if scan_index >= 0 and expr[scan_index] == ")":
-            depth = 1
-            scan_index -= 1
-            while scan_index >= 0 and depth > 0:
-                if expr[scan_index] == ")":
-                    depth += 1
-                elif expr[scan_index] == "(":
-                    depth -= 1
-                scan_index -= 1
-            start_index = scan_index + 1
-            end_index = caret_index
-            "Include function name if present (e.g., max(...))"
-            name_end = start_index
-            name_start = name_end - 1
-            while name_start >= 0 and expr[name_start].isalpha():
-                name_start -= 1
-            name_start += 1
-            if name_start < name_end and expr[name_end] == "(":
-                start_index = name_start
-            return start_index, end_index
-        "Bare token"
-        token_end = scan_index + 1
-        token_start = scan_index
-        while token_start >= 0 and _is_token_char(expr[token_start]):
-            token_start -= 1
-        token_start += 1
-        return token_start, token_end
-
-    def _find_right_operand(expr: str, caret_index: int) -> tuple[int, int]:
-        scan_index = caret_index + 1
-        n_chars = len(expr)
-        while scan_index < n_chars and expr[scan_index].isspace():
-            scan_index += 1
-        if scan_index < n_chars and expr[scan_index] == "(":
-            depth = 1
-            scan_index += 1
-            while scan_index < n_chars and depth > 0:
-                if expr[scan_index] == "(":
-                    depth += 1
-                elif expr[scan_index] == ")":
-                    depth -= 1
-                scan_index += 1
-            return caret_index + 1, scan_index
-        "Bare token exponent"
-        token_start = scan_index
-        while scan_index < n_chars and _is_token_char(expr[scan_index]):
-            scan_index += 1
-        return token_start, scan_index
-
-    def _replace_powers(expr: str) -> str:
-        out = expr
-        while "^" in out:
-            caret_index = out.find("^")
-            base_start, base_end = _find_left_operand(out, caret_index)
-            exp_start, exp_end = _find_right_operand(out, caret_index)
-            base_txt = out[base_start:base_end].strip()
-            exp_txt = out[exp_start:exp_end].strip()
-            out = out[:base_start] + f"pow_signed({base_txt}, {exp_txt})" + out[exp_end:]
-        return out
-
-    def _normalize_for_eval(rhs_text: str) -> str:
-        normalized = (rhs_text
-            .replace("\u00A0", " ")
-            .replace("−", "-").replace("–", "-").replace("—", "-")
-            .replace("≥", ">=").replace("≤", "<=").replace("≠", "!=")
-            .replace("×", "*").replace("·", "*").replace("⋅", "*")
-        )
-        # ADDED (2026-05-27): '²' (U+00B2) used in RIP equations like (σ-1/2)².
-        # Squaring is symmetric so **2 is correct (not ^2→pow_signed).
-        normalized = normalized.replace("²", "**2")
-        normalized = normalized.replace("[", "(").replace("]", ")")
-        "Implicit multiplication"
-        normalized = re.sub(r"(?<![A-Za-z0-9_])(\-?\d+(?:\.\d+)?)\s*\(", r"\1*(", normalized)
-        normalized = normalized.replace(")(", ")*(")
-        normalized = re.sub(r"\)\s*(\-?\d+(?:\.\d+)?)", r")*\1", normalized)
-        return _replace_powers(normalized)
-
-    def _pow_signed(base_value: float, exponent_value: float) -> float:
-        base_value = float(base_value); exponent_value = float(exponent_value)
-        if abs(exponent_value - round(exponent_value)) < 1e-12:
-            return base_value ** int(round(exponent_value))
-        return (abs(base_value) ** exponent_value) * (1.0 if base_value >= 0.0 else -1.0)
-
-    def _evaluate_equation_numeric(
-        equation_string: str,
-        params: dict[str, float],
-        payoffs: dict[str, float],
-        utility_settings: dict[str, bool],
-        param_overrides: dict[str, float] | None = None,
-        decimals_local: int = 6,
-    ) -> tuple[float | None, str]:
-        """
-        Evaluate the RHS of the pretty equation after substituting 'params' and 'payoffs'.
-        'param_overrides' (if provided) override parameter values *before* substitution.
-        Returns (value_or_None, status_text). Status empty string on success.
-        """
-        "1) Build replacements"
-        gamma_pretty = {"γ1": "γ₁", "γ2": "γ₂", "γ3": "γ₃"}
-        params_pretty = {gamma_pretty.get(param_key, param_key): param_value for param_key, param_value in params.items()}
-        "Map aliases that might appear"
-        alias_to_pretty = {
-            "Vii": "Vᵢᵢ", "Λii": "λᵢᵢ", "Vij": "Vᵢⱼ", "Λij": "λᵢⱼ",
-            "αij": "αᵢⱼ", "βij": "βᵢⱼ",
-            "γ1": "γ₁", "γ2": "γ₂", "γ3": "γ₃",
-        }
-        for alias_key, pretty_key in alias_to_pretty.items():
-            if alias_key in params and pretty_key not in params_pretty:
-                params_pretty[pretty_key] = params[alias_key]
-
-        "Apply overrides *before* substitution (so numeric values in the string reflect the override)"
-        if param_overrides:
-            for raw_param_key, param_value in param_overrides.items():
-                param_key = gamma_pretty.get(raw_param_key, raw_param_key)  # Allow γ1 vs γ₁ in overrides.
-                params_pretty[param_key] = param_value
-
-        "Gamma fallbacks inherit γ₁ (like utility())"
-        gamma1_value = None
-        for k_try in ("γ₁", "γ1"):
-            if k_try in params_pretty:
-                gamma1_value = float(params_pretty[k_try]); break
-        if gamma1_value is None: gamma1_value = 1.0
-
-        "Conditional-welfare normalization is intentionally skipped here; the utility() call above also uses normalize_conditional_welfare_params=False, keeping both paths consistent."
-        payoff_symbol_map = {"As": "πᵢᴬ", "Ao": "πⱼᴬ", "Bs": "πᵢᴮ", "Bo": "πⱼᴮ"}
-        payoffs_pretty_map = {payoff_symbol_map[payoff_key]: payoff_value for payoff_key, payoff_value in payoffs.items()}
-
-        "2) Extract RHS"
-        if "=" not in equation_string:
-            return None, "EVAL ERROR: no '=' in equation"
-        _, rhs_original = equation_string.split("=", 1)
-        rhs_original = rhs_original.strip()
-
-        "3) Perform substitutions (payoffs first, then params)"
-        rhs_filled = rhs_original
-        for sym, val in payoffs_pretty_map.items():
-            rhs_filled = rhs_filled.replace(sym, str(val))
-        for sym, val in params_pretty.items():
-            rhs_filled = rhs_filled.replace(sym, str(val))
-
-        "Replace any remaining canonical symbols with *utility()* defaults"
-        defaults = {
-            "Vᵢᵢ": 1.0, "λᵢᵢ": 0.0, "Vᵢⱼ": 0.0, "λᵢⱼ": 0.0, "αᵢⱼ": 0.0, "βᵢⱼ": 0.0,
-            "γ₁": gamma1_value, "γ₂": gamma1_value, "γ₃": gamma1_value,
-            "Vii": 1.0, "Λii": 0.0, "Vij": 0.0, "Λij": 0.0, "αij": 0.0, "βij": 0.0,
-            "γ1": gamma1_value, "γ2": gamma1_value, "γ3": gamma1_value,
-        }
-        for sym, val in defaults.items():
-            if sym in rhs_filled:
-                rhs_filled = rhs_filled.replace(sym, str(val))
-
-        "--- INSERT C2: stubborn-case direct evaluator short-circuit ---------------"
-        utility_settings_for_eval = utility_settings
-        is_stubborn = (
-            (not utility_settings_for_eval.get("conditional_welfare_mode", False))
-            and (not utility_settings_for_eval.get("min_max_rawlsian_leontief", False))
-            and utility_settings_for_eval.get("use_exponential_parameters", False)
-            and utility_settings_for_eval.get("payoff_ratios_not_differences", False)
-            and utility_settings_for_eval.get("reference_dependent_utility", False)
-            and (not utility_settings_for_eval.get("use_negativity_parameters", False))
-            and utility_settings_for_eval.get("negativity_social_comparison", False)
-            and utility_settings_for_eval.get("include_social_comparison", False) is not False
-            and utility_settings_for_eval.get("include_altruism_term", False) is not False
-            and (not utility_settings_for_eval.get("single_payoffs_not_differences", False))
-            and (not utility_settings_for_eval.get("apply_exponents_to_payoffs", False))
-        )
-        if is_stubborn:
-            try:
-                "Honor overrides (used to isolate components in verification)"
-                params_for_direct = dict(params)
-                if param_overrides:
-                    params_for_direct.update(param_overrides)
-                direct_val = _direct_eval_ratio_refdep_negsc(
-                    utility_settings=utility_settings_for_eval,
-                    params=params_for_direct,
-                    payoffs=payoffs,
-                    decimals_local=decimals_local,
-                )
-                return direct_val, ""  # Short-circuit: trust direct evaluation.
-            except Exception as _err_direct:
-                "Fall through to the generic string-eval path if something unexpected happens"
-                pass
-
-        "4) Normalize to Python and eval"
-        python_rhs = _normalize_for_eval(rhs_filled)
-        safe_env = {"__builtins__": {}, "max": max, "min": min, "abs": abs, "pow_signed": _pow_signed}
-        try:
-            value = float(eval(python_rhs, safe_env, {}))
-            return round(value, decimals_local), ""
-        except Exception as err:
-            return None, f"EVAL ERROR: {type(err).__name__}: {err}"
 
     "Helper to get string-components via re-evaluation with zeroed weights"
     def _string_components(

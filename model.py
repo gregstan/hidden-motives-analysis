@@ -956,8 +956,13 @@ def build_utility_equation(utility_settings: Dict[str, bool], option: str = "A",
     if inc_rip:
         # CHANGED (2026-05-27): (F,*) case was "" (no exponent shown, implied linear).
         # Now shows "²" to match Bolton & Ockenfels (2000) eq.(2) squared deviation form.
-        exp_tag = ("^γ₁" if one_exp else "^γ₃") if use_exp else "²"
-        rip_str = f" - αᵢⱼ × ({payAi}/({payAi} + {payAj}) - 1/2){exp_tag}"
+        exp_tag = ("^γ₁" if one_exp else "^γ₃") if use_exp else ""
+        # |...|^γ generalizes Bolton & Ockenfels (σ-1/2)² — absolute deviation raised to γ.
+        # The ² case keeps the bar-free squared form since (x)² ≡ |x|² by symmetry.
+        if use_exp:
+            rip_str = f" - αᵢⱼ × |{payAi}/({payAi} + {payAj}) - 1/2|{exp_tag}"
+        else:
+            rip_str = f" - αᵢⱼ × ({payAi}/({payAi} + {payAj}) - 1/2)²"
 
     """
     REMOVED (2026-05-27): 'Canonical ERC' override that temporarily set use_exp=False when
