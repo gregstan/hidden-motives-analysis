@@ -4259,7 +4259,8 @@ def run_child_parent_probability_equivalence_smoketest(utility_settings: dict[st
                 child_fitted_parameters=child_means,
                 general_settings={"update_method": "naive"},
                 param_bds=param_bds,
-                build_utility_equation=build_utility_equation
+                build_utility_equation=build_utility_equation,
+                normalize_conditional_welfare_params=False
             )
         except NotImplementedError:
             "Skip cleanly when structural guards remain in the mapper for some families."

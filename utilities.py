@@ -3368,7 +3368,8 @@ def map_child_to_parent_special_param_info(
     child_fitted_parameters: Dict[str, float],
     general_settings: Dict[str, Any],
     param_bds: ParameterBounds,
-    build_utility_equation: Callable | None = None
+    build_utility_equation: Callable | None = None,
+    normalize_conditional_welfare_params: bool = True
 ) -> Dict[str, Any]:
     """
     Creates a parent `param_info` that *embeds* the child model as a special case using the
@@ -3384,6 +3385,10 @@ def map_child_to_parent_special_param_info(
         • child_fitted_parameters: dict[str,float]; keys are parameter names (e.g., 'Vᵢᵢ','γ1',...).
         • param_bds: dict[str, (low, high)]; parameter bounds used by `make_param_info`.
         • general_settings: dict[str,Any]; drives std/covariance conventions.
+        • normalize_conditional_welfare_params: bool; must match the value used in utility() when
+          evaluating probabilities. Default True (matches the IC pipeline via agent()). Pass False
+          when the caller evaluates utility() with normalize_conditional_welfare_params=False (e.g.,
+          the smoketest and string-equation verifier).
 
     Returns:
         • parent_param_info: dict[str, Any] with fields:
@@ -3560,14 +3565,21 @@ def map_child_to_parent_special_param_info(
     if (not parent_utility_settings.get('tie_self_interest_and_altruism', False)
             and child_utility_settings.get('tie_self_interest_and_altruism', False)):
 
-        "utility() normalizes the tied weight as 1-(Vᵢᵢ+1)/2 = (1-Vᵢᵢ)/2, and the"
-        "parent's free Vᵢⱼ is used raw (no normalization), so embed Vᵢⱼ = (1-Vᵢᵢ)/2."
+        "When normalize_conditional_welfare_params=True (default, IC pipeline via agent()),"
+        "utility() computes altruism weight as (1-Vᵢᵢ)/2, so parent's raw Vᵢⱼ must equal that."
+        "When False (smoketest, string-equation verifier), altruism weight = 1-Vᵢᵢ directly."
         Vii = float(child_fitted_parameters.get('Vᵢᵢ', 1.0))
         Lai = float(child_fitted_parameters.get('λᵢᵢ', 0.0))
+        if normalize_conditional_welfare_params:
+            embedded_vij = (1.0 - Vii) / 2.0
+            embedded_lij = (1.0 - Lai) / 2.0
+        else:
+            embedded_vij = 1.0 - Vii
+            embedded_lij = 1.0 - Lai
         if 'Vᵢⱼ' in parent_keys:
-            embedded_parent_values['Vᵢⱼ'] = (1.0 - Vii) / 2.0
+            embedded_parent_values['Vᵢⱼ'] = embedded_vij
         if 'λᵢⱼ' in parent_keys:
-            embedded_parent_values['λᵢⱼ'] = (1.0 - Lai) / 2.0
+            embedded_parent_values['λᵢⱼ'] = embedded_lij
 
     "Finally, override guesses with the deterministic embedded vector, ordered by parent_keys."
     parent_param_info["guesses"] = [float(embedded_parent_values[k]) for k in parent_keys]
