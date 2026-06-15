@@ -52,9 +52,9 @@ def main():
 
         compute_ampd_matrix(
             general_settings=general_settings,
+            utility_settings=utility_settings,
             file_paths=file_paths,
             param_bds=param_bds,
-            utility_settings=utility_settings,
             create_new_file=False,
         )
         compute_conditional_hamming_distance_matrix(
@@ -526,6 +526,7 @@ if __name__ == "__main__":
     import multiprocessing as mp
     import sys as _sys
     import os as _os
+    mp.set_start_method('fork')
     mp.freeze_support()
     _log_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "terminal_output.txt")
     with open(_log_path, "w", encoding="utf-8") as _log_file:
