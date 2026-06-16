@@ -364,6 +364,7 @@ def main():
         compute_model_recovery_simulation(
             general_settings=general_settings,
             utility_settings=utility_settings,
+            figure_layout=figure_layout,
             file_paths=file_paths,
             param_bds=param_bds,
         )
