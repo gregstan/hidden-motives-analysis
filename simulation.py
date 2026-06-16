@@ -2205,10 +2205,11 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         "Keep the same feature list used by the IC analysis."
         setting_cols = [
             'conditional_welfare_mode','reference_dependent_altruism','min_max_rawlsian_leontief',
+            'include_welfare_efficiency_term','include_relative_income_penalty',
             'use_exponential_parameters','apply_exponents_to_payoffs','uniform_exponential_parameter',
             'single_payoffs_not_differences','payoff_ratios_not_differences','reference_dependent_utility',
-            'use_negativity_parameters','negativity_social_comparison','fix_self_interest_parameter',
-            'include_social_comparison','include_altruism_term'
+            'use_negativity_parameters','negativity_social_comparison','tie_self_interest_and_altruism',
+            'fix_self_interest_parameter','include_social_comparison','include_altruism_term',
         ]
         utility_settings_by_k = {}
         for k_params in k_param_values:
@@ -2250,10 +2251,11 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
             raise RuntimeError("The comparison CSV lacks 'include_altruism_term' column.")
         setting_cols = [
             'conditional_welfare_mode','reference_dependent_altruism','min_max_rawlsian_leontief',
+            'include_welfare_efficiency_term','include_relative_income_penalty',
             'use_exponential_parameters','apply_exponents_to_payoffs','uniform_exponential_parameter',
             'single_payoffs_not_differences','payoff_ratios_not_differences','reference_dependent_utility',
-            'use_negativity_parameters','negativity_social_comparison','fix_self_interest_parameter',
-            'include_social_comparison','include_altruism_term'
+            'use_negativity_parameters','negativity_social_comparison','tie_self_interest_and_altruism',
+            'fix_self_interest_parameter','include_social_comparison','include_altruism_term',
         ]
         utility_settings_by_k = {}
         for k_params in k_param_values:
