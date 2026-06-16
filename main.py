@@ -16,8 +16,8 @@ run_code_settings: RunCodeSettings = {
     'run_individual_architecture_analysis': False,
     'run_model_recovery_simulation':        False,
     'run_parameter_distribution_results':   False,
-    'run_param_recovery_analysis':          True,
-    'run_illustrate_belief_updates':        True,
+    'run_param_recovery_analysis':          False,
+    'run_illustrate_belief_updates':        False,
     'run_inequality_aversion_analysis':     True,
 }
 
