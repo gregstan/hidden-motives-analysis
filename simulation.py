@@ -2259,9 +2259,10 @@ def run_param_recovery_by_k(general_settings: GeneralSettings, file_paths: FileP
         ]
         utility_settings_by_k = {}
         for k_params in k_param_values:
-            k_subset_with_altruism = ic_comparison_dataframe[
-                (ic_comparison_dataframe["k_params"] == k_params) & (ic_comparison_dataframe["include_altruism_term"] == True)
-            ]
+            mask = (ic_comparison_dataframe["k_params"] == k_params) & (ic_comparison_dataframe["include_altruism_term"] == True)
+            if "tie_self_interest_and_altruism" in ic_comparison_dataframe.columns:
+                mask = mask & (ic_comparison_dataframe["tie_self_interest_and_altruism"] != True)
+            k_subset_with_altruism = ic_comparison_dataframe[mask]
             if k_subset_with_altruism.empty:
                 raise RuntimeError(f"No altruism‑containing model found for k={k_params} in the comparison CSV.")
 
