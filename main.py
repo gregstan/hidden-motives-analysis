@@ -339,6 +339,7 @@ def main():
 
         compute_architecture_compression_curve(
             general_settings=general_settings,
+            utility_settings=utility_settings,
             file_paths=file_paths,
         )
 
