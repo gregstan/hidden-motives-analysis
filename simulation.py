@@ -2711,47 +2711,6 @@ def run_population_recovery_bootstrap(
 
     "--- Inner helpers ---"
 
-    def _resolve_bic_winner_utility_settings() -> UtilitySettings:
-        """
-        Read the IC comparison CSV and return the 16-key utility settings for the BIC winner.
-        Prints the resolved bitstring and equation as a mandatory settings stamp.
-        """
-        experiment_num_inner   = general_settings.get('experiment_num', 3)
-        ic_csv_path_inner = os.path.join(
-            file_paths["bic_aic"],
-            f"All_Utility_Forms_IC_Analysis_Experiment{experiment_num_inner}.csv"
-        )
-        if not os.path.exists(ic_csv_path_inner):
-            raise FileNotFoundError(
-                f"IC comparison CSV not found: {pretty_path(ic_csv_path_inner)}"
-            )
-        ic_comparison_df = pd.read_csv(ic_csv_path_inner, encoding='utf-8', engine='python')
-        if "BIC_rank" in ic_comparison_df.columns and (ic_comparison_df["BIC_rank"] == 0).any():
-            best_row = ic_comparison_df.loc[ic_comparison_df["BIC_rank"] == 0].iloc[0]
-        else:
-            best_row = ic_comparison_df.iloc[ic_comparison_df["BIC"].argmin()]
-
-        "Build the settings dict from canonical key order: present CSV columns get their value, absent keys"
-        "default False. Single comprehension preserves canonical insertion order for all keys."
-        "gnrl._CANONICAL_UTILITY_SETTINGS avoids shadowing by the utility_settings parameter."
-        resolved_settings: UtilitySettings = {
-            setting_key: (bool(best_row[setting_key]) if setting_key in ic_comparison_df.columns else False)
-            for setting_key in gnrl._CANONICAL_UTILITY_SETTINGS
-        }
-
-        bitstring_str = gnrl.convert_utility_settings(utility_settings=resolved_settings, into=str)
-        equation_str  = gnrl.convert_utility_settings(
-            utility_settings=resolved_settings, into='equation',
-            file_paths=file_paths, general_settings=general_settings,
-        )
-        import sys as _sys
-        _sys.stdout.buffer.write(
-            f"[run_population_recovery_bootstrap] Resolved BIC winner:\n"
-            f"  Bitstring : {bitstring_str}\n"
-            f"  Equation  : {equation_str}\n".encode('utf-8')
-        )
-        _sys.stdout.buffer.flush()
-        return resolved_settings
 
     def _load_empirical_fitted_parameters(resolved_utility_settings: UtilitySettings) -> dict[str, dict[str, float]]:
         """
@@ -2967,7 +2926,13 @@ def run_population_recovery_bootstrap(
 
     "--- Resolve utility_settings and validate ---"
     if utility_settings is None:
-        resolved_utility_settings = _resolve_bic_winner_utility_settings()
+        resolved_utility_settings = gnrl.get_bic_winning_utility_settings(
+            file_paths=file_paths, general_settings=general_settings)
+        if resolved_utility_settings is None:
+            raise FileNotFoundError(
+                "IC comparison CSV not found — cannot resolve BIC winner for bootstrap. "
+                "Run information_criterion_analysis first or supply utility_settings explicitly."
+            )
     else:
         resolved_utility_settings = utility_settings
         bitstring_str = gnrl.convert_utility_settings(utility_settings=resolved_utility_settings, into=str)

@@ -247,6 +247,7 @@ simulations/loss_reports/
 # Private / personal files — not for the shared repo
 private/
 rick_ssh_setup.md
+sim_pull.tar.gz
 
 # Terminal output scratch files
 terminal_output.txt

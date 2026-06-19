@@ -5,6 +5,55 @@ from config import *
 _CANONICAL_UTILITY_SETTINGS: UtilitySettings = utility_settings
 
 
+def get_bic_winning_utility_settings(
+    file_paths: FilePaths,
+    general_settings: GeneralSettings,
+) -> UtilitySettings | None:
+    """
+    Read the IC comparison CSV and return the 16-key utility settings for the overall BIC winner.
+    Returns None (without raising) when the IC CSV has not been generated yet.
+
+    Arguments:
+        • file_paths: FilePaths; standard project file-path dict.
+        • general_settings: GeneralSettings; used to resolve experiment_num and the equation lookup.
+
+    Returns:
+        • UtilitySettings with 16 canonical keys, or None if the IC CSV is absent.
+    """
+    experiment_num_inner = general_settings.get('experiment_num', 3)
+    ic_csv_path = os.path.join(
+        str(file_paths["bic_aic"]),
+        f"All_Utility_Forms_IC_Analysis_Experiment{experiment_num_inner}.csv"
+    )
+    if not os.path.exists(ic_csv_path):
+        return None
+    ic_comparison_df = pd.read_csv(ic_csv_path, encoding='utf-8', engine='python')
+    if "BIC_rank" in ic_comparison_df.columns and (ic_comparison_df["BIC_rank"] == 0).any():
+        best_row = ic_comparison_df.loc[ic_comparison_df["BIC_rank"] == 0].iloc[0]
+    else:
+        best_row = ic_comparison_df.iloc[ic_comparison_df["BIC"].argmin()]
+
+    "Build 16-key settings from canonical order; CSV columns set their value, absent keys default False."
+    resolved_settings: UtilitySettings = {
+        setting_key: (bool(best_row[setting_key]) if setting_key in ic_comparison_df.columns else False)
+        for setting_key in _CANONICAL_UTILITY_SETTINGS
+    }
+
+    bitstring_str = convert_utility_settings(utility_settings=resolved_settings, into=str)
+    equation_str  = convert_utility_settings(
+        utility_settings=resolved_settings, into='equation',
+        file_paths=file_paths, general_settings=general_settings,
+    )
+    import sys as _sys
+    _sys.stdout.buffer.write(
+        f"[get_bic_winning_utility_settings] Resolved BIC winner:\n"
+        f"  Bitstring : {bitstring_str}\n"
+        f"  Equation  : {equation_str}\n".encode('utf-8')
+    )
+    _sys.stdout.buffer.flush()
+    return resolved_settings
+
+
 def correlation_xy(df: pd.DataFrame, col_name_x: str, col_name_y: str) -> tuple[float, float]:
     """
     Computes the Pearson correlation coefficient and p-value between
@@ -2603,14 +2652,15 @@ def compute_conditional_hamming_distance_matrix(
     Pairwise conditional Hamming distance matrix over all valid utility forms in the registry.
 
     Like the raw Hamming matrix, counts Boolean flag mismatches between pairs of models —
-    but only at positions where the flag is semantically live in BOTH models. A flag is live
-    in a model if flipping that flag (all other flags held fixed) still yields a valid utility
-    settings combination per is_valid_utility_settings.
+    but only at positions where the flag is semantically live in AT LEAST ONE of the two
+    models. A flag is live in a model if flipping that flag (all other flags held fixed,
+    with cascade-resetting of any child flags forced by the new value) still yields a valid
+    utility settings combination per is_valid_utility_settings.
 
-    This corrects raw Hamming's inflation when a parent feature is absent: e.g., two models
-    with no exponents and one with per-term exponents should have equal conditional Hamming
-    distance to the no-exponent model on the 'uniform_exponential_parameter' axis, because
-    that flag is forced (not live) in the no-exponent model.
+    Union liveness (live in either model) rather than intersection (live in both) prevents
+    false zeros: two models in different structural families (e.g. altruism vs welfare) can
+    both have flags that are dead in each model individually yet genuinely differ — intersection
+    would zero-score such pairs even though AMPD > 0.
 
     is_valid_utility_settings is the sole source of truth for liveness — if new settings or
     dependency rules are added there, this function adapts automatically.
@@ -2642,36 +2692,118 @@ def compute_conditional_hamming_distance_matrix(
         print(f"Conditional Hamming matrix loaded from cache: {pretty_path(cache_path)}  ({n_models}×{n_models})")
         return cond_hamming_df
 
-    "Build settings dicts from bitstrings via convert_utility_settings (canonical key order)."
+    """
+    Read settings from the individual boolean columns in the CSV — NOT from the bitstring.
+    The bitstring encoding was generated with a now-stale key order (convert_utility_settings
+    key order has changed since the registry was written), so parsing bitstrings produces wrong
+    flag assignments. The individual columns are always ground-truth.
+    """
     utility_idx_values: List[int] = list(registry_df["utility_idx"].astype(int))
+    flag_col_candidates: List[str] = [
+        c for c in registry_df.columns
+        if c not in ("utility_idx", "utility_bitstring", "k_params",
+                     "redundant_with", "differing_settings", "n_data", "pvar",
+                     "param_norm_sd", "loss_nll", "AIC", "BIC", "ΔAIC", "ΔBIC",
+                     "AIC_rank", "BIC_rank", "parents", "siblings", "children",
+                     "ampd_to_best", "policy_regret_norm_to_best", "hamming_to_best",
+                     "canonical_model", "equation")
+        and registry_df[c].dtype in (bool, int, float)
+        and set(registry_df[c].dropna().unique()).issubset({0, 1, True, False})
+    ]
     settings_list: List[dict] = [
-        convert_utility_settings(
-            tuple(bool(int(c)) for c in row["utility_bitstring"].replace("-", "")),
-            into=dict,
-        )
+        {col: bool(int(row[col])) for col in flag_col_candidates}
         for _, row in registry_df.iterrows()
     ]
 
-    "Precompute live flags per model: a flag is live if flipping it still yields a valid model."
+    """
+    When a flag is flipped and the result is invalid, some child flags may need to be
+    cascaded to their forced values before re-checking. Each entry (flag, new_value)
+    maps to {child_flag: forced_child_value}, derived directly from the if-then rules
+    in is_valid_utility_settings. Only one level of cascade is needed — none of these
+    children are parents of other children in this map.
+    """
+    _forced_when_flipped: Dict[Tuple[str, bool], Dict[str, bool]] = {
+        ('use_exponential_parameters', False): {
+            'uniform_exponential_parameter': True,
+            'apply_exponents_to_payoffs':    False,
+        },
+        ('include_social_comparison', False): {
+            'negativity_social_comparison': False,
+            'uniform_exponential_parameter': True,  # socc removal may drop n_social to 1, requiring unif=T
+        },
+        ('include_social_comparison', True): {
+            'include_relative_income_penalty': False,  # socc and rip are mutually exclusive
+        },
+        ('include_relative_income_penalty', True): {
+            'include_social_comparison': False,  # rip and socc are mutually exclusive
+        },
+        ('include_relative_income_penalty', False): {
+            'uniform_exponential_parameter': True,  # rip removal dissolves rip exception; n_social=1 requires unif=T
+        },
+        ('conditional_welfare_mode', False): {
+            'reference_dependent_altruism': False,
+        },
+        ('include_altruism_term', False): {
+            'tie_self_interest_and_altruism': False,
+        },
+        ('fix_self_interest_parameter', True): {
+            'tie_self_interest_and_altruism': False,
+        },
+        ('conditional_welfare_mode', True): {
+            'tie_self_interest_and_altruism': False,
+        },
+        ('min_max_rawlsian_leontief', True): {
+            'tie_self_interest_and_altruism': False,
+        },
+        ('payoff_ratios_not_differences', False): {
+            'reference_dependent_utility': False,
+        },
+        ('use_negativity_parameters', True): {
+            'negativity_social_comparison': True,
+        },
+    }
+
+    """
+    Precompute live flags per model: a flag is live if flipping it (and cascade-resetting
+    any child flags forced by the new value) still yields a valid utility settings combination.
+    Single-flip-only misses top-level flags (e.g. use_exponential_parameters) that appear
+    non-live in models where a child flag blocks the bare flip — even though the top-level
+    choice is genuine. The cascade fixes this without propagating upward (parents are never
+    reset, only children are).
+    """
     flag_keys: List[str] = list(settings_list[0].keys())
     live_flags_list: List[set] = []
     for settings in settings_list:
         live = set()
         for key in flag_keys:
+            new_val = not settings[key]
             flipped = dict(settings)
-            flipped[key] = not flipped[key]
+            flipped[key] = new_val
             if is_valid_utility_settings(flipped):
                 live.add(key)
+                continue
+            child_overrides = _forced_when_flipped.get((key, new_val), {})
+            if child_overrides:
+                for child_key, forced_val in child_overrides.items():
+                    flipped[child_key] = forced_val
+                if is_valid_utility_settings(flipped):
+                    live.add(key)
         live_flags_list.append(live)
 
-    "Count mismatches only where the flag is live in BOTH models."
+    """
+    Count mismatches where the flag is live in AT LEAST ONE of the two models (union).
+    Using intersection (both live) risks false zeros: two models in different structural
+    families can each have flags that are dead per their own logic yet genuinely differ.
+    Union is conservative in the other direction — it may count one forced-consequence flag
+    alongside its parent — but that overcounts by at most 1 and never produces false zeros.
+    """
     distance_matrix: List[List[int]] = [[0] * n_models for _ in range(n_models)]
     for idx in range(n_models):
         settings_i = settings_list[idx]
         live_i     = live_flags_list[idx]
         for jdx in range(idx + 1, n_models):
-            both_live = live_i & live_flags_list[jdx]
-            dist = sum(settings_i[kdx] != settings_list[jdx][kdx] for kdx in both_live)
+            either_live = live_i | live_flags_list[jdx]
+            dist = sum(settings_i[kdx] != settings_list[jdx][kdx] for kdx in either_live)
             distance_matrix[idx][jdx] = dist
             distance_matrix[jdx][idx] = dist
 

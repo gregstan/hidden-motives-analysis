@@ -12,17 +12,25 @@ run_code_settings: RunCodeSettings = {
     'run_alternative_model_contest':        False,
     'run_typological_bayesian_models':      False,
     'run_model_nesting_violation_analysis': False,
-    'run_information_criterion_analysis':   False,
-    'run_individual_architecture_analysis': False,
-    'run_model_recovery_simulation':        False,
-    'run_parameter_distribution_results':   False,
-    'run_param_recovery_analysis':          False,
-    'run_illustrate_belief_updates':        False,
+    'run_information_criterion_analysis':   True,
+    'run_individual_architecture_analysis': True,
+    'run_model_recovery_simulation':        True,
+    'run_parameter_distribution_results':   True,
+    'run_param_recovery_analysis':          True,
+    'run_illustrate_belief_updates':        True,
     'run_inequality_aversion_analysis':     True,
 }
 
+"When True, utility_settings and param_info are rebound to the BIC winner after the IC analysis block"
+"runs (or if the IC CSV already exists from a prior run). Set False to use config.utility_settings as-is."
+use_winning_utility_settings: bool = True
+
 def main():
     """Execute main code."""
+
+    "Shadow module-level utility_settings and param_info as locals so they can be rebound below."
+    utility_settings = globals()['utility_settings']
+    param_info       = globals()['param_info']
 
     "Apply master random seed when reproducibility mode is enabled."
     _master_seed = general_settings.get('random_seeds', {}).get('seed', None)
@@ -320,6 +328,15 @@ def main():
         extract_rankings_of_canonical_utility_functions(
             file_paths=file_paths, rank_col="BIC"
         )
+
+    "Rebind utility_settings and param_info to the BIC winner when the IC CSV exists."
+    if use_winning_utility_settings:
+        _resolved = gnrl.get_bic_winning_utility_settings(file_paths=file_paths, general_settings=general_settings)
+        if _resolved is not None:
+            utility_settings = _resolved
+            param_info = make_param_info(param_bds=param_bds, utility_settings=utility_settings, general_settings=general_settings)
+        else:
+            print("[use_winning_utility_settings] IC CSV not found; using utility_settings from config.")
 
     if run_code_settings['run_individual_architecture_analysis']:
 

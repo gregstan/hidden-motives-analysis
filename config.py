@@ -776,7 +776,7 @@ general_settings: GeneralSettings = {
         'k_params_range':         (1, 9),
         'n_altruism_steps':       7,
         'evenly_space_altruism':  True,
-        'correlate_all_params':   False,
+        'correlate_all_params':   True,
         'random_seed':            None,
     },
     'random_seeds': {
