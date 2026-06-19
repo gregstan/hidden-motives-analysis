@@ -2703,6 +2703,23 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
         np.random.set_state(_ic_saved_rng[1])
         print("[IC] Global RNG state restored. Subsequent analyses will use the original seed.")
 
+    "Regenerate all_utility_functions.csv so IC columns (BIC, AIC, ranks) reflect the"
+    "fresh results. Guarded to max_iters > 1 so one-shot internal callers (e.g."
+    "compute_model_recovery_simulation) don't trigger an expensive registry rebuild."
+    if max_iters > 1:
+        try:
+            gnrl.all_utility_functions_dataframe(
+                file_paths=file_paths,
+                utility_settings=utility_settings,
+                general_settings=general_settings,
+                build_equation_function=build_utility_equation,
+                create_new_file=True,
+                param_bds=param_bds,
+            )
+            print("[IC] Regenerated all_utility_functions.csv with fresh IC results.")
+        except Exception as _registry_regen_error:
+            print(f"[IC] Warning: could not regenerate all_utility_functions.csv: {_registry_regen_error}")
+
     "Return the DataFrame and the dictionary of all results."
     return df, all_ic_results
 
