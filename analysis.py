@@ -2171,6 +2171,10 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
                 "Pin the method here. The local code inside fit_params_by_player"
                 "Will switch to 'local' when phase == 'warm' and disable_dual_annealing_when_warm=True."
                 general_settings_["optimization_method"] = general_settings.get("optimization_method", "globloc")
+                "Each IC iteration must refit players from scratch — create_new_file=False (from config)"
+                "would cause workers to return instantly using the previous iteration's saved fits,"
+                "producing identical losses across all iterations and defeating the robustness analysis."
+                general_settings_["create_new_file"] = True
 
                 if utility_idx == 0:
                     if iter_idx == int(warmstart_policy.get("cold_iters", 2)) + 1:
