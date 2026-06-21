@@ -1932,10 +1932,10 @@ def information_criterion_analysis(general_settings: Dict[str, Any], utility_set
     n_varieties = len(utility_setting_varieties)
 
     "Precompute k_params for every utility setting once (used by timing ETA estimates)."
+    "Must use count_free_parameters (strips _std/_cov keys) to match what record_model_done"
+    "records — make_param_info['keys'] doubles the count under update_method='grid'/'MCMC'."
     _k_params_by_variety = [
-        len(make_param_info(param_bds=param_bds, utility_settings=variety,
-                            general_settings=general_settings,
-                            random_guesses_are_unique=False, guess_seed=None)['keys'])
+        gnrl.count_free_parameters(utility_settings=variety, general_settings=general_settings)
         for variety in utility_setting_varieties
     ]
 
@@ -5234,6 +5234,10 @@ def best_fitting_model_parameters(utility_settings: UtilitySettings, general_set
 
     "Normalize inputs"
     general_settings = copy.deepcopy(general_settings)
+    "Capture the IC file name suffix before runtime overrides (e.g. update_method='naive') change the key."
+    "IC JSON files are saved with the original settings; looking them up after the override produces a mismatch."
+    _ic_file_name_suffix = prep.create_file_name_suffix(
+        general_settings=general_settings, utility_settings=utility_settings)
     if within_ic_analysis:
         general_settings['update_method'] = 'naive'
         general_settings['temperature_is_param'] = False
@@ -5244,7 +5248,7 @@ def best_fitting_model_parameters(utility_settings: UtilitySettings, general_set
         player_uuids = [player_uuid]
     else:
         player_uuids = prep.all_player_uuids(
-            file_paths=file_paths, experiment_num=experiment_num, only_humans=True)        
+            file_paths=file_paths, experiment_num=experiment_num, only_humans=True)
 
     "Tuple of player roles of interest if not interested in both roles."
     player_roles = (player_role,) if player_role in ('chooser', 'predictor') else ('chooser', 'predictor')
@@ -5255,8 +5259,7 @@ def best_fitting_model_parameters(utility_settings: UtilitySettings, general_set
     if within_ic_analysis:
         "Load IC Analysis JSON for this model."
         ic_dir = file_paths.get("bic_aic", ".")
-        ic_file_name_suffix = prep.create_file_name_suffix(
-            general_settings=general_settings, utility_settings=utility_settings)
+        ic_file_name_suffix = _ic_file_name_suffix
         ic_file_name = f"IC_Analysis{ic_file_name_suffix}.json"
         ic_file_path = prep.ensure_directory_and_join(base_dir=ic_dir, file_name=ic_file_name)
         if os.path.exists(path=ic_file_path):
