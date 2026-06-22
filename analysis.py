@@ -5288,6 +5288,11 @@ def best_fitting_model_parameters(utility_settings: UtilitySettings, general_set
                 per_player_params = pvec_list[best_idx]
 
         else:
+            _exists_str = repr(os.path.exists(ic_file_path)) if ic_file_path else 'N/A'
+            print(
+                f"[WARM-DIAG] fmt={_fmt_bits!r} glob={_ic_glob!r} "
+                f"matches={_ic_matches!r} fp={ic_file_path!r} exists={_exists_str}"
+            )
             print(
                 f"No IC Analysis file found in {ic_dir!r} matching model key {ic_file_name!r}."
             )
