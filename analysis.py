@@ -5259,10 +5259,17 @@ def best_fitting_model_parameters(utility_settings: UtilitySettings, general_set
     if within_ic_analysis:
         "Load IC Analysis JSON for this model."
         ic_dir = file_paths.get("bic_aic", ".")
-        ic_file_name_suffix = _ic_file_name_suffix
-        ic_file_name = f"IC_Analysis{ic_file_name_suffix}.json"
-        ic_file_path = prep.ensure_directory_and_join(base_dir=ic_dir, file_name=ic_file_name)
-        if os.path.exists(path=ic_file_path):
+        "Search by utility bitstring glob rather than full key — the general_settings prefix"
+        "in the file name may differ from the current settings (e.g. update_method='naive' is"
+        "set by run_analysis_bayes before this function is called, but IC JSONs were saved with"
+        "the original update_method). The bitstring is model-unique within any IC run."
+        _raw_bits = "".join(str(int(val)) for _, val in sorted(utility_settings.items()))
+        _fmt_bits = f"{_raw_bits[0:4]}-{_raw_bits[4:8]}-{_raw_bits[8:12]}-{_raw_bits[12:]}"
+        _ic_glob  = os.path.join(str(ic_dir), f"IC_Analysis~*--{_fmt_bits}.json")
+        _ic_matches = glob.glob(_ic_glob)
+        ic_file_path = _ic_matches[0] if _ic_matches else None
+        ic_file_name = os.path.basename(ic_file_path) if ic_file_path else f"IC_Analysis~*--{_fmt_bits}.json"
+        if ic_file_path and os.path.exists(ic_file_path):
             with open(ic_file_path, "r", encoding="utf-8") as file:
                 ic_json = json.load(file)
             extracted_ic_file = True
