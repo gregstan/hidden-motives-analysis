@@ -5234,10 +5234,6 @@ def best_fitting_model_parameters(utility_settings: UtilitySettings, general_set
 
     "Normalize inputs"
     general_settings = copy.deepcopy(general_settings)
-    "Capture the IC file name suffix before runtime overrides (e.g. update_method='naive') change the key."
-    "IC JSON files are saved with the original settings; looking them up after the override produces a mismatch."
-    _ic_file_name_suffix = prep.create_file_name_suffix(
-        general_settings=general_settings, utility_settings=utility_settings)
     if within_ic_analysis:
         general_settings['update_method'] = 'naive'
         general_settings['temperature_is_param'] = False
@@ -5263,8 +5259,7 @@ def best_fitting_model_parameters(utility_settings: UtilitySettings, general_set
         "in the file name may differ from the current settings (e.g. update_method='naive' is"
         "set by run_analysis_bayes before this function is called, but IC JSONs were saved with"
         "the original update_method). The bitstring is model-unique within any IC run."
-        _raw_bits = "".join(str(int(val)) for _, val in sorted(utility_settings.items()))
-        _fmt_bits = f"{_raw_bits[0:4]}-{_raw_bits[4:8]}-{_raw_bits[8:12]}-{_raw_bits[12:]}"
+        _fmt_bits = gnrl.convert_utility_settings(utility_settings=utility_settings, into=str)
         _ic_glob  = os.path.join(str(ic_dir), f"IC_Analysis~*--{_fmt_bits}.json")
         _ic_matches = glob.glob(_ic_glob)
         ic_file_path = _ic_matches[0] if _ic_matches else None
