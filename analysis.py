@@ -5838,11 +5838,12 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
         )
         if use_initial_params_local:
             df_temp = df_temp.drop_duplicates(subset=['player_uuid']).copy()
-        required_cols = ["Vᵢᵢ", "Vᵢⱼ", "αᵢⱼ", "βᵢⱼ"]
+        required_cols = ["Vᵢⱼ", "αᵢⱼ", "βᵢⱼ"]
         for col in required_cols:
             if col not in df_temp.columns:
                 raise ValueError(f"Required column '{col}' not found for role={the_role}. Avail: {df_temp.columns.tolist()}")
-        df_temp = df_temp.dropna(subset=required_cols).copy()
+        drop_cols = required_cols + (["Vᵢᵢ"] if "Vᵢᵢ" in df_temp.columns else [])
+        df_temp = df_temp.dropna(subset=drop_cols).copy()
         return df_temp
 
     "--- Helper ratio function matching the original analysis logic ---"
@@ -5895,26 +5896,31 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
         if n_data == 0:
             print("[Warning] No data remain after dropping NaNs. Returning empty results.")
             return {}
+        has_vii = 'Vᵢᵢ' in df.columns
 
         "5) Identify subpop membership"
         sadists_mask = (df["Vᵢⱼ"] < 0)
-        masochists_mask = (df["Vᵢᵢ"] < 0)
+        masochists_mask = (df["Vᵢᵢ"] < 0) if has_vii else pd.Series([False] * n_data, index=df.index)
         competitive_mask = (df["βᵢⱼ"] < 0)
         depricating_mask = (df["αᵢⱼ"] < 0)
         guilt_over_envy_mask = (df["βᵢⱼ"] > df["αᵢⱼ"])
-        altruism_over_self_mask = (df["Vᵢⱼ"] > df["Vᵢᵢ"])
+        altruism_over_self_mask = (df["Vᵢⱼ"] > df["Vᵢᵢ"]) if has_vii else pd.Series([False] * n_data, index=df.index)
 
         sadistic_pct = 100.0 * sadists_mask.sum() / n_data
-        masochistic_pct = 100.0 * masochists_mask.sum() / n_data
+        masochistic_pct = 100.0 * masochists_mask.sum() / n_data if has_vii else float('nan')
         competitive_pct = 100.0 * competitive_mask.sum() / n_data
         depricating_pct = 100.0 * depricating_mask.sum() / n_data
         guilt_over_envy_pct = 100.0 * guilt_over_envy_mask.sum() / n_data
-        altruism_over_self_pct = 100.0 * altruism_over_self_mask.sum() / n_data
+        altruism_over_self_pct = 100.0 * altruism_over_self_mask.sum() / n_data if has_vii else float('nan')
 
         "7) Compute ratio arrays"
-        self_ratio_series = compute_ratio_array(df["Vᵢᵢ"], df["Vᵢⱼ"], 'self', True)
+        if has_vii:
+            self_ratio_series = compute_ratio_array(df["Vᵢᵢ"], df["Vᵢⱼ"], 'self', True)
+            self_ratio_series_raw = compute_ratio_array(df["Vᵢᵢ"], df["Vᵢⱼ"], 'self', False)
+        else:
+            self_ratio_series = pd.Series([], dtype=float)
+            self_ratio_series_raw = pd.Series([], dtype=float)
         guilt_ratio_series = compute_ratio_array(df["βᵢⱼ"], df["αᵢⱼ"], 'guilt', True)
-        self_ratio_series_raw = compute_ratio_array(df["Vᵢᵢ"], df["Vᵢⱼ"], 'self', False)
         guilt_ratio_series_raw = compute_ratio_array(df["βᵢⱼ"], df["αᵢⱼ"], 'guilt', False)
 
         "Summaries"
@@ -5936,49 +5942,51 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
             role_str = ("Prior" if use_initial_params_local else "Posterior") + ' Predictor'
 
         "Create the two separate histograms"
-        fig_self = go.Figure()
-        fig_self.add_trace(go.Histogram(
-            x=self_ratio_series,
-            nbinsx=15,
-            marker=dict(
-                color='hsla(115, 70%, 40%, 0.8)',
-                line=dict(width=4, color='hsla(115, 70%, 20%, 1.0)')
-            ),
-            hovertemplate="Ratio: %{x:.3f}<br>Count: %{y}<extra></extra>",
-            name="Self-Altruism Ratio"
-        ))
-        if not math.isnan(self_ratio_mean):
-            fig_self.add_shape(
-                type="line",
-                x0=self_ratio_mean, x1=self_ratio_mean,
-                y0=0, y1=1, xref="x", yref="paper",
-                line=dict(color='hsla(115, 100%, 80%, 1.0)', dash='dash', width=4)
-            )
-
         x_min = 0.0
         x_max = 1.0
         x_n_bins = int(x_max * 10) - int(x_min * 10) + 1
         x_tickvals = list(np.round(np.linspace(x_min, x_max, x_n_bins), 3))
-        x_ticktext = [''] + [f"{val:.1f}" for val in x_tickvals[1:]]        
+        x_ticktext = [''] + [f"{val:.1f}" for val in x_tickvals[1:]]
         x_axis = {
-            'title': x_title_self,  # Will overwrite for guilt fig.
+            'title': x_title_self,
             'tickfont': dict(size=24),
             'title_font': dict(size=30),
-            'tickvals': x_tickvals, 
+            'tickvals': x_tickvals,
             'ticktext': x_ticktext,
-            'range': [x_min, x_max]            
+            'range': [x_min, x_max]
         }
         y_title = "Participant Count" if use_initial_params_local else "Parameter Count Across Dyads"
         y_axis = dict(title=y_title, title_font=dict(size=30))
 
-        fig_self.update_layout(
-            template=figure_layout.get("template","plotly_dark"),
-            title=f"Self-interest to Altruism Ratio ({role_str} Parameters; 𝑛 = {n_self_valid})",
-            title_x=0.5, title_y=0.94,
-            margin=dict(l=100, r=100, t=80, b=100),
-            xaxis=x_axis, yaxis=y_axis,
-            font=figure_layout.get("font", {"size": 16})
-        )
+        if has_vii:
+            fig_self = go.Figure()
+            fig_self.add_trace(go.Histogram(
+                x=self_ratio_series,
+                nbinsx=15,
+                marker=dict(
+                    color='hsla(115, 70%, 40%, 0.8)',
+                    line=dict(width=4, color='hsla(115, 70%, 20%, 1.0)')
+                ),
+                hovertemplate="Ratio: %{x:.3f}<br>Count: %{y}<extra></extra>",
+                name="Self-Altruism Ratio"
+            ))
+            if not math.isnan(self_ratio_mean):
+                fig_self.add_shape(
+                    type="line",
+                    x0=self_ratio_mean, x1=self_ratio_mean,
+                    y0=0, y1=1, xref="x", yref="paper",
+                    line=dict(color='hsla(115, 100%, 80%, 1.0)', dash='dash', width=4)
+                )
+            fig_self.update_layout(
+                template=figure_layout.get("template","plotly_dark"),
+                title=f"Self-interest to Altruism Ratio ({role_str} Parameters; 𝑛 = {n_self_valid})",
+                title_x=0.5, title_y=0.94,
+                margin=dict(l=100, r=100, t=80, b=100),
+                xaxis=x_axis, yaxis=y_axis,
+                font=figure_layout.get("font", {"size": 16})
+            )
+        else:
+            fig_self = None
 
         "Guilt figure"
         fig_guilt = go.Figure()
@@ -6017,18 +6025,20 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
         )
 
         if export_fig:
-            out_path_self = os.path.join(
-                file_paths["visuals"],
-                f"SelfAltruism_Ratio_{role_str.replace(' ','_')}_{ratio_mode}.html"
-            )
-            fig_self.write_html(out_path_self)
+            if has_vii and fig_self is not None:
+                out_path_self = os.path.join(
+                    file_paths["visuals"],
+                    f"SelfAltruism_Ratio_{role_str.replace(' ','_')}_{ratio_mode}.html"
+                )
+                fig_self.write_html(out_path_self)
             out_path_guilt = os.path.join(
                 file_paths["visuals"],
                 f"GuiltEnvy_Ratio_{role_str.replace(' ','_')}_{ratio_mode}.html"
             )
             fig_guilt.write_html(out_path_guilt)
         else:
-            fig_self.show()
+            if has_vii and fig_self is not None:
+                fig_self.show()
             fig_guilt.show()
 
         "9) Build the final results dictionary"
@@ -6104,26 +6114,31 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
                 "Skip this role but continue with the remaining roles."
                 big_results[role] = {}
                 continue
+            has_vii = 'Vᵢᵢ' in df.columns
 
             "Identify subpop membership"
             sadists_mask = (df["Vᵢⱼ"] < 0)
-            masochists_mask = (df["Vᵢᵢ"] < 0)
+            masochists_mask = (df["Vᵢᵢ"] < 0) if has_vii else pd.Series([False] * n_data, index=df.index)
             competitive_mask = (df["βᵢⱼ"] < 0)
             depricating_mask = (df["αᵢⱼ"] < 0)
             guilt_over_envy_mask = (df["βᵢⱼ"] > df["αᵢⱼ"])
-            altruism_over_self_mask = (df["Vᵢⱼ"] > df["Vᵢᵢ"])
+            altruism_over_self_mask = (df["Vᵢⱼ"] > df["Vᵢᵢ"]) if has_vii else pd.Series([False] * n_data, index=df.index)
 
             sadistic_pct = 100.0 * sadists_mask.sum() / n_data
-            masochistic_pct = 100.0 * masochists_mask.sum() / n_data
+            masochistic_pct = 100.0 * masochists_mask.sum() / n_data if has_vii else float('nan')
             competitive_pct = 100.0 * competitive_mask.sum() / n_data
             depricating_pct = 100.0 * depricating_mask.sum() / n_data
             guilt_over_envy_pct = 100.0 * guilt_over_envy_mask.sum() / n_data
-            altruism_over_self_pct = 100.0 * altruism_over_self_mask.sum() / n_data
+            altruism_over_self_pct = 100.0 * altruism_over_self_mask.sum() / n_data if has_vii else float('nan')
 
             "Ratios"
-            self_ratio_series = compute_ratio_array(df["Vᵢᵢ"], df["Vᵢⱼ"], 'self', True)
+            if has_vii:
+                self_ratio_series = compute_ratio_array(df["Vᵢᵢ"], df["Vᵢⱼ"], 'self', True)
+                self_ratio_series_raw = compute_ratio_array(df["Vᵢᵢ"], df["Vᵢⱼ"], 'self', False)
+            else:
+                self_ratio_series = pd.Series([], dtype=float)
+                self_ratio_series_raw = pd.Series([], dtype=float)
             guilt_ratio_series = compute_ratio_array(df["βᵢⱼ"], df["αᵢⱼ"], 'guilt', True)
-            self_ratio_series_raw = compute_ratio_array(df["Vᵢᵢ"], df["Vᵢⱼ"], 'self', False)
             guilt_ratio_series_raw = compute_ratio_array(df["βᵢⱼ"], df["αᵢⱼ"], 'guilt', False)
 
             n_self_valid = len(self_ratio_series)
@@ -6153,20 +6168,21 @@ def subpopulation_stats_and_param_ratio_histograms(general_settings: dict[str, a
             }
             big_results[role] = this_res
 
-            "Add Self ratio histogram"
-            fig_sub.add_trace(
-                go.Histogram(
-                    nbinsx=11,
-                    marker=dict(
-                        color=f'hsla({115 if row_i == 1 else 160}, 70%, 40%, 0.8)',
-                        line=dict(width=4, color=f'hsla({115 if row_i == 1 else 160}, 70%, 20%, 1.0)')
+            "Add Self ratio histogram (skip if Vᵢᵢ absent from winning model)"
+            if has_vii:
+                fig_sub.add_trace(
+                    go.Histogram(
+                        nbinsx=11,
+                        marker=dict(
+                            color=f'hsla({115 if row_i == 1 else 160}, 70%, 40%, 0.8)',
+                            line=dict(width=4, color=f'hsla({115 if row_i == 1 else 160}, 70%, 20%, 1.0)')
+                        ),
+                        hovertemplate="<span style='font-size:24px;'>Ratio: %{x:.3f}<br><br>Count: %{y}<extra></extra></span>",
+                        name="Self-Altruism Ratio",
+                        x=self_ratio_series
                     ),
-                    hovertemplate="<span style='font-size:24px;'>Ratio: %{x:.3f}<br><br>Count: %{y}<extra></extra></span>",
-                    name="Guilt-Envy Ratio",
-                    x=self_ratio_series
-                ),
-                row=row_i, col=1
-            )
+                    row=row_i, col=1
+                )
             "Add Guilt ratio histogram"
             fig_sub.add_trace(
                 go.Histogram(
