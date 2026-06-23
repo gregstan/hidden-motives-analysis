@@ -936,6 +936,12 @@ def compute_param_recovery_correlations(df: pd.DataFrame, dir_path: str, out_csv
         for parameter_name in params:
             true_value_column_name = f"{parameter_name}_true_{true_role}"
             fitted_value_column_name = f"{parameter_name}{fitted_suffix}"
+            if true_value_column_name not in round_subset_dataframe.columns or fitted_value_column_name not in round_subset_dataframe.columns:
+                correlation_records.append({
+                    "round": label, "n_data": 0, "param": parameter_name,
+                    "corr": np.nan, "ci_lower": np.nan, "ci_upper": np.nan
+                })
+                continue
             valid_rows = round_subset_dataframe.dropna(subset=[true_value_column_name, fitted_value_column_name])
             n_valid_pairs = len(valid_rows)
             if n_valid_pairs < 3:
